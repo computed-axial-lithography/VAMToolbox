@@ -72,6 +72,7 @@ extensions = [
     'autoapi.extension',
     'sphinx.ext.doctest',
     'sphinx.ext.inheritance_diagram',
+    'pydata_sphinx_theme'
 ]
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
