@@ -1,6 +1,5 @@
 from ctypes import ArgumentError
 import numpy as np
-import pickle
 import dill
 import cv2
 from scipy import ndimage

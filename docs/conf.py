@@ -10,6 +10,12 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+
+import mock
+MOCK_MODULES = ['numpy','scipy','matplotlib','matplotlib.pyplot','scipy.interpolate','skimage','cv2','PIL','imageio','dill']
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
+
 import os
 import sys
 import codecs
@@ -118,3 +124,4 @@ html_theme = 'pydata_sphinx_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
