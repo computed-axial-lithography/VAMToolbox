@@ -13,7 +13,7 @@ jobs:
       uses: computed-axial-lithography/conda-package-publish-action@v1.6
       with:
         subDir: 'conda'
-        platforms: 'linux'
+        platforms: 'win'
         AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
 
 
