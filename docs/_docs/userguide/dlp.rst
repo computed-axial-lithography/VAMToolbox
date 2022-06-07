@@ -10,9 +10,12 @@ In tomographic VAM printers, typically a digital light processing (DLP) device i
 DLP player
 **********
 
-.. video:: ../../_static/trifurcated_vasculature_video.mp4
-   :width: 500
-   :height: 300
+.. raw:: html
+
+    <video width="500px" controls="true" autoplay="true" loop="true">
+        <source src="../../_static/trifurcated_vasculature_video.mp4" type="video/webm">
+        Example player from video file source.
+    </video>
 
 The :py:class:`VAMToolbox.DLP.DLP.player` is a tool which accepts several types of image sequence formats and displays the image sequence on the DLP device. 
 
