@@ -9,3 +9,5 @@ from . import display
 from . import dlp
 from . import optimizer
 from . import projector
+
+__version__ = "0.1.2b"
