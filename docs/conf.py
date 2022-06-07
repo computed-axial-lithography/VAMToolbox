@@ -11,14 +11,14 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
+import os
+import sys
+import codecs
 import mock
 MOCK_MODULES = ['numpy','scipy','matplotlib','matplotlib.pyplot','scipy.interpolate','skimage','cv2','PIL','imageio','dill']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
-import os
-import sys
-import codecs
 
 current_dir = os.path.dirname(__file__)
 target_dir = os.path.abspath(os.path.join(current_dir, "../vamtoolbox"))
