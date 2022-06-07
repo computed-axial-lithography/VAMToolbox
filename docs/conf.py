@@ -121,9 +121,18 @@ html_theme = 'pydata_sphinx_theme'
 
 html_theme_options = {
     "navbar_start": [],
-    "navbar_center": ["navbar-nav"],
+    "navbar_center": [],
     "navbar_end": [],
     # "navbar_end": ["navbar-icon-links"]
+
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/computed-axial-lithography/VAMToolbox",
+            "icon": "fab fa-github-square",
+            "type": "fontawesome",
+        },
+    ]
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
