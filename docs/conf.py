@@ -67,7 +67,6 @@ extensions = [
     # 'sphinxcontrib.video',
     'autoapi.extension',
     'sphinxcontrib.bibtex',
-    'matplotlib.sphinxext.plot_directive',
     'sphinx.ext.mathjax',
     'sphinx.ext.autodoc',
     'autoapi.extension',
