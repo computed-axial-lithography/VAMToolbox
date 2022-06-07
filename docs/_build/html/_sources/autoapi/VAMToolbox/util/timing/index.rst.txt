@@ -1,0 +1,24 @@
+:py:mod:`VAMToolbox.util.timing`
+================================
+
+.. py:module:: VAMToolbox.util.timing
+
+
+Module Contents
+---------------
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.util.timing.timing
+
+
+
+.. py:function:: timing(func)
+
+   Decorator for timing a function
+
+

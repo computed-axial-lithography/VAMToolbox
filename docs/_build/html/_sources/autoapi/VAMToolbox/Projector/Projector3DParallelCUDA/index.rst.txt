@@ -1,0 +1,42 @@
+:py:mod:`VAMToolbox.Projector.Projector3DParallelCUDA`
+======================================================
+
+.. py:module:: VAMToolbox.Projector.Projector3DParallelCUDA
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.Projector3DParallelCUDA.Projector3DParallelCUDAAstra
+   VAMToolbox.Projector.Projector3DParallelCUDA.Projector3DParallelCUDATigre
+
+
+
+
+.. py:class:: Projector3DParallelCUDAAstra(target_obj, proj_geo)
+
+   .. py:method:: forward(self, target)
+
+      Forward projector operation (b = Ax)
+
+
+   .. py:method:: backward(self, sinogram)
+
+      Backward projector operation (x = A^Tb)
+
+
+
+.. py:class:: Projector3DParallelCUDATigre(target_obj, proj_geo, optical_params=None)
+
+   .. py:method:: forward(self, target)
+
+
+   .. py:method:: backward(self, projections)
+
+
+

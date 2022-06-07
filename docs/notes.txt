@@ -1,0 +1,4 @@
+To build the docs html
+Change current directory to docs and run
+>>> make html
+

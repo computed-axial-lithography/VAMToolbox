@@ -1,0 +1,24 @@
+:py:mod:`VAMToolbox.Projector`
+==============================
+
+.. py:module:: VAMToolbox.Projector
+
+
+Submodules
+----------
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   Projector2DParallel/index.rst
+   Projector2DParallelCUDA/index.rst
+   Projector3DParallel/index.rst
+   Projector3DParallelCUDA/index.rst
+   astra3Dabsorption/index.rst
+   astra3Dinclined/index.rst
+   gauss2D/index.rst
+   gauss3D/index.rst
+   genVectorsAstra/index.rst
+   tigre3D/index.rst
+
+

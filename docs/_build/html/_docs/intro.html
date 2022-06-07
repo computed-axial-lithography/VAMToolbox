@@ -1,0 +1,305 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Introduction &#8212; VAMToolbox 0.1.0beta documentation</title>
+    
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+
+    
+  <link rel="stylesheet"
+    href="../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Setup" href="gettingstarted.html" />
+    <link rel="prev" title="VAMToolbox documentation" href="../index.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="None">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="60">
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+    <nav class="navbar navbar-light navbar-expand-lg bg-light fixed-top bd-navbar" id="navbar-main"><div class="container-xl">
+
+  <div id="navbar-start">
+    
+    
+<a class="navbar-brand" href="../index.html">
+<p class="title">VAMToolbox</p>
+</a>
+
+    
+  </div>
+
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-collapsible" aria-controls="navbar-collapsible" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  
+  <div id="navbar-collapsible" class="col-lg-9 collapse navbar-collapse">
+    <div id="navbar-center" class="mr-auto">
+      
+      <div class="navbar-center-item">
+        <ul id="navbar-main-elements" class="navbar-nav">
+    <li class="toctree-l1 current active nav-item">
+ <a class="current reference internal nav-link" href="#">
+  Introduction
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="gettingstarted.html">
+  Setup
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="userguide.html">
+  User guide
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="examples.html">
+  Examples
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../autoapi/index.html">
+  API Reference
+ </a>
+</li>
+
+    
+</ul>
+      </div>
+      
+    </div>
+
+    <div id="navbar-end">
+      
+      <div class="navbar-end-item">
+        <ul id="navbar-icon-links" class="navbar-nav" aria-label="Icon Links">
+      </ul>
+      </div>
+      
+    </div>
+  </div>
+</div>
+    </nav>
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+            
+            <!-- Only show if we have sidebars configured, else just a small margin  -->
+            <div class="col-12 col-md-3 bd-sidebar">
+              <div class="sidebar-start-items"><form class="bd-search d-flex align-items-center" action="../search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+  <div class="bd-toc-item active">
+    
+  </div>
+</nav>
+              </div>
+              <div class="sidebar-end-items">
+              </div>
+            </div>
+            
+          
+
+          
+          <div class="d-none d-xl-block col-xl-2 bd-toc">
+            
+              
+              <div class="toc-item">
+                
+<div class="tocsection onthispage mt-5 pt-1 pb-3">
+    <i class="fas fa-list"></i> On this page
+</div>
+
+<nav id="bd-toc-nav">
+    <ul class="visible nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#background">
+   Background
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#citation">
+   Citation
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#bibliography">
+   Bibliography
+  </a>
+ </li>
+</ul>
+
+</nav>
+              </div>
+              
+              <div class="toc-item">
+                
+              </div>
+              
+            
+          </div>
+          
+
+          
+          
+            
+          
+          <main class="col-12 col-md-9 col-xl-7 py-md-5 pl-md-5 pr-md-4 bd-content" role="main">
+              
+              <div>
+                
+  <div class="section" id="introduction">
+<span id="intro"></span><h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline"></a></h1>
+<div class="section" id="background">
+<h2>Background<a class="headerlink" href="#background" title="Permalink to this headline"></a></h2>
+<p>Volumetric additive manufacturing (VAM) is a form of resin-based additive manufacturing or 3D printing which builds objects volumetrically, or all at once, as opposed to layer-by-layer like conventional stereolithography <span id="id1">[<a class="reference internal" href="#id30" title="Maxim Shusteff, Allison E.M. Browar, Brett E. Kelly, Johannes Henriksson, Todd H. Weisgraber, Robert M. Panas, Nicholas X. Fang, and Christopher M. Spadaccini. One-step volumetric additive manufacturing of complex polymer structures. Science Advances, 2017. doi:10.1126/sciadv.aao5496.">Shusteff <em>et al.</em>, 2017</a>, <a class="reference internal" href="#id14" title="Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. Science, 363(6431):1075–1079, 2019. doi:10.1126/science.aau7114.">Kelly <em>et al.</em>, 2019</a>, <a class="reference internal" href="#id22" title="Damien Loterie, Paul Delrot, and Christophe Moser. High-resolution tomographic volumetric additive manufacturing. Nature Communications, 11(1):852, dec 2020. URL: http://dx.doi.org/10.1038/s41467-020-14630-4 http://www.nature.com/articles/s41467-020-14630-4, doi:10.1038/s41467-020-14630-4.">Loterie <em>et al.</em>, 2020</a>]</span>. Tomographic VAM (also known as computed axial lithography (CAL)) is a subset of VAM which functions like inverse X-ray computed tomography and intensity modulated radiation therapy <span id="id2">[<a class="reference internal" href="#id14" title="Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. Science, 363(6431):1075–1079, 2019. doi:10.1126/science.aau7114.">Kelly <em>et al.</em>, 2019</a>, <a class="reference internal" href="#id22" title="Damien Loterie, Paul Delrot, and Christophe Moser. High-resolution tomographic volumetric additive manufacturing. Nature Communications, 11(1):852, dec 2020. URL: http://dx.doi.org/10.1038/s41467-020-14630-4 http://www.nature.com/articles/s41467-020-14630-4, doi:10.1038/s41467-020-14630-4.">Loterie <em>et al.</em>, 2020</a>, <a class="reference internal" href="#id8" title="Paulina Nuñez Bernal, Paul Delrot, Damien Loterie, Yang Li, Jos Malda, Christophe Moser, and Riccardo Levato. Volumetric Bioprinting of Complex Living-Tissue Constructs within Seconds. Advanced Materials, 2019. doi:10.1002/adma.201904209.">Bernal <em>et al.</em>, 2019</a>, <a class="reference internal" href="#id11" title="Caitlyn C. Cook, Erika J. Fong, Johanna J. Schwartz, Dominique H. Porcincula, Allison C. Kaczmarek, James S. Oakdale, Bryan D. Moran, Kyle M. Champley, Charles M. Rackson, Archish Muralidharan, Robert R. McLeod, and Maxim Shusteff. Highly Tunable Thiol‐Ene Photoresins for Volumetric Additive Manufacturing. Advanced Materials, 32(47):2003376, nov 2020. URL: https://onlinelibrary.wiley.com/doi/10.1002/adma.202003376, doi:10.1002/adma.202003376.">Cook <em>et al.</em>, 2020</a>, <a class="reference internal" href="#id10" title="Indrasen Bhattacharya, Joseph Toombs, and Hayden Taylor. High fidelity volumetric additive manufacturing. Additive Manufacturing, 47:102299, 2021. URL: https://doi.org/10.1016/j.addma.2021.102299, doi:10.1016/j.addma.2021.102299.">Bhattacharya <em>et al.</em>, 2021</a>, <a class="reference internal" href="#id27" title="Charles M. Rackson, Kyle M. Champley, Joseph T. Toombs, Erika J. Fong, Vishal Bansal, Hayden K. Taylor, Maxim Shusteff, and Robert R. McLeod. Object-space optimization of tomographic reconstructions for additive manufacturing. Additive Manufacturing, 48:102367, dec 2021. URL: https://linkinghub.elsevier.com/retrieve/pii/S2214860421005212, doi:10.1016/j.addma.2021.102367.">Rackson <em>et al.</em>, 2021</a>, <a class="reference internal" href="#id26" title="Antony Orth, Kathleen L. Sampson, Kayley Ting, Jonathan Boisvert, and Chantal Paquet. Correcting ray distortion in tomographic additive manufacturing. Optics Express, 29(7):11037, 2021. doi:10.1364/oe.419795.">Orth <em>et al.</em>, 2021</a>, <a class="reference internal" href="#id18" title="Max Kollep, Georgia Konstantinou, Jorge Madrid-Wolff, Antoine Boniface, Lorenz Hagelüken, Pradeep Vallachira Warriam Sasikumar, Gurdial Blugan, Paul Delrot, Damien Loterie, Juergen Brugger, and Christophe Moser. Tomographic Volumetric Additive Manufacturing of Silicon Oxycarbide Ceramics. Advanced Engineering Materials, 2101345:2101345, 2022. arXiv:2109.12680, doi:10.1002/adem.202101345.">Kollep <em>et al.</em>, 2022</a>, <a class="reference internal" href="#id29" title="Johanna Jesse Schwartz, Dominique Porcincula, Caitlyn Cook, Erika J Fong, and Maxim Shusteff. Volumetric Additive Manufacturing of Shape Memory Polymers. Polymer Chemistry, 2022. doi:10.1039/d1py01723c.">Schwartz <em>et al.</em>, 2022</a>, <a class="reference internal" href="#id28" title="Charles M. Rackson, Joseph T. Toombs, Martin P. De Beer, Caitlyn C. Cook, Maxim Shusteff, Hayden K. Taylor, and Robert R. McLeod. Latent image volumetric additive manufacturing. Optics Letters, 47(5):1279, mar 2022. URL: https://opg.optica.org/abstract.cfm?URI=ol-47-5-1279, doi:10.1364/OL.449220.">Rackson <em>et al.</em>, 2022</a>, <a class="reference internal" href="#id32" title="Bin Wang, Einstom Engay, Peter R. Stubbe, Saeed Z. Moghaddam, Esben Thormann, Kristoffer Almdal, Aminul Islam, and Yi Yang. Stiffness control in dual color tomographic volumetric 3D printing. Nature Communications, 13(1):1–10, 2022. doi:10.1038/s41467-022-28013-4.">Wang <em>et al.</em>, 2022</a>]</span>. A photosensitive material is exposed by digital light projections from many azimuthal angles such that that the cumulative light dose surpasses a dose threshold and solidifies or makes the material insoluble in developer solution in a prescribed volume.</p>
+<p>Computational optimization or filtering of the digital light projections is required to minimize the background exposure of the material surrounding the prescribed target volume. Increasing the light dose contrast means that the printed object can be more easily removed from the surrounding material. Several optimization algorithms have been developed, from traditional Ram-Lak filtering to second order methods <span id="id3">[<a class="reference internal" href="#id14" title="Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. Science, 363(6431):1075–1079, 2019. doi:10.1126/science.aau7114.">Kelly <em>et al.</em>, 2019</a>, <a class="reference internal" href="#id22" title="Damien Loterie, Paul Delrot, and Christophe Moser. High-resolution tomographic volumetric additive manufacturing. Nature Communications, 11(1):852, dec 2020. URL: http://dx.doi.org/10.1038/s41467-020-14630-4 http://www.nature.com/articles/s41467-020-14630-4, doi:10.1038/s41467-020-14630-4.">Loterie <em>et al.</em>, 2020</a>, <a class="reference internal" href="#id10" title="Indrasen Bhattacharya, Joseph Toombs, and Hayden Taylor. High fidelity volumetric additive manufacturing. Additive Manufacturing, 47:102299, 2021. URL: https://doi.org/10.1016/j.addma.2021.102299, doi:10.1016/j.addma.2021.102299.">Bhattacharya <em>et al.</em>, 2021</a>, <a class="reference internal" href="#id27" title="Charles M. Rackson, Kyle M. Champley, Joseph T. Toombs, Erika J. Fong, Vishal Bansal, Hayden K. Taylor, Maxim Shusteff, and Robert R. McLeod. Object-space optimization of tomographic reconstructions for additive manufacturing. Additive Manufacturing, 48:102367, dec 2021. URL: https://linkinghub.elsevier.com/retrieve/pii/S2214860421005212, doi:10.1016/j.addma.2021.102367.">Rackson <em>et al.</em>, 2021</a>]</span>. These are described in more detail in <a class="reference internal" href="userguide/optimization.html#userguide-optimization"><span class="std std-ref">Optimization</span></a>.</p>
+</div>
+<div class="section" id="citation">
+<h2>Citation<a class="headerlink" href="#citation" title="Permalink to this headline"></a></h2>
+<p>If you use this package in your research, please cite it as … TBD …</p>
+<p>If you use any of the following optimization algorithms in your research, please cite the corresponding research:</p>
+<ul class="simple">
+<li><p><strong>CAL</strong>: <span id="id4">[<a class="reference internal" href="#id14" title="Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. Science, 363(6431):1075–1079, 2019. doi:10.1126/science.aau7114.">Kelly <em>et al.</em>, 2019</a>]</span></p></li>
+<li><p><strong>PM</strong>: <span id="id5">[<a class="reference internal" href="#id10" title="Indrasen Bhattacharya, Joseph Toombs, and Hayden Taylor. High fidelity volumetric additive manufacturing. Additive Manufacturing, 47:102299, 2021. URL: https://doi.org/10.1016/j.addma.2021.102299, doi:10.1016/j.addma.2021.102299.">Bhattacharya <em>et al.</em>, 2021</a>]</span></p></li>
+<li><p><strong>OSMO</strong>: <span id="id6">[<a class="reference internal" href="#id27" title="Charles M. Rackson, Kyle M. Champley, Joseph T. Toombs, Erika J. Fong, Vishal Bansal, Hayden K. Taylor, Maxim Shusteff, and Robert R. McLeod. Object-space optimization of tomographic reconstructions for additive manufacturing. Additive Manufacturing, 48:102367, dec 2021. URL: https://linkinghub.elsevier.com/retrieve/pii/S2214860421005212, doi:10.1016/j.addma.2021.102367.">Rackson <em>et al.</em>, 2021</a>]</span></p></li>
+</ul>
+</div>
+<div class="section" id="bibliography">
+<h2>Bibliography<a class="headerlink" href="#bibliography" title="Permalink to this headline"></a></h2>
+<div class="docutils container" id="id7">
+<dl class="citation">
+<dt class="label" id="id30"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>Maxim Shusteff, Allison E.M. Browar, Brett E. Kelly, Johannes Henriksson, Todd H. Weisgraber, Robert M. Panas, Nicholas X. Fang, and Christopher M. Spadaccini. One-step volumetric additive manufacturing of complex polymer structures. <em>Science Advances</em>, 2017. <a class="reference external" href="https://doi.org/10.1126/sciadv.aao5496">doi:10.1126/sciadv.aao5496</a>.</p>
+</dd>
+<dt class="label" id="id14"><span class="brackets">2</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>,<a href="#id3">3</a>,<a href="#id4">4</a>)</span></dt>
+<dd><p>Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. <em>Science</em>, 363(6431):1075–1079, 2019. <a class="reference external" href="https://doi.org/10.1126/science.aau7114">doi:10.1126/science.aau7114</a>.</p>
+</dd>
+<dt class="label" id="id22"><span class="brackets">3</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>,<a href="#id3">3</a>)</span></dt>
+<dd><p>Damien Loterie, Paul Delrot, and Christophe Moser. High-resolution tomographic volumetric additive manufacturing. <em>Nature Communications</em>, 11(1):852, dec 2020. URL: <a class="reference external" href="http://dx.doi.org/10.1038/s41467-020-14630-4 http://www.nature.com/articles/s41467-020-14630-4">http://dx.doi.org/10.1038/s41467-020-14630-4 http://www.nature.com/articles/s41467-020-14630-4</a>, <a class="reference external" href="https://doi.org/10.1038/s41467-020-14630-4">doi:10.1038/s41467-020-14630-4</a>.</p>
+</dd>
+<dt class="label" id="id8"><span class="brackets"><a class="fn-backref" href="#id2">4</a></span></dt>
+<dd><p>Paulina Nuñez Bernal, Paul Delrot, Damien Loterie, Yang Li, Jos Malda, Christophe Moser, and Riccardo Levato. Volumetric Bioprinting of Complex Living-Tissue Constructs within Seconds. <em>Advanced Materials</em>, 2019. <a class="reference external" href="https://doi.org/10.1002/adma.201904209">doi:10.1002/adma.201904209</a>.</p>
+</dd>
+<dt class="label" id="id11"><span class="brackets"><a class="fn-backref" href="#id2">5</a></span></dt>
+<dd><p>Caitlyn C. Cook, Erika J. Fong, Johanna J. Schwartz, Dominique H. Porcincula, Allison C. Kaczmarek, James S. Oakdale, Bryan D. Moran, Kyle M. Champley, Charles M. Rackson, Archish Muralidharan, Robert R. McLeod, and Maxim Shusteff. Highly Tunable Thiol‐Ene Photoresins for Volumetric Additive Manufacturing. <em>Advanced Materials</em>, 32(47):2003376, nov 2020. URL: <a class="reference external" href="https://onlinelibrary.wiley.com/doi/10.1002/adma.202003376">https://onlinelibrary.wiley.com/doi/10.1002/adma.202003376</a>, <a class="reference external" href="https://doi.org/10.1002/adma.202003376">doi:10.1002/adma.202003376</a>.</p>
+</dd>
+<dt class="label" id="id10"><span class="brackets">6</span><span class="fn-backref">(<a href="#id2">1</a>,<a href="#id3">2</a>,<a href="#id5">3</a>)</span></dt>
+<dd><p>Indrasen Bhattacharya, Joseph Toombs, and Hayden Taylor. High fidelity volumetric additive manufacturing. <em>Additive Manufacturing</em>, 47:102299, 2021. URL: <a class="reference external" href="https://doi.org/10.1016/j.addma.2021.102299">https://doi.org/10.1016/j.addma.2021.102299</a>, <a class="reference external" href="https://doi.org/10.1016/j.addma.2021.102299">doi:10.1016/j.addma.2021.102299</a>.</p>
+</dd>
+<dt class="label" id="id27"><span class="brackets">7</span><span class="fn-backref">(<a href="#id2">1</a>,<a href="#id3">2</a>,<a href="#id6">3</a>)</span></dt>
+<dd><p>Charles M. Rackson, Kyle M. Champley, Joseph T. Toombs, Erika J. Fong, Vishal Bansal, Hayden K. Taylor, Maxim Shusteff, and Robert R. McLeod. Object-space optimization of tomographic reconstructions for additive manufacturing. <em>Additive Manufacturing</em>, 48:102367, dec 2021. URL: <a class="reference external" href="https://linkinghub.elsevier.com/retrieve/pii/S2214860421005212">https://linkinghub.elsevier.com/retrieve/pii/S2214860421005212</a>, <a class="reference external" href="https://doi.org/10.1016/j.addma.2021.102367">doi:10.1016/j.addma.2021.102367</a>.</p>
+</dd>
+<dt class="label" id="id26"><span class="brackets"><a class="fn-backref" href="#id2">8</a></span></dt>
+<dd><p>Antony Orth, Kathleen L. Sampson, Kayley Ting, Jonathan Boisvert, and Chantal Paquet. Correcting ray distortion in tomographic additive manufacturing. <em>Optics Express</em>, 29(7):11037, 2021. <a class="reference external" href="https://doi.org/10.1364/oe.419795">doi:10.1364/oe.419795</a>.</p>
+</dd>
+<dt class="label" id="id18"><span class="brackets"><a class="fn-backref" href="#id2">9</a></span></dt>
+<dd><p>Max Kollep, Georgia Konstantinou, Jorge Madrid-Wolff, Antoine Boniface, Lorenz Hagelüken, Pradeep Vallachira Warriam Sasikumar, Gurdial Blugan, Paul Delrot, Damien Loterie, Juergen Brugger, and Christophe Moser. Tomographic Volumetric Additive Manufacturing of Silicon Oxycarbide Ceramics. <em>Advanced Engineering Materials</em>, 2101345:2101345, 2022. <a class="reference external" href="https://arxiv.org/abs/2109.12680">arXiv:2109.12680</a>, <a class="reference external" href="https://doi.org/10.1002/adem.202101345">doi:10.1002/adem.202101345</a>.</p>
+</dd>
+<dt class="label" id="id29"><span class="brackets"><a class="fn-backref" href="#id2">10</a></span></dt>
+<dd><p>Johanna Jesse Schwartz, Dominique Porcincula, Caitlyn Cook, Erika J Fong, and Maxim Shusteff. Volumetric Additive Manufacturing of Shape Memory Polymers. <em>Polymer Chemistry</em>, 2022. <a class="reference external" href="https://doi.org/10.1039/d1py01723c">doi:10.1039/d1py01723c</a>.</p>
+</dd>
+<dt class="label" id="id28"><span class="brackets"><a class="fn-backref" href="#id2">11</a></span></dt>
+<dd><p>Charles M. Rackson, Joseph T. Toombs, Martin P. De Beer, Caitlyn C. Cook, Maxim Shusteff, Hayden K. Taylor, and Robert R. McLeod. Latent image volumetric additive manufacturing. <em>Optics Letters</em>, 47(5):1279, mar 2022. URL: <a class="reference external" href="https://opg.optica.org/abstract.cfm?URI=ol-47-5-1279">https://opg.optica.org/abstract.cfm?URI=ol-47-5-1279</a>, <a class="reference external" href="https://doi.org/10.1364/OL.449220">doi:10.1364/OL.449220</a>.</p>
+</dd>
+<dt class="label" id="id32"><span class="brackets"><a class="fn-backref" href="#id2">12</a></span></dt>
+<dd><p>Bin Wang, Einstom Engay, Peter R. Stubbe, Saeed Z. Moghaddam, Esben Thormann, Kristoffer Almdal, Aminul Islam, and Yi Yang. Stiffness control in dual color tomographic volumetric 3D printing. <em>Nature Communications</em>, 13(1):1–10, 2022. <a class="reference external" href="https://doi.org/10.1038/s41467-022-28013-4">doi:10.1038/s41467-022-28013-4</a>.</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+
+
+              </div>
+              
+              
+              <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+    <a class='left-prev' id="prev-link" href="../index.html" title="previous page">
+        <i class="fas fa-angle-left"></i>
+        <div class="prev-next-info">
+            <p class="prev-next-subtitle">previous</p>
+            <p class="prev-next-title">VAMToolbox documentation</p>
+        </div>
+    </a>
+    <a class='right-next' id="next-link" href="gettingstarted.html" title="next page">
+    <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Setup</p>
+    </div>
+    <i class="fas fa-angle-right"></i>
+    </a>
+</div>
+              
+          </main>
+          
+
+      </div>
+    </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+<footer class="footer mt-5 mt-md-0">
+  <div class="container">
+    
+    <div class="footer-item">
+      <p class="copyright">
+    &copy; Copyright 2022, Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal.<br>
+</p>
+    </div>
+    
+    <div class="footer-item">
+      <p class="sphinx-version">
+Created using <a href="http://sphinx-doc.org/">Sphinx</a> 4.5.0.<br>
+</p>
+    </div>
+    
+  </div>
+</footer>
+  </body>
+</html>

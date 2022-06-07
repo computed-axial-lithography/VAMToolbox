@@ -1,0 +1,20 @@
+
+Must run in environment to add the astra-toolbox channel to the search list for dependencies before building.
+>>> conda config --add channels astra-toolbox
+>>> conda config --add channels conda-forge
+
+meta.yaml 
+- conda recipe is in ../conda so the source path is "source: .."
+
+to get run: dependencies for meta.yaml run the following from base conda env
+>>> conda env export -n VAMToolbox2 > env.yml --no-builds
+
+
+build package
+from within ./conda directory, in the anaconda prompt
+>>> conda build . 
+
+upload package
+from within directory of built package
+Upload to VAMToolbox organization with 
+>>> anaconda upload --user VAMToolbox package.bz2

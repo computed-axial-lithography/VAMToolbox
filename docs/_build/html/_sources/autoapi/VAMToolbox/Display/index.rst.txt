@@ -1,0 +1,103 @@
+:py:mod:`VAMToolbox.Display`
+============================
+
+.. py:module:: VAMToolbox.Display
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Display.IndexTracker
+   VAMToolbox.Display.VolumeSlicer
+   VAMToolbox.Display.SlicePlot
+   VAMToolbox.Display.ErrorPlot
+   VAMToolbox.Display.HistogramPlot
+   VAMToolbox.Display.EvolvingPlot
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Display.showVolumeSlicer
+   VAMToolbox.Display.showSinoSlicer
+   VAMToolbox.Display.showErrorPlot
+   VAMToolbox.Display.showHistogramPlot
+   VAMToolbox.Display.errorTolerancePlot
+   VAMToolbox.Display.saveFigure
+
+
+
+.. py:class:: IndexTracker(array, vol_type, slice_index, label, slice_step, ax=None, fig=None, **kwargs)
+
+   .. py:method:: onscroll(self, event)
+
+
+   .. py:method:: update(self)
+
+
+
+.. py:class:: VolumeSlicer(array, vol_type, slice_step=1, ax=None, fig=None, **kwargs)
+
+
+.. py:function:: showVolumeSlicer(array, vol_type, slice_step=1, **kwargs)
+
+
+.. py:function:: showSinoSlicer(array, **kwargs)
+
+
+.. py:class:: SlicePlot(array, vol_type, ax=None, fig=None, **kwargs)
+
+   .. py:method:: update(self, vol)
+
+
+
+.. py:class:: ErrorPlot(*args, ax=None, fig=None)
+
+   .. py:method:: update(self, error)
+
+
+
+.. py:function:: showErrorPlot(*args, **kwargs)
+
+
+.. py:class:: HistogramPlot(x, target, scale='linear', ax=None, fig=None)
+
+   .. py:method:: update(self, x)
+
+
+   .. py:method:: save(self, savepath, **kwargs)
+
+      Save the current plot
+
+      :param savepath:
+      :type savepath: str
+      :param \*\*kwargs: kwargs from matplotlib.pyplot.savefig
+
+
+
+.. py:function:: showHistogramPlot(*args, **kwargs)
+
+
+.. py:class:: EvolvingPlot(target_geo, n_iter)
+
+   .. py:method:: update(self, error, x=None)
+
+
+   .. py:method:: ioff(self)
+
+
+
+.. py:function:: errorTolerancePlot(x, target_geo, dh, tol, savepath=None)
+
+
+.. py:function:: saveFigure(savepath)
+
+

@@ -1,0 +1,70 @@
+:py:mod:`VAMToolbox.DLP`
+========================
+
+.. py:module:: VAMToolbox.DLP
+
+
+Submodules
+----------
+.. toctree::
+   :titlesonly:
+   :maxdepth: 1
+
+   DLP/index.rst
+   Setup/index.rst
+   arrayimage/index.rst
+
+
+Package Contents
+----------------
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.DLP.player
+
+
+
+.. py:function:: player(*args, **kwargs)
+
+   :param rot_vel: rotation velocity in degrees per second
+   :type rot_vel: float
+   :param start_index: starting index of image sequence, default is 0
+   :type start_index: int, optional
+   :param image_seq: imagesequence.ImageSeq object
+   :type image_seq: imagesequence.ImageSeq, optional
+   :param sinogram: geometry.Sinogram object
+   :type sinogram: geometry.Sinogram, optional
+   :param image_config: imagesequence.ImageConfig object defining sinogram to image transformation
+   :type image_config: imagesequence.ImageConfig, optional
+   :param images_dir: file directory to saved images
+   :type images_dir: str, optional
+   :param screen_num: number of the screen to display onto, default -1 (last screen)
+   :type screen_num: int, optional
+   :param windowed: bordered window, default False
+   :type windowed: bool, optional
+   :param debug_fps: display estimated fps on the displayed window, default
+   :type debug_fps: bool, optional
+
+   .. rubric:: Examples
+
+   Specifying ImageSeq object
+   >>> I = ImageSeq()
+   >>> player(image_seq=I,rot_vel=12)
+
+   Specifying Sinogram object
+   >>> sino = loadVolume("C:\mysinogram.sino")
+   >>> player(sinogram=sino,rot_vel=12)
+
+   Specifying images directory
+   >>> dir = "C:\images"
+   >>> player(rot_vel=12,images_dir=dir)
+
+   Specifying video file
+   >>> path = "C:\video.mp4"
+   >>> player(rot_vel=12,video=path)
+
+

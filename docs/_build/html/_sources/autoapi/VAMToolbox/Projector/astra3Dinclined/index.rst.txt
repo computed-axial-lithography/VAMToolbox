@@ -1,0 +1,28 @@
+:py:mod:`VAMToolbox.Projector.astra3Dinclined`
+==============================================
+
+.. py:module:: VAMToolbox.Projector.astra3Dinclined
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.astra3Dinclined.astra3Dinclined
+
+
+
+
+.. py:class:: astra3Dinclined(target, params)
+
+   .. py:method:: forwardProject(self, target)
+
+
+   .. py:method:: backProject(self, projections)
+
+
+

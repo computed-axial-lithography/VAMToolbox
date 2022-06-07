@@ -1,0 +1,92 @@
+:py:mod:`VAMToolbox.voxelize`
+=============================
+
+.. py:module:: VAMToolbox.voxelize
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.voxelize.MeshBounds
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.voxelize.voxelizeTarget
+   VAMToolbox.voxelize.pad_target_to_square
+   VAMToolbox.voxelize.rotate_mesh
+
+
+
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.voxelize.voxels
+
+
+.. py:class:: MeshBounds(mesh, voxel_pitch=None, parent_shape=None)
+
+
+.. py:function:: voxelizeTarget(input_path, resolution, print_bodies='all', rot_angles=[0, 0, 0])
+
+   Takes a mesh of surface points from the input .stl file, voxelizes the mesh,
+   and places the array inside a square array (nx,ny,nz) where nx = ny
+
+   :param input_path: path to .stl file
+   :type input_path: str
+   :param resolution: number of layers in height to voxelize the target
+   :type resolution: int
+   :param print_bodies: specifier of which bodies in the stl (if multibody) are to be printed, default is 'all' meaning that all mesh bodies will be included in the voxel array
+   :type print_bodies: int, list, or str
+   :param rot_angles: angles in degrees around (x,y,z) axes which to rotate the
+                      target geometry
+   :type rot_angles: list, optional
+
+   :returns: **voxels** -- voxelized target
+   :rtype: np.ndarray
+
+   .. rubric:: Examples
+
+   >>> voxelizeTarget(")
+
+
+.. py:function:: pad_target_to_square(input_voxel_array)
+
+   Places input array inside a square array (nx,ny,nz) where nx = ny
+
+   :param input_voxel_array: target voxel array
+   :type input_voxel_array: ndarray
+
+   :returns: **voxels** -- voxelized target
+   :rtype: ndarray
+
+
+.. py:function:: rotate_mesh(mesh, rot_angles)
+
+   Rotates mesh before voxelization
+
+   :param mesh: input .stl mesh read by Trimesh
+   :type mesh: Trimesh mesh object
+   :param rot_angles: angles in degrees around (x,y,z) axes which to rotate the target geometry
+   :type rot_angles: Nx3 array
+
+   :returns: **mesh** -- rotated mesh
+   :rtype: Trimesh mesh object
+
+
+.. py:data:: voxels
+   
+
+   
+

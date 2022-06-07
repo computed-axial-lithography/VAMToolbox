@@ -1,0 +1,90 @@
+:py:mod:`VAMToolbox.DLP.arrayimage`
+===================================
+
+.. py:module:: VAMToolbox.DLP.arrayimage
+
+.. autoapi-nested-parse::
+
+   https://github.com/teknohog/pygarrayimage
+
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.DLP.arrayimage.ArrayInterfaceImage
+
+
+
+
+.. py:class:: ArrayInterfaceImage(arr, format=None, allow_copy=True)
+
+   Bases: :py:obj:`pyglet.image.ImageData`
+
+   An image represented as a string of unsigned bytes.
+
+   :Parameters:
+       `data` : str
+           Pixel data, encoded according to `format` and `pitch`.
+       `format` : str
+           The format string to use when reading or writing `data`.
+       `pitch` : int
+           Number of bytes per row.  Negative values indicate a top-to-bottom
+           arrangement.
+
+
+   .. py:attribute:: data
+      
+
+      
+
+   .. py:method:: get_data(self)
+
+      Get the byte data of the image.
+
+      :Parameters:
+          `fmt` : str
+              Format string of the return data.
+          `pitch` : int
+              Number of bytes per row.  Negative values indicate a
+              top-to-bottom arrangement.
+
+      .. versionadded:: 1.1
+
+      :rtype: sequence of bytes, or str
+
+
+   .. py:method:: _convert(self, format, pitch)
+
+      Return data in the desired format; does not alter this instance's
+      current format or pitch.
+
+
+   .. py:method:: _ensure_string_data(self)
+
+
+   .. py:method:: dirty(self)
+
+      Force an update of the texture data.
+
+
+
+   .. py:method:: view_new_array(self, arr)
+
+      View a new array of the same shape.
+      The same texture will be kept, but the data from the new array
+      will be loaded.
+      :Parameters:
+          `arr` : array
+              data supporting the __array_interface__ protocol. If
+              rank 2, the shape must be (height, width). If rank 3,
+              the shape is (height, width, depth). Typestr must be
+              '|u1' (uint8).
+
+
+

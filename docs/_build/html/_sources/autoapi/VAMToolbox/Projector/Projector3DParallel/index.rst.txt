@@ -1,0 +1,74 @@
+:py:mod:`VAMToolbox.Projector.Projector3DParallel`
+==================================================
+
+.. py:module:: VAMToolbox.Projector.Projector3DParallel
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.Projector3DParallel.Projector3DParallelPython
+
+
+
+
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.Projector3DParallel.astra_available
+
+
+.. py:data:: astra_available
+   :annotation: = True
+
+   
+
+.. py:class:: Projector3DParallelPython(target_geo, proj_geo)
+
+   .. py:method:: generateOccSinogram(self, occ_array)
+
+      Create sinogram containing minimum values of 's' within the occlusion map
+
+      :returns: * **occ_sinogram** (*nd_array*)
+                * *Npixels x Nangles x Nslices*
+
+
+   .. py:method:: forward(self, target)
+
+      Computes forward Radon transform of the target space object accounting for
+      reduced projection contribution due to occlusion shadowing
+
+      Inputs
+      ---------------
+      target : nd_array
+      Npixels x Npixels x Npixels array that contains the target space object
+
+      :returns: * **projection** (*nd_array*)
+                * *Npixels x Nangles x Nslices array of forward Radon transform with occlusion shadowing*
+
+
+   .. py:method:: backward(self, projection)
+
+      Computes inverse Radon transform of projection accounting for reduced dose
+      deposition due to occlusion shadowing
+
+      Inputs
+      ---------------
+      projection : nd_array
+      Npixels x Nangles x Nslices array that contains the projection space sinogram of the target
+
+      :returns: * **reconstruction** (*nd_array*)
+                * *Npixels x Npixels x Npixels array of inverse Radon transform with occlusion shadowing*
+
+
+   .. py:method:: getOccShadow(self, i, j, angle, t, s)
+
+
+

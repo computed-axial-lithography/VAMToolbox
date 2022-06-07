@@ -1,0 +1,45 @@
+:py:mod:`VAMToolbox.Projector.astra3Dabsorption`
+================================================
+
+.. py:module:: VAMToolbox.Projector.astra3Dabsorption
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.astra3Dabsorption.astra3Dabsorption
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.astra3Dabsorption.createCubeCage
+
+
+
+.. py:class:: astra3Dabsorption(target, params)
+
+   .. py:method:: forwardProject(self, target)
+
+
+   .. py:method:: backProject(self, projections)
+
+
+   .. py:method:: getExpabs(self, angle_rad)
+
+
+   .. py:method:: truncateCircle(self, target)
+
+
+
+.. py:function:: createCubeCage(target_bounds, strut_size, side_length, voxel_size)
+
+

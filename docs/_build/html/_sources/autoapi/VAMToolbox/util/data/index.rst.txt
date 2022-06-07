@@ -1,0 +1,119 @@
+:py:mod:`VAMToolbox.util.data`
+==============================
+
+.. py:module:: VAMToolbox.util.data
+
+
+Module Contents
+---------------
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.util.data.sigmoid
+   VAMToolbox.util.data.clipToCircle
+   VAMToolbox.util.data.filterTargetOSMO
+   VAMToolbox.util.data.filterProjections
+   VAMToolbox.util.data._get_fourier_filter
+   VAMToolbox.util.data.histogramEqualization
+   VAMToolbox.util.data.discretize
+
+
+
+Attributes
+~~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.util.data.fftmodule
+   VAMToolbox.util.data.fft
+
+
+.. py:data:: fftmodule
+   
+
+   
+
+.. py:data:: fft
+   
+
+   
+
+.. py:function:: sigmoid(x, g)
+
+
+.. py:function:: clipToCircle(x: numpy.ndarray)
+
+   Sets all data outside the inscribed circle to zero
+
+   :param x: square array to be modified
+   :type x: np.ndarray
+
+   :returns: input array with all data outside the inscribed circle set to zero
+   :rtype: x
+
+
+.. py:function:: filterTargetOSMO(x: numpy.ndarray, filter_name: str)
+
+   :param x:
+   :type x: np.ndarray
+   :param filter_name: type of filter to apply to projections, options: "ram-lak", "shepp-logan", "cosine", "hamming", "hanning", "none"
+   :type filter_name: str
+
+   :returns: **x_filtered** -- direct output of filtering in frequency space
+   :rtype: np.ndarray
+
+
+.. py:function:: filterProjections(projections: numpy.ndarray, filter_name: str)
+
+   Filters a set of projections for a 2D or 3D target
+
+   :param projections: input projections
+   :type projections: np.ndarray
+   :param filter_name: type of filter to apply to projections, options: "ram-lak", "shepp-logan", "cosine", "hamming", "hanning", "none"
+   :type filter_name: str
+
+   :returns: **projections_filt** -- filtered projections
+   :rtype: np.ndarray
+
+
+.. py:function:: _get_fourier_filter(size: int, filter_name: str)
+
+   Construct the Fourier filter.
+   This computation lessens artifacts and removes a small bias as
+   explained in [1], Chap 3. Equation 61.
+
+   :param size: filter size. Must be even.
+   :type size: int
+   :param filter_name: Filter used in frequency domain filtering. Filters available:
+                       ram-lak, shepp-logan, cosine, hamming, hanning. Assign None to use
+                       no filter.
+   :type filter_name: str
+
+   :returns: **fourier_filter** -- The computed Fourier filter.
+   :rtype: np.ndarray
+
+   .. rubric:: References
+
+   .. [1] AC Kak, M Slaney, "Principles of Computerized Tomographic
+          Imaging", IEEE Press 1988.
+
+
+.. py:function:: histogramEqualization(x: numpy.ndarray, bit_depth: int, output_dtype: numpy.dtype = np.float)
+
+
+.. py:function:: discretize(x: numpy.ndarray, bit_depth: int, output_dtype: numpy.dtype = np.float)
+
+   Digitizes a variable to requested bit depth and output data type
+
+   :param x: array to digitize
+   :type x: nd.ndarray
+   :param bit_depth: bit depth of output, 2^bit_depth number of bins
+   :type bit_depth: int
+   :param output_dtype: data type of resulting digitized array
+   :type output_dtype: np.dtype (optional)
+
+

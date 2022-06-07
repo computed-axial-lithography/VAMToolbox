@@ -1,0 +1,86 @@
+:py:mod:`VAMToolbox.imagesequence`
+==================================
+
+.. py:module:: VAMToolbox.imagesequence
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.imagesequence.ImageConfig
+   VAMToolbox.imagesequence.ImageSeq
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.imagesequence.loadImageSeq
+   VAMToolbox.imagesequence._insertImage
+   VAMToolbox.imagesequence._arrayInsertImage
+   VAMToolbox.imagesequence._invertU
+   VAMToolbox.imagesequence._invertV
+   VAMToolbox.imagesequence._scaleSize
+   VAMToolbox.imagesequence._scaleIntensity
+   VAMToolbox.imagesequence._rotate
+   VAMToolbox.imagesequence._cropToBounds
+
+
+
+.. py:class:: ImageConfig(image_dims, **kwargs)
+
+
+.. py:class:: ImageSeq(image_config, sinogram)
+
+   .. py:method:: __getstate__(self)
+
+
+   .. py:method:: __setstate__(self, d)
+
+
+   .. py:method:: save(self, save_dir: str, name: str)
+
+      save imagesequence.ImageSeq as 'name.imgseq'
+
+
+   .. py:method:: saveAsVideo(self, save_path: str, rot_vel: float, duration: float)
+
+
+   .. py:method:: saveAsImages(self, save_dir: str, image_prefix: str = 'image', image_type: str = '.png')
+
+
+
+.. py:function:: loadImageSeq(file_name)
+
+
+.. py:function:: _insertImage(image, image_out, image_config, **kwargs)
+
+
+.. py:function:: _arrayInsertImage(image, image_out, image_config)
+
+
+.. py:function:: _invertU(sinogram)
+
+
+.. py:function:: _invertV(sinogram)
+
+
+.. py:function:: _scaleSize(sinogram, scale_factor)
+
+
+.. py:function:: _scaleIntensity(sinogram, intensity_scalar)
+
+
+.. py:function:: _rotate(sinogram, angle_deg)
+
+
+.. py:function:: _cropToBounds(sinogram)
+
+

@@ -1,0 +1,131 @@
+:py:mod:`VAMToolbox.DLP.Setup`
+==============================
+
+.. py:module:: VAMToolbox.DLP.Setup
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.DLP.Setup.SetupWindow
+   VAMToolbox.DLP.Setup.AxisAlignment
+   VAMToolbox.DLP.Setup.Focus
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.DLP.Setup._createGrid
+
+
+
+.. py:class:: SetupWindow(**kwargs)
+
+   Bases: :py:obj:`pyglet.window.Window`
+
+   Platform-independent application window.
+
+   A window is a "heavyweight" object occupying operating system resources.
+   The "client" or "content" area of a window is filled entirely with
+   an OpenGL viewport.  Applications have no access to operating system
+   widgets or controls; all rendering must be done via OpenGL.
+
+   Windows may appear as floating regions or can be set to fill an entire
+   screen (fullscreen).  When floating, windows may appear borderless or
+   decorated with a platform-specific frame (including, for example, the
+   title bar, minimize and close buttons, resize handles, and so on).
+
+   While it is possible to set the location of a window, it is recommended
+   that applications allow the platform to place it according to local
+   conventions.  This will ensure it is not obscured by other windows,
+   and appears on an appropriate screen for the user.
+
+   To render into a window, you must first call `switch_to`, to make
+   it the current OpenGL context.  If you use only one window in the
+   application, there is no need to do this.
+
+   .. py:method:: _run(self)
+
+
+   .. py:method:: update(self, _)
+
+
+   .. py:method:: convertArray(self)
+
+
+   .. py:method:: on_draw(self)
+
+
+
+.. py:class:: AxisAlignment(half_line_thickness=10, half_line_separation=200, center_offset=0, **kwargs)
+
+   Bases: :py:obj:`SetupWindow`
+
+   Platform-independent application window.
+
+   A window is a "heavyweight" object occupying operating system resources.
+   The "client" or "content" area of a window is filled entirely with
+   an OpenGL viewport.  Applications have no access to operating system
+   widgets or controls; all rendering must be done via OpenGL.
+
+   Windows may appear as floating regions or can be set to fill an entire
+   screen (fullscreen).  When floating, windows may appear borderless or
+   decorated with a platform-specific frame (including, for example, the
+   title bar, minimize and close buttons, resize handles, and so on).
+
+   While it is possible to set the location of a window, it is recommended
+   that applications allow the platform to place it according to local
+   conventions.  This will ensure it is not obscured by other windows,
+   and appears on an appropriate screen for the user.
+
+   To render into a window, you must first call `switch_to`, to make
+   it the current OpenGL context.  If you use only one window in the
+   application, there is no need to do this.
+
+   .. py:method:: update(self, _)
+
+
+   .. py:method:: constructLines(self)
+
+
+
+.. py:class:: Focus(slices: int = 20, **kwargs)
+
+   Bases: :py:obj:`SetupWindow`
+
+   Platform-independent application window.
+
+   A window is a "heavyweight" object occupying operating system resources.
+   The "client" or "content" area of a window is filled entirely with
+   an OpenGL viewport.  Applications have no access to operating system
+   widgets or controls; all rendering must be done via OpenGL.
+
+   Windows may appear as floating regions or can be set to fill an entire
+   screen (fullscreen).  When floating, windows may appear borderless or
+   decorated with a platform-specific frame (including, for example, the
+   title bar, minimize and close buttons, resize handles, and so on).
+
+   While it is possible to set the location of a window, it is recommended
+   that applications allow the platform to place it according to local
+   conventions.  This will ensure it is not obscured by other windows,
+   and appears on an appropriate screen for the user.
+
+   To render into a window, you must first call `switch_to`, to make
+   it the current OpenGL context.  If you use only one window in the
+   application, there is no need to do this.
+
+   .. py:method:: constructSiemen(self)
+
+
+
+.. py:function:: _createGrid(shape, offset=None)
+
+

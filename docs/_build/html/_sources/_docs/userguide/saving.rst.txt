@@ -1,0 +1,39 @@
+.. _userguide_saving:
+
+############################
+Save/Load VAMToolbox objects
+############################
+
+***********
+Saving data
+***********
+
+VAMToolbox objects :py:class:`geometry.Sinogram` and :py:class:`geometry.Reconstruction` can be saved with the class method :py:meth:`save`.
+
+.. code-block:: python
+
+   # sino is a Geometry.Sinogram object
+   # save the sinogram as mysinogram.sino
+   # ".sino" is the default file extension
+   sino.save("C:\User\myfiles\mysinogram")
+
+   # recon is a Geometry.Reconstruction object
+   # save the reconstruction as myreconstruction.recon
+   # ".recon" is the default file extension
+   recon.save("C:\User\myfiles\myreconstruction")
+
+************
+Loading data
+************
+
+To load objects, convenience functions are provided in the :py:mod:`VAMToolbox.geometry` module.
+
+.. code-block:: python
+   
+   # to load saved objects, use the methods in the Geometry module
+   # loadSinogram, loadReconstruction
+   import VAMToolbox as vam
+   sino_load = vam.geometry.loadSinogram("C:\User\myfiles\mysinogram.sino")
+   recon_load = vam.geometry.loadReconstruction("C:\User\myfiles\myreconstruction.recon")
+
+

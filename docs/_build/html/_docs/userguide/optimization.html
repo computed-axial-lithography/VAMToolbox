@@ -1,0 +1,253 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Optimization &#8212; VAMToolbox 0.1.0beta documentation</title>
+    
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+
+    
+  <link rel="stylesheet"
+    href="../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="None">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="60">
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+    <nav class="navbar navbar-light navbar-expand-lg bg-light fixed-top bd-navbar" id="navbar-main"><div class="container-xl">
+
+  <div id="navbar-start">
+    
+    
+<a class="navbar-brand" href="../../index.html">
+<p class="title">VAMToolbox</p>
+</a>
+
+    
+  </div>
+
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-collapsible" aria-controls="navbar-collapsible" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  
+  <div id="navbar-collapsible" class="col-lg-9 collapse navbar-collapse">
+    <div id="navbar-center" class="mr-auto">
+      
+      <div class="navbar-center-item">
+        <ul id="navbar-main-elements" class="navbar-nav">
+    <li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../intro.html">
+  Introduction
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../gettingstarted.html">
+  Setup
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../userguide.html">
+  User guide
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../examples.html">
+  Examples
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../../autoapi/index.html">
+  API Reference
+ </a>
+</li>
+
+    
+</ul>
+      </div>
+      
+    </div>
+
+    <div id="navbar-end">
+      
+      <div class="navbar-end-item">
+        <ul id="navbar-icon-links" class="navbar-nav" aria-label="Icon Links">
+      </ul>
+      </div>
+      
+    </div>
+  </div>
+</div>
+    </nav>
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+            
+            <!-- Only show if we have sidebars configured, else just a small margin  -->
+            <div class="col-12 col-md-3 bd-sidebar">
+              <div class="sidebar-start-items"><form class="bd-search d-flex align-items-center" action="../../search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+  <div class="bd-toc-item active">
+    
+  </div>
+</nav>
+              </div>
+              <div class="sidebar-end-items">
+              </div>
+            </div>
+            
+          
+
+          
+          <div class="d-none d-xl-block col-xl-2 bd-toc">
+            
+              
+              <div class="toc-item">
+                
+<div class="tocsection onthispage mt-5 pt-1 pb-3">
+    <i class="fas fa-list"></i> On this page
+</div>
+
+<nav id="bd-toc-nav">
+    <ul class="visible nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#why-is-optimization-desirable">
+   Why is optimization desirable?
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#optimization-methods">
+   Optimization methods
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#optimization-plots">
+   Optimization plots
+  </a>
+ </li>
+</ul>
+
+</nav>
+              </div>
+              
+              <div class="toc-item">
+                
+              </div>
+              
+            
+          </div>
+          
+
+          
+          
+            
+          
+          <main class="col-12 col-md-9 col-xl-7 py-md-5 pl-md-5 pr-md-4 bd-content" role="main">
+              
+              <div>
+                
+  <div class="section" id="optimization">
+<span id="userguide-optimization"></span><h1>Optimization<a class="headerlink" href="#optimization" title="Permalink to this headline"></a></h1>
+<div class="section" id="why-is-optimization-desirable">
+<h2>Why is optimization desirable?<a class="headerlink" href="#why-is-optimization-desirable" title="Permalink to this headline"></a></h2>
+<p>A technique that is commonly used for traditional tomographic reconstruction is filtered back projection. It consists of applying a ramp filter in frequency a.k.a. Ram-Lak (or other similar filter e.g. cosine, hanning, hamming, Shepp-Logan) to the Fourier transform of the acquired projection images before integration over angle. Filtration produces negative intensities in the projections such that when integrated the result is a perfect reconstruction with zero signal in the background. At present, there is no direct method to produce negative light intensity, therefore optimization with positively constrained intensity is required to reach a good solution for the set of projection images used for printing. (Aside: although there are chemical or holographic methods that could produce the outcome as if negative intensities were possible but these are substantially more advanced and have not yet been thoroughly proven.) However, filtering can still be used an effective initialization technique.</p>
+<p>The side by side comparision shows a resolution target reconstructed from a sinogram that was only filtered and negative truncated (left) and from a sinogram that was optimized using the original CAL optimization scheme in <span id="id1">[<a class="reference internal" href="../intro.html#id14" title="Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. Science, 363(6431):1075–1079, 2019. doi:10.1126/science.aau7114.">Kelly <em>et al.</em>, 2019</a>]</span> (right).</p>
+<img alt="../../_images/nooptvsopt.png" src="../../_images/nooptvsopt.png" />
+<p>In the lower row, the reconstruction distrubtions are depicted on histograms. The red region represents values that lie outside the region of the target object and the blue region represents values that lie within the boundaries of target object. An ideal histogram for high contrast VAM printing has each of these in and out-of-part regions separated with no overlap. This means that no points outside of the boundary of the target object would polymerize before the points inside the boundary polymerized. In the left panel (FBP), there is substantial overlap between the distributions which indicates a poorly optimized reconstruction. In the right panel (CAL), the distributions are separated with no overlap which indicates a well optimized reconstruction.</p>
+</div>
+<div class="section" id="optimization-methods">
+<h2>Optimization methods<a class="headerlink" href="#optimization-methods" title="Permalink to this headline"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="FBP.html#userguide-fbp"><span class="std std-ref">Filtered back projection (FBP)</span></a></p></li>
+<li><p><a class="reference internal" href="CAL.html#userguide-cal"><span class="std std-ref">CAL</span></a> by first order finite difference gradient descent</p></li>
+<li><p><a class="reference internal" href="PM.html#userguide-pm"><span class="std std-ref">Penalty minimization (PM)</span></a> by quasi-Newton BFGS</p></li>
+<li><p><a class="reference internal" href="OSMO.html#userguide-osmo"><span class="std std-ref">Object space model optimization (OSMO)</span></a></p></li>
+</ul>
+<img alt="../../_images/allopts.png" src="../../_images/allopts.png" />
+</div>
+<div class="section" id="optimization-plots">
+<h2>Optimization plots<a class="headerlink" href="#optimization-plots" title="Permalink to this headline"></a></h2>
+<p>If the <code class="docutils literal notranslate"><span class="pre">verbose</span></code> keyword argument is set to <code class="docutils literal notranslate"><span class="pre">'plot'</span></code>, a group of plots that tracks the optimization process will appear. The top left plot is the mid slice of the target geometry array and the top right is the mid slice of the reconstruction at the current iteration. The bottom left is a line plot of the error over past iterations and the bottom right is a histogram of the in- and out-of-part distributions at the current iteration as described above.</p>
+<img alt="../../_images/optimization_plot.png" src="../../_images/optimization_plot.png" />
+</div>
+</div>
+
+
+              </div>
+              
+              
+              <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+</div>
+              
+          </main>
+          
+
+      </div>
+    </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+<footer class="footer mt-5 mt-md-0">
+  <div class="container">
+    
+    <div class="footer-item">
+      <p class="copyright">
+    &copy; Copyright 2022, Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal.<br>
+</p>
+    </div>
+    
+    <div class="footer-item">
+      <p class="sphinx-version">
+Created using <a href="http://sphinx-doc.org/">Sphinx</a> 4.5.0.<br>
+</p>
+    </div>
+    
+  </div>
+</footer>
+  </body>
+</html>

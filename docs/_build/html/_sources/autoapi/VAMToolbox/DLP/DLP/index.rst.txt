@@ -1,0 +1,148 @@
+:py:mod:`VAMToolbox.DLP.DLP`
+============================
+
+.. py:module:: VAMToolbox.DLP.DLP
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.DLP.DLP.VideoPlayer
+   VAMToolbox.DLP.DLP.SequencePlayer
+   VAMToolbox.DLP.DLP._Process
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.DLP.DLP._worker
+   VAMToolbox.DLP.DLP.player
+
+
+
+.. py:class:: VideoPlayer(path)
+
+   .. py:method:: pauseVideo(self)
+
+
+   .. py:method:: resumeVideo(self)
+
+
+
+.. py:class:: SequencePlayer(*args, **kwargs)
+
+   Bases: :py:obj:`pyglet.sprite.Sprite`
+
+   [1]: https://github.com/pyglet/pyglet/issues/152#issuecomment-597480199
+
+   .. py:method:: pauseSequence(self)
+
+
+   .. py:method:: resumeSequence(self)
+
+
+   .. py:method:: frame_index(self)
+      :property:
+
+      The current Animation frame.
+
+      If the `Sprite.image` is an `Animation`,
+      you can query or set the current frame.
+      If not an Animation, this will always
+      be 0.
+
+      :type: int
+
+
+   .. py:method:: onAnimationEnd(self)
+
+
+
+.. py:class:: _Process(*args, **kwargs)
+
+   Bases: :py:obj:`pyglet.window.Window`
+
+   Platform-independent application window.
+
+   A window is a "heavyweight" object occupying operating system resources.
+   The "client" or "content" area of a window is filled entirely with
+   an OpenGL viewport.  Applications have no access to operating system
+   widgets or controls; all rendering must be done via OpenGL.
+
+   Windows may appear as floating regions or can be set to fill an entire
+   screen (fullscreen).  When floating, windows may appear borderless or
+   decorated with a platform-specific frame (including, for example, the
+   title bar, minimize and close buttons, resize handles, and so on).
+
+   While it is possible to set the location of a window, it is recommended
+   that applications allow the platform to place it according to local
+   conventions.  This will ensure it is not obscured by other windows,
+   and appears on an appropriate screen for the user.
+
+   To render into a window, you must first call `switch_to`, to make
+   it the current OpenGL context.  If you use only one window in the
+   application, there is no need to do this.
+
+   .. py:method:: run(self)
+
+
+   .. py:method:: on_draw(self)
+
+
+   .. py:method:: on_key_press(self, symbol, modifiers)
+
+      Default on_key_press handler.
+
+
+
+.. py:function:: _worker(*args, **kwargs)
+
+
+.. py:function:: player(*args, **kwargs)
+
+   :param rot_vel: rotation velocity in degrees per second
+   :type rot_vel: float
+   :param start_index: starting index of image sequence, default is 0
+   :type start_index: int, optional
+   :param image_seq: imagesequence.ImageSeq object
+   :type image_seq: imagesequence.ImageSeq, optional
+   :param sinogram: geometry.Sinogram object
+   :type sinogram: geometry.Sinogram, optional
+   :param image_config: imagesequence.ImageConfig object defining sinogram to image transformation
+   :type image_config: imagesequence.ImageConfig, optional
+   :param images_dir: file directory to saved images
+   :type images_dir: str, optional
+   :param screen_num: number of the screen to display onto, default -1 (last screen)
+   :type screen_num: int, optional
+   :param windowed: bordered window, default False
+   :type windowed: bool, optional
+   :param debug_fps: display estimated fps on the displayed window, default
+   :type debug_fps: bool, optional
+
+   .. rubric:: Examples
+
+   Specifying ImageSeq object
+   >>> I = ImageSeq()
+   >>> player(image_seq=I,rot_vel=12)
+
+   Specifying Sinogram object
+   >>> sino = loadVolume("C:\mysinogram.sino")
+   >>> player(sinogram=sino,rot_vel=12)
+
+   Specifying images directory
+   >>> dir = "C:\images"
+   >>> player(rot_vel=12,images_dir=dir)
+
+   Specifying video file
+   >>> path = "C:\video.mp4"
+   >>> player(rot_vel=12,video=path)
+
+

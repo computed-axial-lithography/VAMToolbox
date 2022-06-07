@@ -1,0 +1,294 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digital light processing &#8212; VAMToolbox 0.1.0beta documentation</title>
+    
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+
+    
+  <link rel="stylesheet"
+    href="../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css" />
+    
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="None">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="60">
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+    <nav class="navbar navbar-light navbar-expand-lg bg-light fixed-top bd-navbar" id="navbar-main"><div class="container-xl">
+
+  <div id="navbar-start">
+    
+    
+<a class="navbar-brand" href="../../index.html">
+<p class="title">VAMToolbox</p>
+</a>
+
+    
+  </div>
+
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-collapsible" aria-controls="navbar-collapsible" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  
+  <div id="navbar-collapsible" class="col-lg-9 collapse navbar-collapse">
+    <div id="navbar-center" class="mr-auto">
+      
+      <div class="navbar-center-item">
+        <ul id="navbar-main-elements" class="navbar-nav">
+    <li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../intro.html">
+  Introduction
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../gettingstarted.html">
+  Setup
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../userguide.html">
+  User guide
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../examples.html">
+  Examples
+ </a>
+</li>
+
+<li class="toctree-l1 nav-item">
+ <a class="reference internal nav-link" href="../../autoapi/index.html">
+  API Reference
+ </a>
+</li>
+
+    
+</ul>
+      </div>
+      
+    </div>
+
+    <div id="navbar-end">
+      
+      <div class="navbar-end-item">
+        <ul id="navbar-icon-links" class="navbar-nav" aria-label="Icon Links">
+      </ul>
+      </div>
+      
+    </div>
+  </div>
+</div>
+    </nav>
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+            
+            <!-- Only show if we have sidebars configured, else just a small margin  -->
+            <div class="col-12 col-md-3 bd-sidebar">
+              <div class="sidebar-start-items"><form class="bd-search d-flex align-items-center" action="../../search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+  <div class="bd-toc-item active">
+    
+  </div>
+</nav>
+              </div>
+              <div class="sidebar-end-items">
+              </div>
+            </div>
+            
+          
+
+          
+          <div class="d-none d-xl-block col-xl-2 bd-toc">
+            
+              
+              <div class="toc-item">
+                
+<div class="tocsection onthispage mt-5 pt-1 pb-3">
+    <i class="fas fa-list"></i> On this page
+</div>
+
+<nav id="bd-toc-nav">
+    <ul class="visible nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#dlp-player">
+   DLP player
+  </a>
+  <ul class="nav section-nav flex-column">
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#playback-interaction">
+     Playback interaction
+    </a>
+   </li>
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#image-sequence">
+     Image sequence
+    </a>
+    <ul class="nav section-nav flex-column">
+     <li class="toc-h4 nav-item toc-entry">
+      <a class="reference internal nav-link" href="#image-configuration">
+       Image configuration
+      </a>
+     </li>
+    </ul>
+   </li>
+  </ul>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#setup-utilities">
+   Setup utilities
+  </a>
+  <ul class="nav section-nav flex-column">
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#axis-alignment">
+     Axis alignment
+    </a>
+   </li>
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#focus">
+     Focus
+    </a>
+   </li>
+  </ul>
+ </li>
+</ul>
+
+</nav>
+              </div>
+              
+              <div class="toc-item">
+                
+              </div>
+              
+            
+          </div>
+          
+
+          
+          
+            
+          
+          <main class="col-12 col-md-9 col-xl-7 py-md-5 pl-md-5 pr-md-4 bd-content" role="main">
+              
+              <div>
+                
+  <div class="section" id="digital-light-processing">
+<span id="userguide-dlp"></span><h1>Digital light processing<a class="headerlink" href="#digital-light-processing" title="Permalink to this headline"></a></h1>
+<p>In tomographic VAM printers, typically a digital light processing (DLP) device is used to project the computed images into the volume of photosensitive material. DLP video projectors and standalone DMD controllers are often used <span id="id1">[<a class="reference internal" href="../intro.html#id14" title="Brett E. Kelly, Indrasen Bhattacharya, Hossein Heidari, Maxim Shusteff, Christopher M. Spadaccini, and Hayden K. Taylor. Volumetric additive manufacturing via tomographic reconstruction. Science, 363(6431):1075–1079, 2019. doi:10.1126/science.aau7114.">Kelly <em>et al.</em>, 2019</a>, <a class="reference internal" href="../intro.html#id22" title="Damien Loterie, Paul Delrot, and Christophe Moser. High-resolution tomographic volumetric additive manufacturing. Nature Communications, 11(1):852, dec 2020. URL: http://dx.doi.org/10.1038/s41467-020-14630-4 http://www.nature.com/articles/s41467-020-14630-4, doi:10.1038/s41467-020-14630-4.">Loterie <em>et al.</em>, 2020</a>, <a class="reference internal" href="../intro.html#id8" title="Paulina Nuñez Bernal, Paul Delrot, Damien Loterie, Yang Li, Jos Malda, Christophe Moser, and Riccardo Levato. Volumetric Bioprinting of Complex Living-Tissue Constructs within Seconds. Advanced Materials, 2019. doi:10.1002/adma.201904209.">Bernal <em>et al.</em>, 2019</a>, <a class="reference internal" href="../intro.html#id10" title="Indrasen Bhattacharya, Joseph Toombs, and Hayden Taylor. High fidelity volumetric additive manufacturing. Additive Manufacturing, 47:102299, 2021. URL: https://doi.org/10.1016/j.addma.2021.102299, doi:10.1016/j.addma.2021.102299.">Bhattacharya <em>et al.</em>, 2021</a>, <a class="reference internal" href="../intro.html#id26" title="Antony Orth, Kathleen L. Sampson, Kayley Ting, Jonathan Boisvert, and Chantal Paquet. Correcting ray distortion in tomographic additive manufacturing. Optics Express, 29(7):11037, 2021. doi:10.1364/oe.419795.">Orth <em>et al.</em>, 2021</a>, <a class="reference internal" href="../intro.html#id18" title="Max Kollep, Georgia Konstantinou, Jorge Madrid-Wolff, Antoine Boniface, Lorenz Hagelüken, Pradeep Vallachira Warriam Sasikumar, Gurdial Blugan, Paul Delrot, Damien Loterie, Juergen Brugger, and Christophe Moser. Tomographic Volumetric Additive Manufacturing of Silicon Oxycarbide Ceramics. Advanced Engineering Materials, 2101345:2101345, 2022. arXiv:2109.12680, doi:10.1002/adem.202101345.">Kollep <em>et al.</em>, 2022</a>, <a class="reference internal" href="../intro.html#id29" title="Johanna Jesse Schwartz, Dominique Porcincula, Caitlyn Cook, Erika J Fong, and Maxim Shusteff. Volumetric Additive Manufacturing of Shape Memory Polymers. Polymer Chemistry, 2022. doi:10.1039/d1py01723c.">Schwartz <em>et al.</em>, 2022</a>, <a class="reference internal" href="../intro.html#id28" title="Charles M. Rackson, Joseph T. Toombs, Martin P. De Beer, Caitlyn C. Cook, Maxim Shusteff, Hayden K. Taylor, and Robert R. McLeod. Latent image volumetric additive manufacturing. Optics Letters, 47(5):1279, mar 2022. URL: https://opg.optica.org/abstract.cfm?URI=ol-47-5-1279, doi:10.1364/OL.449220.">Rackson <em>et al.</em>, 2022</a>, <a class="reference internal" href="../intro.html#id32" title="Bin Wang, Einstom Engay, Peter R. Stubbe, Saeed Z. Moghaddam, Esben Thormann, Kristoffer Almdal, Aminul Islam, and Yi Yang. Stiffness control in dual color tomographic volumetric 3D printing. Nature Communications, 13(1):1–10, 2022. doi:10.1038/s41467-022-28013-4.">Wang <em>et al.</em>, 2022</a>]</span>. In some cases, these devices have video display ports and are used a monitor or extended monitor on the user’s computer. The <a class="reference internal" href="../../autoapi/VAMToolbox/DLP/DLP/index.html#module-VAMToolbox.DLP.DLP" title="VAMToolbox.DLP.DLP"><code class="xref py py-mod docutils literal notranslate"><span class="pre">VAMToolbox.DLP.DLP</span></code></a> module makes displaying images or image sequences on the connected DLP device easy.</p>
+<div class="section" id="dlp-player">
+<h2>DLP player<a class="headerlink" href="#dlp-player" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="../../autoapi/VAMToolbox/DLP/DLP/index.html#VAMToolbox.DLP.DLP.player" title="VAMToolbox.DLP.DLP.player"><code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.DLP.DLP.player</span></code></a> is a tool which accepts several types of image sequence formats and displays the image sequence on the DLP device.</p>
+<div class="section" id="playback-interaction">
+<h3>Playback interaction<a class="headerlink" href="#playback-interaction" title="Permalink to this headline"></a></h3>
+<p>While the image sequence or video is playing, the user can press the spacebar to pause or resume playback. If the input was either a directory of image files, image sequence object, or a sinogram object, when the spacebar is pressed, the terminal will print which image index playback was paused on.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The starting image index can also be specified on <code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.DLP.DLP.player`</span></code> initialization with the <code class="docutils literal notranslate"><span class="pre">start_index</span></code> keyword argument. See <a class="reference internal" href="../examples/DLPplayer.html#examples-dlpplayer"><span class="std std-ref">DLP player</span></a>.</p>
+</div>
+</div>
+<div class="section" id="image-sequence">
+<h3>Image sequence<a class="headerlink" href="#image-sequence" title="Permalink to this headline"></a></h3>
+<p>The <a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#module-VAMToolbox.imagesequence" title="VAMToolbox.imagesequence"><code class="xref py py-mod docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence</span></code></a> module contains the <a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#VAMToolbox.imagesequence.ImageSeq" title="VAMToolbox.imagesequence.ImageSeq"><code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence.ImageSeq</span></code></a> class and helper functions insert a sinogram into a sequence of images for display on DLP device. A <a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#VAMToolbox.imagesequence.ImageSeq" title="VAMToolbox.imagesequence.ImageSeq"><code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence.ImageSeq</span></code></a> object can be saved with the <a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#VAMToolbox.imagesequence.ImageSeq.save" title="VAMToolbox.imagesequence.ImageSeq.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence.ImageSeq.save()</span></code></a> method or it the image sequence itself can be saved as a video (<a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#VAMToolbox.imagesequence.ImageSeq.saveAsVideo" title="VAMToolbox.imagesequence.ImageSeq.saveAsVideo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence.ImageSeq.saveAsVideo()</span></code></a>) or sequence of image files (<a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#VAMToolbox.imagesequence.ImageSeq.saveAsVideo" title="VAMToolbox.imagesequence.ImageSeq.saveAsVideo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence.ImageSeq.saveAsVideo()</span></code></a>).</p>
+<div class="section" id="image-configuration">
+<h4>Image configuration<a class="headerlink" href="#image-configuration" title="Permalink to this headline"></a></h4>
+<p>A <a class="reference internal" href="../../autoapi/VAMToolbox/imagesequence/index.html#VAMToolbox.imagesequence.ImageConfig" title="VAMToolbox.imagesequence.ImageConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.imagesequence.ImageConfig</span></code></a> object contains the settings which describe how the sinogram is inserted into the image that is to be displayed on the DLP device.</p>
+</div>
+</div>
+</div>
+<div class="section" id="setup-utilities">
+<h2>Setup utilities<a class="headerlink" href="#setup-utilities" title="Permalink to this headline"></a></h2>
+<p>The <a class="reference internal" href="../../autoapi/VAMToolbox/DLP/Setup/index.html#module-VAMToolbox.DLP.Setup" title="VAMToolbox.DLP.Setup"><code class="xref py py-mod docutils literal notranslate"><span class="pre">VAMToolbox.DLP.Setup</span></code></a> module has several utility functions to assist in the initial setup and calibration of the VAM printer.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>See <a class="reference internal" href="../examples/DLPsetup.html#examples-dlpsetup"><span class="std std-ref">DLP setup</span></a> for examples about how to use each setup utility.</p>
+</div>
+<div class="section" id="axis-alignment">
+<h3>Axis alignment<a class="headerlink" href="#axis-alignment" title="Permalink to this headline"></a></h3>
+<p><a class="reference internal" href="../../autoapi/VAMToolbox/DLP/Setup/index.html#VAMToolbox.DLP.Setup.AxisAlignment" title="VAMToolbox.DLP.Setup.AxisAlignment"><code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.DLP.Setup.AxisAlignment</span></code></a> is a class that allows the user to align the rotation axis of the VAM printer to the “central” axis of the projector device.</p>
+</div>
+<div class="section" id="focus">
+<h3>Focus<a class="headerlink" href="#focus" title="Permalink to this headline"></a></h3>
+<p><a class="reference internal" href="../../autoapi/VAMToolbox/DLP/Setup/index.html#VAMToolbox.DLP.Setup.Focus" title="VAMToolbox.DLP.Setup.Focus"><code class="xref py py-class docutils literal notranslate"><span class="pre">VAMToolbox.DLP.Setup.Focus</span></code></a> is a class that will display a Siemen’s star (or spoke target) to assist in focusing the optical system inside the resin container.</p>
+</div>
+</div>
+</div>
+
+
+              </div>
+              
+              
+              <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+</div>
+              
+          </main>
+          
+
+      </div>
+    </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+<footer class="footer mt-5 mt-md-0">
+  <div class="container">
+    
+    <div class="footer-item">
+      <p class="copyright">
+    &copy; Copyright 2022, Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal.<br>
+</p>
+    </div>
+    
+    <div class="footer-item">
+      <p class="sphinx-version">
+Created using <a href="http://sphinx-doc.org/">Sphinx</a> 4.5.0.<br>
+</p>
+    </div>
+    
+  </div>
+</footer>
+  </body>
+</html>

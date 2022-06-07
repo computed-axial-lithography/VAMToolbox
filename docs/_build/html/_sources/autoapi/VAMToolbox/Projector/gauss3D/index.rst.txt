@@ -1,0 +1,71 @@
+:py:mod:`VAMToolbox.Projector.gauss3D`
+======================================
+
+.. py:module:: VAMToolbox.Projector.gauss3D
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.Projector.gauss3D.gauss3D
+
+
+
+
+.. py:class:: gauss3D(target, proj_params, optical_params)
+
+   .. py:method:: createGaussKernel(self)
+
+      Builds Gaussian kernel and Fourier-transformed kernel according
+      to the optical parameters specified in optical_params
+
+      :returns: * **kernel** (*ndarray*) -- single pixel Gaussian beam approximation with same size as
+                  target
+                * **FFT_kernel** (*ndarray*) -- kernel Fourier-transformed along dimensions orthogonal to
+                  propagation
+
+
+   .. py:method:: setupInterpCoords(self, dimension, angle=None)
+
+
+   .. py:method:: convolveWithGaussKernelFP(self, target)
+
+
+   .. py:method:: convolveWithGaussKernelBP(self, projection)
+
+      Convolves a 1D or 2D projection with a 1D or 2D Gauss kernel defined at each
+      propagation distance to generate the backprojection for the angle
+      of the projection.
+          1D
+          f*_theta(x,y) = fft(P_theta(t)) * fft(G(t,prop))
+
+          2D
+          f*_theta(x,y,z) = fft(P_theta(t,z)) * fft(G(t,prop,z))
+
+      :param projection: 1D projection in t (lateral) or 2D projection in t (lateral)
+                         and z (height) axes at a single projection angle
+      :type projection: ndarray
+
+      :returns: **convolved_backproj** -- convolved backprojection in spatial domain for the same angle
+                of the input projection
+      :rtype: ndarray
+
+
+   .. py:method:: gaussFP(self, target)
+
+
+   .. py:method:: gaussBP(self, projections)
+
+
+   .. py:method:: forwardProject(self, target)
+
+
+   .. py:method:: backProject(self, projections)
+
+
+

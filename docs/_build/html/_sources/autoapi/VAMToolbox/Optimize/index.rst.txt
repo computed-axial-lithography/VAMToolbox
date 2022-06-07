@@ -1,0 +1,65 @@
+:py:mod:`VAMToolbox.optimize`
+=============================
+
+.. py:module:: VAMToolbox.optimize
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.optimize.Options
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.optimize.optimize
+
+
+
+.. py:class:: Options(method: str = 'CAL', n_iter: int = 50, d_h: float = 0.8, d_l: float = 0.7, filter: str = 'ram-lak', **kwargs)
+
+   .. py:attribute:: __default_FBP
+      
+
+      
+
+   .. py:attribute:: __default_CAL
+      
+
+      
+
+   .. py:attribute:: __default_PM
+      
+
+      
+
+   .. py:attribute:: __default_OSMO
+      
+
+      
+
+
+.. py:function:: optimize(target_geo: VAMToolbox.geometry.TargetGeometry, proj_geo: VAMToolbox.geometry.ProjectionGeometry, options: Options)
+
+   Performs VAM optimization using the selected optimizer in options
+
+   :param target_geo:
+   :type target_geo: geometry.TargetGeometry object
+   :param proj_geo:
+   :type proj_geo: geometry.ProjectionGeometry object
+   :param options:
+   :type options: optimize.Options object
+
+   :returns: * *geometry.Sinogram object*
+             * *geometry.Reconstruction object*
+
+

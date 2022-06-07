@@ -1,0 +1,54 @@
+:py:mod:`VAMToolbox.optimizer.PM`
+=================================
+
+.. py:module:: VAMToolbox.optimizer.PM
+
+
+Module Contents
+---------------
+
+Classes
+~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.optimizer.PM.LogError
+
+
+
+Functions
+~~~~~~~~~
+
+.. autoapisummary::
+
+   VAMToolbox.optimizer.PM.min_PM
+
+
+
+.. py:class:: LogError(options)
+
+   .. py:method:: getIterTime(self, i)
+
+
+
+.. py:function:: min_PM(target_geo, proj_geo, _options)
+
+   Quasi-Newton projection optimization via L-BFGS-B algorithm.
+
+   :param target_geo:
+   :type target_geo: geometry.TargetGeometry object
+   :param proj_geo:
+   :type proj_geo: geometry.ProjectionGeometry object
+   :param options:
+   :type options: Options object
+
+   :returns: * *geometry.Sinogram* -- optimized sinogram
+             * *geometry.Reconstruction* -- reconstruction from non-filtered backprojection of the
+               optimized reconstructions
+
+   .. rubric:: References
+
+   [1] High fidelity volumetric additive manufacturing
+   https://doi.org/10.1016/j.addma.2021.102299
+
+
