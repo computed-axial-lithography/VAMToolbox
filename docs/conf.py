@@ -12,11 +12,28 @@
 #
 import os
 import sys
+import codecs
+
 current_dir = os.path.dirname(__file__)
-target_dir = os.path.abspath(os.path.join(current_dir, "../VAMToolbox"))
+target_dir = os.path.abspath(os.path.join(current_dir, "../vamtoolbox"))
 sys.path.insert(0, target_dir)
 
-print(target_dir)
+
+import os.path
+
+def read(rel_path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with codecs.open(os.path.join(here, rel_path), 'r') as fp:
+        return fp.read()
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith('__version__'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 # sys.path.insert(0, os.path.abspath(os.path.join('..', 'VAMToolbox')))
 
 
@@ -27,7 +44,7 @@ copyright = '2022, Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhatta
 author = 'Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.0beta'
+release = get_version("../vamtoolbox/__init__.py")
 
 
 # -- General configuration ---------------------------------------------------
@@ -83,7 +100,7 @@ bibtex_bibfiles = ['refs.bib']
 
 # AutoAPI
 autoapi_type = 'python'
-autoapi_dirs = ['../VAMToolbox']
+autoapi_dirs = ['../vamtoolbox']
 # autoapi_add_toctree_entry = False
 
 

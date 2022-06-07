@@ -1,0 +1,15 @@
+sphinx
+sphinx-autoapi
+sphinx-copybutton
+sphinx-panels
+sphinx_rtd_theme
+sphinxcontrib-applehelp
+sphinxcontrib-bibtex
+sphinxcontrib-devhelp
+sphinxcontrib-dotnetdomain
+sphinxcontrib-golangdomain
+sphinxcontrib-htmlhelp
+sphinxcontrib-jsmath
+sphinxcontrib-napoleon
+sphinxcontrib-qthelp
+sphinxcontrib-serializinghtml
