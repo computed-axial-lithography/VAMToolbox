@@ -72,7 +72,7 @@ extensions = [
     'autoapi.extension',
     'sphinx.ext.doctest',
     'sphinx.ext.inheritance_diagram',
-    'pydata_sphinx_theme'
+    # 'pydata_sphinx_theme'
 ]
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -119,21 +119,21 @@ autoapi_dirs = ['../vamtoolbox']
 #
 html_theme = 'pydata_sphinx_theme'
 
-html_theme_options = {
-    "navbar_start": [],
-    "navbar_center": [],
-    "navbar_end": [],
-    # "navbar_end": ["navbar-icon-links"]
+# html_theme_options = {
+#     "navbar_start": [],
+#     "navbar_center": [],
+#     "navbar_end": [],
+#     # "navbar_end": ["navbar-icon-links"]
 
-    "icon_links": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/computed-axial-lithography/VAMToolbox",
-            "icon": "fab fa-github-square",
-            "type": "fontawesome",
-        },
-    ]
-}
+#     "icon_links": [
+#         {
+#             "name": "GitHub",
+#             "url": "https://github.com/computed-axial-lithography/VAMToolbox",
+#             "icon": "fab fa-github-square",
+#             "type": "fontawesome",
+#         },
+#     ]
+# }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
