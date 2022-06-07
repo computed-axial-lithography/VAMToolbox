@@ -119,6 +119,12 @@ autoapi_dirs = ['../vamtoolbox']
 #
 html_theme = 'pydata_sphinx_theme'
 
+html_theme_options = {
+    "navbar_start": [],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": [],
+    # "navbar_end": ["navbar-icon-links"]
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
