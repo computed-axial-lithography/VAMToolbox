@@ -17,7 +17,7 @@ formats:
    - pdf
 
 build:
-   os: "ubuntu"
+   os: "ubuntu-22.04"
 
 python:
   version: 3.9
