@@ -55,7 +55,7 @@ release = get_version("../vamtoolbox/__init__.py")
 extensions = [
     'sphinx_rtd_theme',
     'sphinx.ext.autodoc',
-    'sphinxcontrib.napoleon',
+    'sphinx.ext.napoleon',
     'sphinx_panels',
     'sphinx_copybutton',
     # 'sphinxcontrib.video',

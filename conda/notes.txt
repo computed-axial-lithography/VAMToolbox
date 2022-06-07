@@ -7,7 +7,7 @@ meta.yaml
 - conda recipe is in ../conda so the source path is "source: .."
 
 to get run: dependencies for meta.yaml run the following from base conda env
->>> conda env export -n VAMToolbox2 > env.yml --no-builds
+>>> conda env export -n VAMToolbox > env.yml --no-builds
 
 
 build package
