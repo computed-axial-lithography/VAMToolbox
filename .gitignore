@@ -6,5 +6,6 @@ __pycache__/
 *.py[cod]
 
 *DELETE_*
+*DELETE*
 
 *_build*

@@ -11,11 +11,11 @@ Installation
 
 Conda
 =====
-The VAMToolbox is available at the VAMToolbox channel in the conda package manager. Run the following inside a conda environment:
+The VAMToolbox is available at the `VAMToolbox channel <https://anaconda.org/VAMToolbox>`_ in the conda package manager. Run the following inside a conda environment:
 
 .. code:: console
     
-    conda install VAMToolbox
+    conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
 
 
 Astra Toolbox
@@ -33,11 +33,11 @@ To remove the toolbox from the base environment (where ``myenv`` is replaced by 
 
 .. code:: console
 
-    conda remove -n myenv VAMToolbox
+    conda remove -n myenv vamtoolbox
 
 To remove the toolbox from the current environment: 
 
 .. code:: console
 
-    conda remove VAMToolbox
+    conda remove vamtoolbox
 

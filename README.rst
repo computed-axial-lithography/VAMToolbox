@@ -13,5 +13,6 @@
 +----------------------+-----------+
 
 
-.. warning::
-   This project is under active development!
+**.. warning:: This project is under active development!
+
+.. image:: /docs/_static/logos/logo_bone.png
