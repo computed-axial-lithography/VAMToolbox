@@ -9,13 +9,9 @@
 VAMToolbox documentation
 ************************
 
-You have reached the documentation of VAMToolbox!
-
-
 .. warning::
-   This project is under active development!
 
-.. include:: ../README.rst
+   This project is under active development!
 
 
 

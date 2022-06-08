@@ -1,4 +1,5 @@
 .. image:: /docs/_static/logos/logo_bone.png
+   :height: 200px
 ----
 
 .. |conda| image:: https://anaconda.org/vamtoolbox/vamtoolbox/badges/version.svg
@@ -26,9 +27,8 @@ This project is under active development!
 Installation
 ------------
 
-To install VAMToolbox, enter the command below in the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ prompt:
+To install VAMToolbox, enter the command below in the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ prompt::
 
-.. code:: bash
    conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
 
 *NOTE: This command is different than what Anaconda.org suggests. This is because to properly install the dependencies you must tell conda to search in the astra-toolbox and vamtoolbox channels (in addition to the conda-forge channel, this is a default channel but is added to be explicit).*
