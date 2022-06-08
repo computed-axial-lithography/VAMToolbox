@@ -38,4 +38,4 @@ For more information, refer to the `installation documentation <https://vamtoolb
 Resources
 ---------
 
-View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site 
+View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.

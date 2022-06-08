@@ -8,10 +8,12 @@
 Walkthrough
 ***********
 
+.. image:: /_images/examples/3Dzerodoseconstraint/bodies.png
+
 Create a :py:class:`vamtoolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis. When a zero dose constraint is desired, use the ``bodies`` kwarg to specify which bodies are to be printed (i.e. a dictionary specifying which bodies are to be printed and which are the zero dose constraint/s). In this case, the body to printed is body 1 and the body which is the zero dose constraint is body 2.
 
 .. literalinclude:: ../../../examples/3Dzerodoseconstraint.py
-    :lines: 6
+    :lines: 1-6
 
 Finally, show the target with the :py:meth:`vamtoolbox.geometry.Volume.show` method and use the ``show_bodies`` kwarg to show the insert bodies in a green color.
 
@@ -29,7 +31,7 @@ Create the :py:class:`vamtoolbox.geometry.ProjectionGeometry` object. First, the
 Create an :py:class:`vamtoolbox.optimize.Options` object and run optimization. The :py:class:`vamtoolbox.optimize.Options` object holds the parameters used by the :py:func:`vamtoolbox.optimize.optimize` function.
 
 .. literalinclude:: ../../../examples/3Dzerodoseconstraint.py
-    :lines: 13-14
+    :lines: 13-16
 
 .. image:: /_images/examples/3Dzerodoseconstraint/recon.png
 
