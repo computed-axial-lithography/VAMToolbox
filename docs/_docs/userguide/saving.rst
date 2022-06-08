@@ -8,7 +8,7 @@ Save/Load VAMToolbox objects
 Saving data
 ***********
 
-VAMToolbox objects :py:class:`geometry.Sinogram` and :py:class:`geometry.Reconstruction` can be saved with the class method :py:meth:`save`.
+VAMToolbox objects :py:class:`vamtoolbox.geometry.Sinogram` and :py:class:`vamtoolbox.geometry.Reconstruction` can be saved with the class method :py:meth:`vamtoolbox.geometry.volume.save`.
 
 .. code-block:: python
 

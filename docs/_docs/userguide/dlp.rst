@@ -4,7 +4,7 @@
 Digital light processing
 ########################
 
-In tomographic VAM printers, typically a digital light processing (DLP) device is used to project the computed images into the volume of photosensitive material. DLP video projectors and standalone DMD controllers are often used :cite:`Kelly2019a,Bernal2019,Loterie2020a,Bhattacharya2021,Orth2021,Rackson2022,Kollep2022,Wang2022,Schwartz2022`. In some cases, these devices have video display ports and are used a monitor or extended monitor on the user's computer. The :py:mod:`vamtoolbox.dlp.dlp` module makes displaying images or image sequences on the connected DLP device easy.
+In tomographic VAM printers, typically a digital light processing (DLP) device is used to project the computed images into the volume of photosensitive material. DLP video projectors and standalone DMD controllers are often used :cite:`Kelly2019a,Bernal2019,Loterie2020a,Bhattacharya2021,Orth2021,Rackson2022,Kollep2022,Wang2022,Schwartz2022,Toombs2022`. In some cases, these devices have video display ports and are used a monitor or extended monitor on the user's computer. The :py:mod:`vamtoolbox.dlp.players` module makes displaying images or image sequences on the connected DLP device easy.
 
 **********
 DLP player
@@ -25,13 +25,13 @@ Playback interaction
 While the image sequence or video is playing, the user can press the spacebar to pause or resume playback. If the input was either a directory of image files, image sequence object, or a sinogram object, when the spacebar is pressed, the terminal will print which image index playback was paused on. 
 
 .. note:: 
-   The starting image index can also be specified on :py:class:`vamtoolbox.dlp.players.player`` initialization with the ``start_index`` keyword argument. See :ref:`examples_DLPplayer`.
+   The starting image index can also be specified on :py:def:`vamtoolbox.dlp.players.player`` initialization with the ``start_index`` keyword argument. See :ref:`examples_DLPplayer`.
 
 
 
 Image sequence
 ==============
-The :py:mod:`vamtoolbox.imagesequence` module contains the :py:class:`vamtoolbox.imagesequence.ImageSeq` class and helper functions insert a sinogram into a sequence of images for display on DLP device. A :py:class:`vamtoolbox.imagesequence.ImageSeq` object can be saved with the :py:meth:`vamtoolbox.imagesequence.ImageSeq.save` method or it the image sequence itself can be saved as a video (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsVideo`) or sequence of image files (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsVideo`).
+The :py:mod:`vamtoolbox.imagesequence` module contains the :py:class:`vamtoolbox.imagesequence.ImageSeq` class and helper functions insert a sinogram into a sequence of images for display on DLP device. A :py:class:`vamtoolbox.imagesequence.ImageSeq` object can be saved with the :py:meth:`vamtoolbox.imagesequence.ImageSeq.save` method or it the image sequence itself can be saved as a video (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsVideo`) or sequence of image files (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsImages`).
 
 
 Image configuration
@@ -47,7 +47,7 @@ Setup utilities
 The :py:mod:`vamtoolbox.dlp.setup` module has several utility functions to assist in the initial setup and calibration of the VAM printer. 
 
 .. note:: 
-   See :ref:`examples_DLPsetup` for examples about how to use each setup utility.
+   See the :ref:`examples_DLPsetup` example for demonstrations about how to use each setup utility.
 
 Axis alignment
 ==============
