@@ -1,2 +1,0 @@
-# CAL-software
-Python translation
