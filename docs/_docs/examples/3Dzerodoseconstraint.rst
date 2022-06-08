@@ -9,7 +9,7 @@ Walkthrough
 ***********
 
 .. image:: /_images/examples/3Dzerodoseconstraint/bodies.png
-    :height: 200px
+    :height: 300px
 
 Create a :py:class:`vamtoolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis. When a zero dose constraint is desired, use the ``bodies`` kwarg to specify which bodies are to be printed (i.e. a dictionary specifying which bodies are to be printed and which are the zero dose constraint/s). In this case, the body to printed is body 1 and the body which is the zero dose constraint is body 2.
 
