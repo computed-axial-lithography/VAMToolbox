@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import vamtoolbox as vam
     import numpy as np
     
-    target_geo = vam.geometry.TargetGeometry(stlfilename="examples\\screwdriver.stl",resolution=200,bodies={'print':[2],'insert':[1]})
+    target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("screwdriver.stl"),resolution=200,bodies={'print':[2],'insert':[1]})
     target_geo.show(show_bodies=True)
 
     num_angles = 360

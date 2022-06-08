@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 import imageio
 
-from vamtoolbox.geometry import Sinogram
+import vamtoolbox
 
 class ImageConfig:
     def __init__(self,image_dims,**kwargs):
@@ -47,6 +47,8 @@ class ImageConfig:
         """
         self.N_u, self.N_v = image_dims
 
+        if self.N_u % 4 != 0 or self.N_v % 4 != 0:
+            raise Exception("Image dimensions should be divisible by 4.")
 
         self.rotate_angle = 0.0 if 'rotate_angle' not in kwargs else kwargs['rotate_angle']
         self.u_offset = 0 if 'u_offset' not in kwargs else kwargs['u_offset']
@@ -76,12 +78,12 @@ class ImageSeq:
         """
         if isinstance(sinogram,np.ndarray):
             pass
-        elif isinstance(sinogram,Sinogram):
+        elif isinstance(sinogram,vamtoolbox.geometry.Sinogram):
             sinogram = sinogram.array
         else:
             raise ArgumentError("sinogram not specified.")
 
-            
+        self.file_extension = ".imgseq"
         self.image_config = image_config
         
         
@@ -107,9 +109,7 @@ class ImageSeq:
         if self.image_config.intensity_scale != 1.0:
             mod_sinogram = _scaleIntensity(mod_sinogram,self.image_config.intensity_scale)
 
-        print(mod_sinogram.shape)
         mod_sinogram = _cropToBounds(mod_sinogram)
-        print(mod_sinogram.shape)
 
         mod_sinogram = mod_sinogram.astype(np.uint8)
 
@@ -138,12 +138,39 @@ class ImageSeq:
     def __setstate__(self,d):
         self.__dict__ = d
 
-    def save(self,save_dir : str,name : str):
+    def save(self,name:str):
         """save imagesequence.ImageSeq as 'name.imgseq'"""
-        file = open(save_dir+ "\\" + name + ".imgseq",'wb')
-
+        file = open(name + self.file_extension,'wb')
         dill.dump(self,file)
         file.close()
+
+    def preview(self,):
+        """Preview an animated image sequence"""
+        vamtoolbox.dlp.players.preview(self)
+
+    #TODO make show method with scrollable images like geometry.show()
+    # def show(self,savepath=None,dpi='figure',**kwargs):
+    #     """
+    #     Parameters
+    #     ----------
+    #     savepath : str, optional
+
+    #     dpi : int, optional
+    #         image dots per inch from `matplotlib.pyplot.savefig <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.savefig.html>`_
+
+    #     **kwargs
+    #         accepts `matplotlib.pyplot.imshow <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.imshow.html>`_ keyword arguments
+    #     """
+    #     kwargs['cmap'] = 'CMRmap' if 'cmap' not in kwargs else kwargs['cmap']
+    #     kwargs['interpolation'] = 'antialiased' if 'interpolation' not in kwargs else kwargs['interpolation']
+
+    #     # must keep instance of slicer for mouse wheel scrolling to work
+    #     self.viewer = vamtoolbox.display.VolumeSlicer(self.array,self.vol_type,**kwargs)
+        
+    #     if savepath is not None:
+    #         plt.savefig(savepath,dpi=dpi)
+
+    #     plt.show()
 
     def saveAsVideo(self,save_path: str,rot_vel: float,duration: float):
 
@@ -185,7 +212,7 @@ class ImageSeq:
             print("Saving image %s/%s"%(str(k).zfill(4),str(len(self.images)-1).zfill(4)))
 
 
-def loadImageSeq(file_name):
+def loadImageSeq(file_name:str):
     file = open(file_name,'rb')
     data_pickle = file.read()
     file.close()

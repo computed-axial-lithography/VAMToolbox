@@ -133,9 +133,11 @@ class Volume:
         Examples
         --------
         Keep z slices between and including 1 and 10
+
         >>> vol.segmentZ([1,10])
 
         Keep single z slice at index 10, converts volume object to 2D
+
         >>> vol.segmentZ(10)
         """
         
@@ -200,14 +202,16 @@ class TargetGeometry(Volume):
 
         Examples
         --------
-
         Raw matrix target
+
         >>> t = TargetGeometry(target=np.ones((3,3,3)))
 
         Image (binary e.g. white and black) file target
+
         >>> t = TargetGeometry(imagefilename="example.png",pixels=300)
 
         STL file target to voxelize
+
         >>> t = TargetGeometry(stlfilename="example.stl",resolution=100,rot_angles=[90,0,0])
 
         """
@@ -273,9 +277,11 @@ class TargetGeometry(Volume):
         Examples
         --------
         Keep z slices between and including 1 and 10
+
         >>> target_geo.segmentZ([1,10])
 
         Keep single z slice at index 10, converts target_geo to 2D
+        
         >>> target_geo.segmentZ(10)
         """
         if isinstance(slices,int) or (isinstance(slices,list) and len(slices)==1):

@@ -11,7 +11,7 @@ Walkthrough
 Focus
 =====
 
-Show a Siemen's star for focus adjustment with :py:class:`VAMToolbox.DLP.Setup.Focus`. The number of slices in the star can be changed with the ``slices`` argument.
+Show a Siemen's star for focus adjustment with :py:class:`vamtoolbox.dlp.setup.Focus`. The number of slices in the star can be changed with the ``slices`` argument.
 
 .. literalinclude:: ../../../examples/DLPsetup.py
     :lines: 1-4
@@ -23,7 +23,7 @@ Show a Siemen's star for focus adjustment with :py:class:`VAMToolbox.DLP.Setup.F
 Axis alignment
 ==============
 
-Show 3 lines for axis alignment with :py:class:`VAMToolbox.DLP.Setup.AxisAlignment`. The line thickness, line separation, and line u-axis center offset can be changed with the arguments. 
+Show 3 lines for axis alignment with :py:class:`vamtoolbox.dlp.setup.AxisAlignment`. The line thickness, line separation, and line u-axis center offset can be changed with the arguments. 
 
 .. literalinclude:: ../../../examples/DLPsetup.py
     :lines: 6

@@ -108,6 +108,22 @@ Examples
 
     ---
 
+    Image Sequence
+    ^^^^^^^^^^^^^^
+
+    .. image:: /_images/examples/DLPplayer/image.png
+        :align: center
+
+
+    +++
+
+    .. link-button:: examples/imagesequence
+        :text: Go to image sequence example
+        :type: ref
+        :classes: btn-info btn-block stretched-link
+
+    ---
+
     Overprinting
     ^^^^^^^^^^^^
 
@@ -119,5 +135,21 @@ Examples
 
     .. link-button:: examples/3Doverprint
         :text: Go to overprinting example
+        :type: ref
+        :classes: btn-info btn-block stretched-link
+
+    ---
+
+    Zero dose constraints
+    ^^^^^^^^^^^^^^^^^^^^^
+
+    .. image:: /_images/examples/3Dzerodoseconstraint/1.png
+        :align: center
+
+
+    +++
+
+    .. link-button:: examples/3Dzerodoseconstraint
+        :text: Go to zero dose constraint example
         :type: ref
         :classes: btn-info btn-block stretched-link

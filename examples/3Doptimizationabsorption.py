@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import vamtoolbox as vam
     import numpy as np
 
-    target_geo = vam.geometry.TargetGeometry(stlfilename="examples\\bear.stl", resolution=250, rot_angles=[90, 0, 0])
+    target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("bear.stl"), resolution=250, rot_angles=[90, 0, 0])
     # target_geo.show()
 
     num_angles = 360

@@ -31,7 +31,7 @@ class SetupWindow(pyglet.window.Window):
         self.N_screen = None if 'N_screen' not in kwargs else kwargs['N_screen']
         self.screen_num = -1 if 'screen_num' not in kwargs else kwargs['screen_num']
 
-        display = pyglet.canvas.display()
+        display = pyglet.canvas.Display()
         screens = display.get_screens()
         selected_screen = screens[self.screen_num]
 

@@ -26,7 +26,7 @@ VAMToolbox objects :py:class:`geometry.Sinogram` and :py:class:`geometry.Reconst
 Loading data
 ************
 
-To load objects, convenience functions are provided in the :py:mod:`VAMToolbox.geometry` module.
+To load objects, convenience functions are provided in the :py:mod:`vamtoolbox.geometry` module.
 
 .. code-block:: python
    

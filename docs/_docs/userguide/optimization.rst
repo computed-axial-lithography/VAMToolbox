@@ -33,6 +33,6 @@ Optimization methods
 Optimization plots
 ******************
 
-If the ``verbose`` keyword argument is set to ``'plot'`` in :py:mod:`VAMToolbox.optimize.optimize`, a group of plots that tracks the optimization process will appear. The top left plot is the mid slice of the target geometry array and the top right is the mid slice of the reconstruction array at the current iteration. The bottom left is a line plot of the error over past iterations and the bottom right is a histogram of the in- and out-of-part distributions at the current iteration as described above.
+If the ``verbose`` keyword argument is set to ``'plot'`` in :py:mod:`vamtoolbox.optimize.optimize`, a group of plots that tracks the optimization process will appear. The top left plot is the mid slice of the target geometry array and the top right is the mid slice of the reconstruction array at the current iteration. The bottom left is a line plot of the error over past iterations and the bottom right is a histogram of the in- and out-of-part distributions at the current iteration as described above.
 
 .. image:: /_images/userguide/optimization_plot.png

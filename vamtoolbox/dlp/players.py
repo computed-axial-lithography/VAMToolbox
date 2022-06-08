@@ -269,18 +269,22 @@ def player(*args,**kwargs):
     --------
 
     Specifying ImageSeq object
+
     >>> I = ImageSeq()
     >>> player(image_seq=I,rot_vel=12)
 
     Specifying Sinogram object
+
     >>> sino = loadVolume("C:\\mysinogram.sino")  
     >>> player(sinogram=sino,rot_vel=12)
 
     Specifying images directory 
+
     >>> dir = "C:\\images"
     >>> player(rot_vel=12,images_dir=dir)
 
     Specifying video file
+    
     >>> path = "C:\\video.mp4"
     >>> player(rot_vel=12,video=path)
 
@@ -291,9 +295,7 @@ def player(*args,**kwargs):
     
     return x
 
+def preview(image_seq):
+    player(image_seq=image_seq,rot_vel=30,windowed=True,screen_num=0)
+    return
 
-
-if __name__ == '__main__':
-
-    # a = dlp(images_dir="E:\\test",rot_vel=12,)
-    player(video="E:\\test1\\video.mp4",rot_vel=24,windowed=True,debug_fps=True)

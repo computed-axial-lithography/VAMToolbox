@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import vamtoolbox as vam
     import numpy as np
     
-    target_geo = vam.geometry.TargetGeometry(stlfilename="examples\\trifurcatedvasculature.stl",resolution=200)
+    target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("trifurcatedvasculature.stl"),resolution=200)
     target_geo.show()
 
     num_angles = 360

@@ -8,12 +8,12 @@ Voxelize a .stl
 Walkthrough
 ***********
 
-Create a :py:class:`VAMToolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis.
+Create a :py:class:`vamtoolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis.
 
 .. literalinclude:: ../../../examples/voxelizestl.py
     :lines: 1-4
 
-Show the voxel array of the :py:class:`VAMToolbox.geometry.TargetGeometry` instance (:py:attr:`TargetGeometry.array`) with :py:meth:`TargetGeometry.show`.
+Show the voxel array of the :py:class:`vamtoolbox.geometry.TargetGeometry` instance (:py:attr:`TargetGeometry.array`) with :py:meth:`TargetGeometry.show`.
 
 
 .. literalinclude:: ../../../examples/voxelizestl.py

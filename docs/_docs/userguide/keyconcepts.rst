@@ -10,33 +10,33 @@ The VAMToolbox is composed of geometries, projectors, optimization, and digital 
 Geometry
 ********
 
-The :py:mod:`VAMToolbox.geometry` module contains classes to organize flow of data within the toolbox. 
+The :py:mod:`vamtoolbox.geometry` module contains classes to organize flow of data within the toolbox. 
 
-* :py:class:`VAMToolbox.geometry.TargetGeometry` is used to hold the voxelized target. It is passed into the optimization function.
-* :py:class:`VAMToolbox.geometry.ProjectionGeometry` holds data about the type of projector used, the projection angles, the inclination angle for laminographic geometries, etc. It is passed into the optimization function. 
-* :py:class:`VAMToolbox.geometry.Sinogram` 
-* :py:class:`VAMToolbox.geometry.Reconstruction`
+* :py:class:`vamtoolbox.geometry.TargetGeometry` is used to hold the voxelized target. It is passed into the optimization function.
+* :py:class:`vamtoolbox.geometry.ProjectionGeometry` holds data about the type of projector used, the projection angles, the inclination angle for laminographic geometries, etc. It is passed into the optimization function. 
+* :py:class:`vamtoolbox.geometry.Sinogram` 
+* :py:class:`vamtoolbox.geometry.Reconstruction`
 
 **********
 Projectors
 **********
 
-:py:mod:`VAMToolbox.Projector`
+:py:mod:`vamtoolbox.Projector`
 
 ************
 Optimization
 ************
 
-:py:mod:`VAMToolbox.Optimizer`
+:py:mod:`vamtoolbox.Optimizer`
 
 ************************
 Digital light processing
 ************************
 
-:py:mod:`VAMToolbox.DLP`
+:py:mod:`vamtoolbox.dlp`
 
 *****
 Other
 *****
 
-:py:mod:`VAMToolbox.metrics`
+:py:mod:`vamtoolbox.metrics`

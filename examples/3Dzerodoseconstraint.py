@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import vamtoolbox as vam
     import numpy as np
     
-    target_geo = vam.geometry.TargetGeometry(stlfilename="examples\\cylinder.stl",resolution=150,bodies={'print':[1],'zero_dose':[2]})
+    target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("cylinder.stl"),resolution=150,bodies={'print':[1],'zero_dose':[2]})
     target_geo.show(show_bodies=True)
 
     num_angles = 360

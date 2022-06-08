@@ -13,7 +13,7 @@ Import VAMToolbox modules and numpy.
 .. literalinclude:: ../../../examples/3Doptimization.py
     :lines: 1-4
 
-Create a :py:class:`VAMToolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis and show the target with the :py:meth:`VAMToolbox.geometry.Volume.show` method.
+Create a :py:class:`vamtoolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis and show the target with the :py:meth:`vamtoolbox.geometry.Volume.show` method.
 
 .. literalinclude:: ../../../examples/3Doptimization.py
     :lines: 6-7
@@ -21,12 +21,12 @@ Create a :py:class:`VAMToolbox.geometry.TargetGeometry` from a .stl file by spec
 .. image:: /_images/examples/3Doptimization/target.png
 
 
-Create the :py:class:`VAMToolbox.geometry.ProjectionGeometry` object. First, the ``angles`` array is created by using `numpy.linspace <https://numpy.org/doc/stable/reference/generated/numpy.linspace.html>`_ to create 1D array of evenly spaced angles at which to perform projection. 
+Create the :py:class:`vamtoolbox.geometry.ProjectionGeometry` object. First, the ``angles`` array is created by using `numpy.linspace <https://numpy.org/doc/stable/reference/generated/numpy.linspace.html>`_ to create 1D array of evenly spaced angles at which to perform projection. 
 
 .. literalinclude:: ../../../examples/3Doptimization.py
     :lines: 9-11
 
-Create an :py:class:`VAMToolbox.optimize.Options` object and run optimization. The :py:class:`VAMToolbox.optimize.Options` object holds the parameters used by the :py:func:`VAMToolbox.optimize.optimize` function.
+Create an :py:class:`vamtoolbox.optimize.Options` object and run optimization. The :py:class:`vamtoolbox.optimize.Options` object holds the parameters used by the :py:func:`vamtoolbox.optimize.optimize` function.
 
 .. literalinclude:: ../../../examples/3Doptimization.py
     :lines: 13-14

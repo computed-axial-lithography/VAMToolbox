@@ -1,12 +1,5 @@
-# from mayavi import mlab
-from cProfile import label
-from types import MethodType
-from attr import has
 from matplotlib import axes
 import numpy as np
-# import trimesh
-# from tvtk.util.ctf import PiecewiseFunction
-# from tvtk.util.ctf import ColorTransferFunction
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.animation as anim

@@ -69,6 +69,7 @@ requirements:
     - idna
     - imagecodecs-lite
     - imageio
+    - imageio-ffmpeg
     - imagesize
     - importlib-metadata
     - importlib_metadata
