@@ -1,6 +1,6 @@
 .. _intro:
 
-.. image:: /docs/_static/logos/logo_bone.png
+.. image:: /_static/logos/logo_bone.png
    :height: 200px
 ----
 

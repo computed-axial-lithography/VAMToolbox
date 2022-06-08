@@ -143,7 +143,7 @@ Examples
     Zero dose constraints
     ^^^^^^^^^^^^^^^^^^^^^
 
-    .. image:: /_images/examples/3Dzerodoseconstraint/1.png
+    .. image:: /_images/examples/3Dzerodoseconstraint/bodies.png
         :align: center
 
 
