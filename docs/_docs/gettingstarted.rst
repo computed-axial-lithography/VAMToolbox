@@ -8,6 +8,8 @@ Setup
 Installation
 ************
 
+A prerequiste to install VAMToolbox is to install the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ package manager.
+
 
 Conda
 =====
@@ -16,6 +18,9 @@ The VAMToolbox is available at the `VAMToolbox channel <https://anaconda.org/VAM
 .. code:: console
     
     conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
+
+.. warning:: 
+    This command is different than what Anaconda.org suggests. This is because to properly install the dependencies you must tell conda to search in the astra-toolbox and vamtoolbox channels (in addition to the conda-forge channel, this is a default channel but is added to be explicit).
 
 
 Astra Toolbox
@@ -33,11 +38,11 @@ To remove the toolbox from the base environment (where ``myenv`` is replaced by 
 
 .. code:: console
 
-    conda remove -n myenv vamtoolbox
+    conda remove -n myenv vamtoolbox --all
 
 To remove the toolbox from the current environment: 
 
 .. code:: console
 
-    conda remove vamtoolbox
+    conda remove vamtoolbox --all
 

@@ -116,7 +116,7 @@ autoapi_dirs = ['../vamtoolbox']
 # a list of builtin themes.
 #
 html_theme = 'pydata_sphinx_theme'
-
+html_logo = "_static/logos/logo_bone.png"
 html_theme_options = {
     "icon_links": [
         {

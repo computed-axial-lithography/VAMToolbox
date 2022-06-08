@@ -4,6 +4,8 @@
 Introduction
 ############
 
+VAMToolbox is a Python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing. It provides visualization, various optimization techniques, and flexible projection geometries to assist in the creation of sinograms and reconstructions for simulated VAM.
+
 **********
 Background
 **********

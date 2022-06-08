@@ -1,3 +1,5 @@
+.. image:: /docs/_static/logos/logo_bone.png
+----
 
 .. |conda| image:: https://anaconda.org/vamtoolbox/vamtoolbox/badges/version.svg
    :target: https://anaconda.org/vamtoolbox/vamtoolbox
@@ -13,6 +15,27 @@
 +----------------------+-----------+
 
 
-**.. warning:: This project is under active development!
+VAMToolbox is a Python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing. It provides visualization, various optimization techniques, and flexible projection geometries to assist in the creation of sinograms and reconstructions for simulated VAM.
 
-.. image:: /docs/_static/logos/logo_bone.png
+**WARNING!**
+------------
+
+This project is under active development!
+
+
+Installation
+------------
+
+To install VAMToolbox, enter the command below in the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ prompt:
+
+.. code:: bash
+   conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
+
+*NOTE: This command is different than what Anaconda.org suggests. This is because to properly install the dependencies you must tell conda to search in the astra-toolbox and vamtoolbox channels (in addition to the conda-forge channel, this is a default channel but is added to be explicit).*
+
+For more information, refer to the `installation documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/gettingstarted.html>`_.
+
+Resources
+---------
+
+View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site 
