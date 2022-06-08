@@ -20,6 +20,7 @@ The VAMToolbox is available at the `VAMToolbox channel <https://anaconda.org/VAM
     conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
 
 .. warning:: 
+    
     This command is different than what Anaconda.org suggests. This is because to properly install the dependencies you must tell conda to search in the astra-toolbox and vamtoolbox channels (in addition to the conda-forge channel, this is a default channel but is added to be explicit).
 
 
