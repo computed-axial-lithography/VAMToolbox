@@ -8,37 +8,37 @@ Optimization comparison
 Walkthrough
 ***********
 
-Import VAMToolbox modules and numpy. Create the target Create the :py:class:`vamtoolbox.geometry.TargetGeometry` object and the :py:class:`vamtoolbox.geometry.ProjectionGeometry` object.
+Import VAMToolbox and numpy. Create the target Create the :py:class:`vamtoolbox.geometry.TargetGeometry` object and the :py:class:`vamtoolbox.geometry.ProjectionGeometry` object.
 
 .. literalinclude:: ../../../examples/optimizationcomparison.py
-    :lines: 1-10
+    :lines: 1-9
 
 Filtered back projection
 ========================
 
 .. literalinclude:: ../../../examples/optimizationcomparison.py
-    :lines: 12-15
+    :lines: 10-13
 
 CAL 
 ====
 :cite:p:`Kelly2019a`
 
 .. literalinclude:: ../../../examples/optimizationcomparison.py
-    :lines: 17-20
+    :lines: 15-18
 
 Penalty minimization 
 ====================
 :cite:p:`Bhattacharya2021`
 
 .. literalinclude:: ../../../examples/optimizationcomparison.py
-    :lines: 22-25
+    :lines: 20-23
 
 Object space model optimization
 ===============================
- :cite:p:`Rackson2021`
+:cite:p:`Rackson2021`
  
 .. literalinclude:: ../../../examples/optimizationcomparison.py
-    :lines: 27-30
+    :lines: 25-28
 
 
 .. image:: /_images/examples/optimizers/allopts.png

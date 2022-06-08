@@ -8,15 +8,10 @@
 Walkthrough
 ***********
 
-Import VAMToolbox modules and numpy.
-
-.. literalinclude:: ../../../examples/3Doptimization.py
-    :lines: 1-4
-
 Create a :py:class:`vamtoolbox.geometry.TargetGeometry` from a .stl file by specifying the ``stlfilename`` and ``resolution`` i.e. the number of slices in the z-axis and show the target with the :py:meth:`vamtoolbox.geometry.Volume.show` method.
 
 .. literalinclude:: ../../../examples/3Doptimization.py
-    :lines: 6-7
+    :lines: 1-5
 
 .. image:: /_images/examples/3Doptimization/target.png
 
@@ -24,12 +19,12 @@ Create a :py:class:`vamtoolbox.geometry.TargetGeometry` from a .stl file by spec
 Create the :py:class:`vamtoolbox.geometry.ProjectionGeometry` object. First, the ``angles`` array is created by using `numpy.linspace <https://numpy.org/doc/stable/reference/generated/numpy.linspace.html>`_ to create 1D array of evenly spaced angles at which to perform projection. 
 
 .. literalinclude:: ../../../examples/3Doptimization.py
-    :lines: 9-11
+    :lines: 7-9
 
 Create an :py:class:`vamtoolbox.optimize.Options` object and run optimization. The :py:class:`vamtoolbox.optimize.Options` object holds the parameters used by the :py:func:`vamtoolbox.optimize.optimize` function.
 
 .. literalinclude:: ../../../examples/3Doptimization.py
-    :lines: 13-14
+    :lines: 11-12
 
 .. image:: /_images/examples/3Doptimization/recon.png
 
@@ -40,7 +35,7 @@ Create an :py:class:`vamtoolbox.optimize.Options` object and run optimization. T
 Alternatively, the `vedo <https://vedo.embl.es/autodocs/content/vedo/index.html>`_ plotting package may be used to display the optimized reconstruction array (``opt_recon.array``). The `RayCastPlotter application <https://vedo.embl.es/autodocs/content/vedo/applications.html#vedo.applications.RayCastPlotter>`_ works well for customizable 3D display of the reconstruction array. 
 
 .. literalinclude:: ../../../examples/3Doptimization
-    :lines: 18-21
+    :lines: 16-19
 
 .. image:: /_images/examples/3Doptimization/vedo_recon.png
 
