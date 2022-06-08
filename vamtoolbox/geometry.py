@@ -158,7 +158,7 @@ class Volume:
         dill.dump(self,file)
         file.close()
 
-    def show(self,savepath=None,dpi='figure',**kwargs):
+    def show(self,savepath=None,dpi='figure',transparent=False,**kwargs):
         """
         Parameters
         ----------
@@ -166,6 +166,9 @@ class Volume:
 
         dpi : int, optional
             image dots per inch from `matplotlib.pyplot.savefig <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.savefig.html>`_
+        
+        transparent : bool, optional
+            sets transparency of the axes patch `matplotlib.pyplot.savefig <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.savefig.html>`_
 
         **kwargs
             accepts `matplotlib.pyplot.imshow <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.imshow.html>`_ keyword arguments
@@ -180,7 +183,7 @@ class Volume:
             self.viewer = vamtoolbox.display.VolumeSlicer(self.array,self.vol_type,**kwargs)
         
         if savepath is not None:
-            plt.savefig(savepath,dpi=dpi)
+            plt.savefig(savepath,dpi=dpi,transparent=transparent)
 
         plt.show()
 
@@ -300,7 +303,7 @@ class TargetGeometry(Volume):
             self.resolution = self.nZ
 
 
-    def show(self,show_bodies=False,savepath=None,dpi='figure',**kwargs):
+    def show(self,show_bodies=False,savepath=None,dpi='figure',transparent=False,**kwargs):
         kwargs['cmap'] = 'gray' if 'cmap' not in kwargs else kwargs['cmap']
         kwargs['interpolation'] = 'none' if 'interpolation' not in kwargs else kwargs['interpolation']
 
@@ -320,7 +323,7 @@ class TargetGeometry(Volume):
                 self.viewer = vamtoolbox.display.VolumeSlicer(self.array,self.vol_type,**kwargs)
             
         if savepath is not None:
-            plt.savefig(savepath,dpi=dpi)
+            plt.savefig(savepath,dpi=dpi,transparent=transparent)
         plt.show()
 
 class Sinogram(Volume):
