@@ -17,7 +17,7 @@ The VAMToolbox is available at the `VAMToolbox channel <https://anaconda.org/VAM
 
 .. code:: console
     
-    conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
+    conda install vamtoolbox -c vamtoolbox -c conda-forge -c astra-toolbox
 
 .. warning:: 
     
@@ -30,8 +30,31 @@ Astra Toolbox
 If there are problems with the installation of Astra Toolbox go to the `downloads <https://www.astra-toolbox.com/downloads/index.html#downloads>`_ page and install the latest Python version by following the `installation instructions <https://www.astra-toolbox.com/docs/install.html#installation-instructions>`_.
 
 
+***********************
+Updating or downgrading
+***********************
+
+For updating, type into the Anaconda prompt:
+
+.. code:: console
+
+    conda update vamtoolbox -c vamtoolbox -c conda-forge -c astra-toolbox
+
+For downgrading, type into the Anaconda prompt replacing ``x.x.x`` with the version to downgrade to:
+
+.. code:: console
+
+    conda install vamtoolbox==x.x.x -c vamtoolbox -c conda-forge -c astra-toolbox
+
+.. note::
+
+    The same channel specifications apply here, like in installation.
+
+
+
+**************
 Uninstallation
-==============
+**************
 
 Use the Anaconda prompt for one of the following steps.
 
