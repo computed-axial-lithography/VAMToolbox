@@ -1,7 +1,7 @@
 import vamtoolbox as vam
 import numpy as np
 
-target_geo = vam.geometry.TargetGeometry(imagefilename=vam.resources.load("reschart"),pixels=501)
+target_geo = vam.geometry.TargetGeometry(imagefilename=vam.resources.load("reschart.png"),pixels=501)
 target_geo.show()
 
 num_angles = 360
