@@ -8,6 +8,10 @@ Setup
 Installation
 ************
 
+.. note:: 
+
+    As of version 0.1.4b, the VAMToolbox is only compatible with Windows operating system.
+    
 A prerequiste to install VAMToolbox is to install the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ package manager.
 
 
