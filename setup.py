@@ -24,4 +24,5 @@ setup(name='vamtoolbox',
       author_email='jtoombs@berkeley.edu',
       license='GNU',
       packages=find_packages(),
+      include_package_data=True,
       zip_safe=False)
