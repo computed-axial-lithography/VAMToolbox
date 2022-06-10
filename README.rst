@@ -32,7 +32,7 @@ Installation
 
 To install VAMToolbox, enter the command below in the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ prompt::
 
-   conda install -c vamtoolbox vamtoolbox -c conda-forge -c astra-toolbox
+   conda install vamtoolbox -c vamtoolbox -c conda-forge -c astra-toolbox
 
 *NOTE: This command is different than what Anaconda.org suggests. This is because to properly install the dependencies you must tell conda to search in the astra-toolbox and vamtoolbox channels (in addition to the conda-forge channel, this is a default channel but is added to be explicit).*
 
