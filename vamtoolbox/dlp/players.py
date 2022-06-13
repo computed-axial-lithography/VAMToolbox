@@ -195,44 +195,50 @@ class _Process(pyglet.window.Window):
         
         # pyglet.clock.schedule_interval(self.on_draw,dt)
         self._started = False
+        self._started_timer = False
+        self._paused = False
         self._paused_time = 0.0
         pyglet.app.run()
 
-    def on_show(self):
-        # run once to get the start time immediately before the first frame
-        if self._started == False:
-            self._start_time = time.perf_counter()
-            self._started = True
+    # def on_show(self):
+    #     # run once to get the start time immediately before the first frame
+    #     if self._started == False:
+    #         self._start_time = time.perf_counter()
+    #         self._started = True
 
 
     def on_draw(self):
         self.clear()
 
         # can be run here, on_show assumes the window remains maximized forever
-        # # run once to get the start time immediately before the first frame
-        # if self._started == False:
-        #     self._start_time = time.perf_counter()
-        #     self._started = True
+        # run once to get the start time immediately before the first frame
+        if self._started == True:
+            if self._started_timer == False:
+                self._start_time = time.perf_counter()
+                self._started_timer = True
 
+            # calculate total played time, accounting for the total paused time
+            self._played_time = time.perf_counter() - self._paused_time - self._start_time
 
-        # calculate total played time, accounting for the total paused time
-        self._played_time = time.perf_counter() - self._paused_time - self._start_time
+            # kill player if played time > duration
+            if self._played_time >= self.duration:
+                pyglet.app.exit()
 
-        # kill player if played time > duration
-        if self._played_time >= self.duration:
-            pyglet.app.exit()
+        if self._started == True:
+            if self._paused == False:
+                if hasattr(self,'sequence_player'):
+                    self.sequence_player.draw()
+                elif hasattr(self,'video_player'):
+                    try:
+                        self.video_player._player.texture.blit(0, 0)
+                    except:
+                        pyglet.app.exit()
 
-        if self._paused == False:
-            if hasattr(self,'sequence_player'):
-                self.sequence_player.draw()
-            elif hasattr(self,'video_player'):
-                try:
-                    self.video_player._player.texture.blit(0, 0)
-                except:
-                    pyglet.app.exit()
+            elif self._paused == True and self.pause_bg_color is not None:
+                self.idle_sprite.draw()
 
-        if self._paused == True and self.pause_bg_color is not None:
-            self.idle_sprite.draw()
+            else:
+                pass
 
         if self.debug_fps == True:
             self.fps_display.draw()
@@ -240,34 +246,69 @@ class _Process(pyglet.window.Window):
 
     def on_key_press(self, symbol, modifiers):
         
-        if hasattr(self,'sequence_player'):
-            if not self.sequence_player._paused and symbol == key.SPACE:
-                print("paused at index: %d/%d"%(self.sequence_player._frame_index,self.N_images_per_rot))
-                self._start_paused_time = time.perf_counter()
-                self.pause()
-                self._paused = True
-                
-            elif self.sequence_player._paused and symbol == key.SPACE:
-                print("resume")
-                self._end_paused_time = time.perf_counter() - self._start_paused_time
-                self._paused_time = self._paused_time + self._end_paused_time
-                self.resume()
-                self._paused = False
+        if symbol == key.SPACE:
+            if self._started == True:
+                if self._paused == True:
+                    # resume
+                    print("resume")
+                    
+                    self._end_paused_time = time.perf_counter() - self._start_paused_time
+                    self._paused_time = self._paused_time + self._end_paused_time
 
-        elif hasattr(self,'video_player'):
-            if not self.video_player._paused and symbol == key.SPACE:
-                print("paused")
-                self._start_paused_time = time.perf_counter()
-                self._paused = True
-                self.pause()
-                
-            elif self.video_player._paused and symbol == key.SPACE:
-                print("resume")
-                self._end_paused_time = time.perf_counter() - self._start_paused_time
-                self._paused_time = self._paused_time + self._end_paused_time
-                self.resume()
-                self._paused = False
+                    self.resume()
+                    self._paused = False
+                else:
+                    # pause
+                    if hasattr(self,'sequence_player'):
+                        print("paused at index: %d/%d"%(self.sequence_player._frame_index,self.N_images_per_rot))
+                    elif hasattr(self,'video_player'):
+                        print("paused")
+                    self._start_paused_time = time.perf_counter()
+                    self.pause()
+                    self._paused = True
             
+            else:
+                self._started = True
+                print("starting") 
+
+
+
+        # if hasattr(self,'sequence_player'):
+        #     if not self.sequence_player._paused and symbol == key.SPACE:
+        #         print("paused at index: %d/%d"%(self.sequence_player._frame_index,self.N_images_per_rot))
+        #         self._start_paused_time = time.perf_counter()
+        #         self.pause()
+        #         self._paused = True
+                
+        #     elif self.sequence_player._paused and symbol == key.SPACE:
+        #         if self._started == False:
+        #             print("starting")
+        #             self._started = True
+        #         else:
+        #             print("resume")
+        #             self._end_paused_time = time.perf_counter() - self._start_paused_time
+        #             self._paused_time = self._paused_time + self._end_paused_time
+        #             self.resume()
+        #             self._paused = False
+
+        # elif hasattr(self,'video_player'):
+        #     if not self.video_player._paused and symbol == key.SPACE:
+        #         print("paused")
+        #         self._start_paused_time = time.perf_counter()
+        #         self._paused = True
+        #         self.pause()
+                
+        #     elif self.video_player._paused and symbol == key.SPACE:
+        #         if self._started == False:
+        #             print("starting")
+        #             self._started = True
+        #         else:
+        #             print("resume")
+        #             self._end_paused_time = time.perf_counter() - self._start_paused_time
+        #             self._paused_time = self._paused_time + self._end_paused_time
+        #             self.resume()
+        #             self._paused = False
+                
 
 
         return super().on_key_press(symbol, modifiers)
@@ -312,7 +353,7 @@ def player(*args,**kwargs):
 
     pause_bg_color : tuple, optional
         color to be shown when playback is paused
-        
+
     debug_fps : bool, optional
         display estimated fps on the displayed window, default
 
