@@ -200,12 +200,6 @@ class _Process(pyglet.window.Window):
         self._paused_time = 0.0
         pyglet.app.run()
 
-    # def on_show(self):
-    #     # run once to get the start time immediately before the first frame
-    #     if self._started == False:
-    #         self._start_time = time.perf_counter()
-    #         self._started = True
-
 
     def on_draw(self):
         self.clear()
@@ -271,46 +265,6 @@ class _Process(pyglet.window.Window):
                 self._started = True
                 print("starting") 
 
-
-
-        # if hasattr(self,'sequence_player'):
-        #     if not self.sequence_player._paused and symbol == key.SPACE:
-        #         print("paused at index: %d/%d"%(self.sequence_player._frame_index,self.N_images_per_rot))
-        #         self._start_paused_time = time.perf_counter()
-        #         self.pause()
-        #         self._paused = True
-                
-        #     elif self.sequence_player._paused and symbol == key.SPACE:
-        #         if self._started == False:
-        #             print("starting")
-        #             self._started = True
-        #         else:
-        #             print("resume")
-        #             self._end_paused_time = time.perf_counter() - self._start_paused_time
-        #             self._paused_time = self._paused_time + self._end_paused_time
-        #             self.resume()
-        #             self._paused = False
-
-        # elif hasattr(self,'video_player'):
-        #     if not self.video_player._paused and symbol == key.SPACE:
-        #         print("paused")
-        #         self._start_paused_time = time.perf_counter()
-        #         self._paused = True
-        #         self.pause()
-                
-        #     elif self.video_player._paused and symbol == key.SPACE:
-        #         if self._started == False:
-        #             print("starting")
-        #             self._started = True
-        #         else:
-        #             print("resume")
-        #             self._end_paused_time = time.perf_counter() - self._start_paused_time
-        #             self._paused_time = self._paused_time + self._end_paused_time
-        #             self.resume()
-        #             self._paused = False
-                
-
-
         return super().on_key_press(symbol, modifiers)
 
 
@@ -356,6 +310,11 @@ def player(*args,**kwargs):
 
     debug_fps : bool, optional
         display estimated fps on the displayed window, default
+
+    Usage
+    -----
+
+    Press spacebar to start playback. During playback, press spacebar to pause or resume playback.
 
     Examples
     --------
