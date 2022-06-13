@@ -11,4 +11,4 @@ from . import optimizer
 from . import projector
 from . import resources
 
-__version__ = "0.1.4b"
+__version__ = "0.1.5b"
