@@ -19,6 +19,14 @@ DLP player
 
 The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several types of image sequence formats and video and displays the image sequence or video on the DLP device. 
 
+.. warning::
+    The :py:meth:`vamtoolbox.dlp.players.player` must be run from within 
+
+    .. code-block:: python
+        if __name__ == "__main__":
+
+    because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`. 
+
 Options
 =======
 

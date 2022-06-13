@@ -8,13 +8,22 @@ DLP player
 Walkthrough
 ***********
 
+.. warning::
+    The :py:meth:`vamtoolbox.dlp.players.player` must be run from within 
+
+    .. code-block:: python
+        if __name__ == "__main__":
+
+    because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`. 
+
+
 Precomputed folder of images
 ============================
 
 If the user has a folder of image files saved from an :py:class:`vamtoolbox.imagesequence.ImageSeq` object or created through other means, e.g. third-party library, the directory can be specified in the ``images_dir`` keyword argument.
 
 .. literalinclude:: ../../../examples/DLPplayer.py
-    :lines: 1-4
+    :lines: 1-5
 
 Precomputed sinogram object
 ===========================
@@ -22,7 +31,7 @@ Precomputed sinogram object
 The player also accepts a :py:class:`vamtoolbox.geometry.Sinogram` object as input in the ``sinogram`` keyword argument. If this method is chosen, the ``image_config`` keyword argument must also be specified. See :ref:`userguide_dlp` for information on the :py:class:`vamtoolbox.imagesequence.ImageConfig` object.
 
 .. literalinclude:: ../../../examples/DLPplayer.py
-    :lines: 6-9
+    :lines: 7-10
 
 Image sequence object
 =====================
@@ -31,7 +40,7 @@ The player also accepts a :py:class:`vamtoolbox.imagesequence.ImageSeq` object a
 
 
 .. literalinclude:: ../../../examples/DLPplayer.py
-    :lines: 11-15
+    :lines: 12-16
 
 Video file
 ==========
@@ -39,7 +48,7 @@ Video file
 The player accepts a regular video file.
 
 .. literalinclude:: ../../../examples/DLPplayer.py
-    :lines: 17-18
+    :lines: 18-19
 
 .. tip::
    The spacebar can be used to pause/resume playback of the image sequence or video. 
