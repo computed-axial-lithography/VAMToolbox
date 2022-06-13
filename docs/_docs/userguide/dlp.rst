@@ -17,21 +17,38 @@ DLP player
         Example player from video file source.
     </video>
 
-The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several types of image sequence formats and displays the image sequence on the DLP device. 
+The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several types of image sequence formats and video and displays the image sequence or video on the DLP device. 
+
+Options
+=======
+
+There are several options that can be changed to control the display of videos and image sequences. These options are specified in the :py:def:`vamtoolbox.dlp.players.player` initialization. 
+
+The starting image index can also be specified with the ``start_index`` keyword argument. See :ref:`examples_DLPplayer`. This is useful if some rotation alignment is required at the beginning of exposure.
+
+The background color shown during paused playback can be changed with the ``pause_bg_color`` keyword argument. The color is specified with a 3-element tuple in the RGB format [0-255] range. For instance, to set the solid background color to be white while paused (this clears the current image and displays only the solid color), the keyword argument would be ``pause_bg_color=(255,255,255)``. 
+
+.. note::
+    The default action (no ``pause_bg_color`` specified or ``pause_bg_color=None``) is to leave the image unchanged during paused playback. This means the static image is displayed while paused. 
+
+The window in which the image sequence or video is shown can be set to be full screen or bordered windowed-mode with the ``windowed`` keyword argument. If specified as ``windowed=True``, the size of the window will be the size of the input image sequence or video. The default is borderless fullscreen mode. 
+
+The duration of playback can be specified with the ``duration`` keyword argument. If specified, the playback will stop automatically after the specified time has elapsed **after pressing the spacebar to start the playback**. Paused playback time does not count towards the total elapsed time. See :ref:`playback_interaction`.
+
+.. _playback_interaction:
 
 Playback interaction
 ====================
 
-While the image sequence or video is playing, the user can press the spacebar to pause or resume playback. If the input was either a directory of image files, image sequence object, or a sinogram object, when the spacebar is pressed, the terminal will print which image index playback was paused on. 
+To start the playback of the image sequence or video, press the spacebar.
 
-.. note:: 
-   The starting image index can also be specified on :py:def:`vamtoolbox.dlp.players.player`` initialization with the ``start_index`` keyword argument. See :ref:`examples_DLPplayer`.
+While the image sequence or video is playing, the user can press the spacebar to pause or resume playback. If the input was either a directory of image files, image sequence object, or a sinogram object, when the spacebar is pressed, the terminal will print which image index playback was paused on. 
 
 
 
 Image sequence
 ==============
-The :py:mod:`vamtoolbox.imagesequence` module contains the :py:class:`vamtoolbox.imagesequence.ImageSeq` class and helper functions insert a sinogram into a sequence of images for display on DLP device. A :py:class:`vamtoolbox.imagesequence.ImageSeq` object can be saved with the :py:meth:`vamtoolbox.imagesequence.ImageSeq.save` method or it the image sequence itself can be saved as a video (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsVideo`) or sequence of image files (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsImages`).
+The :py:mod:`vamtoolbox.imagesequence` module contains the :py:class:`vamtoolbox.imagesequence.ImageSeq` class and helper functions insert a sinogram into a sequence of images for display on DLP device. A :py:class:`vamtoolbox.imagesequence.ImageSeq` object can be saved with the :py:meth:`vamtoolbox.imagesequence.ImageSeq.save` method or the image sequence itself can be saved as a video (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsVideo`) or sequence of image files (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsImages`).
 
 
 Image configuration

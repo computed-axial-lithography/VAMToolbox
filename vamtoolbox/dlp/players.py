@@ -172,13 +172,13 @@ class _Process(pyglet.window.Window):
         screens = display.get_screens()
         selected_screen = screens[self.screen_num]
         
-        if width != selected_screen.width or height != selected_screen.height:
-            warnings.warn("Selected screen width or height != image width or height! Image may be decentered from display. Check input width and height of image config.")
         
         if self.windowed == True:
             super().__init__(width,height,visible=False,screen=screens[self.screen_num])
             # self.set_fullscreen(screen=screens[self.screen_num])
         else:
+            if width != selected_screen.width or height != selected_screen.height:
+                warnings.warn("Selected screen width or height != image width or height! Image may be decentered from display. Check input width and height of image config.")
             super().__init__(width,height,visible=False,style=pyglet.window.Window.WINDOW_STYLE_BORDERLESS,screen=screens[self.screen_num])
             self.set_fullscreen(screen=screens[self.screen_num])
         if self.debug_fps == True:
@@ -215,8 +215,9 @@ class _Process(pyglet.window.Window):
             self._played_time = time.perf_counter() - self._paused_time - self._start_time
 
             # kill player if played time > duration
-            if self._played_time >= self.duration:
-                pyglet.app.exit()
+            if self.duration is not None:
+                if self._played_time >= self.duration:
+                    pyglet.app.exit()
 
         if self._started == True:
             if self._paused == False:
@@ -303,10 +304,10 @@ def player(*args,**kwargs):
         bordered window, default False
 
     duration : float, optional
-        duration of sequence or video playback
+        duration of sequence or video playback, default None (infinite playback)
 
     pause_bg_color : tuple, optional
-        color to be shown when playback is paused
+        color to be shown when playback is paused, default (0,0,0) (black background)
 
     debug_fps : bool, optional
         display estimated fps on the displayed window, default
