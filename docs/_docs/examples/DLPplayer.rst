@@ -14,7 +14,7 @@ Walkthrough
     .. code-block:: python
         if __name__ == "__main__":
 
-    because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`. 
+    because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`_. 
 
 
 Precomputed folder of images

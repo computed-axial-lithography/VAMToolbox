@@ -310,7 +310,9 @@ def player(*args,**kwargs):
         color to be shown when playback is paused, default (0,0,0) (black background)
 
     debug_fps : bool, optional
-        display estimated fps on the displayed window, default
+        display estimated fps on the displayed window, default False
+
+
 
     Usage
     -----

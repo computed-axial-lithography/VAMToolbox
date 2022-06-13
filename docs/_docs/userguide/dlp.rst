@@ -25,7 +25,7 @@ The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several ty
     .. code-block:: python
         if __name__ == "__main__":
 
-    because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`. 
+    because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`_. 
 
 Options
 =======
