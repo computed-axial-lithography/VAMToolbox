@@ -314,13 +314,11 @@ def player(*args,**kwargs):
 
 
 
-    Usage
-    -----
-
-    Press spacebar to start playback. During playback, press spacebar to pause or resume playback.
 
     Examples
     --------
+
+    Press spacebar to start playback. During playback, press spacebar to pause or resume playback.
 
     Specifying ImageSeq object
 

@@ -23,6 +23,7 @@ The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several ty
     The :py:meth:`vamtoolbox.dlp.players.player` must be run from within 
 
     .. code-block:: python
+        
         if __name__ == "__main__":
 
     because the player spawns a subprocess with the `multiprocessing standard library <https://docs.python.org/3/library/multiprocessing.html>`_. 
