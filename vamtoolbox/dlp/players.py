@@ -1,5 +1,6 @@
 import warnings
 import numpy as np
+import time
 import glob
 import pyglet
 import pyglet.gl
@@ -86,6 +87,8 @@ class _Process(pyglet.window.Window):
         self.image_seq = None if 'image_seq' not in kwargs else kwargs['image_seq']
         self.images_dir = None if 'images_dir' not in kwargs else kwargs['images_dir']
         self.video = None if 'video' not in kwargs else kwargs['video']
+        self.duration = None if 'duration' not in kwargs else kwargs['duration']
+        self.pause_bg_color = None if 'pause_bg_color' not in kwargs else kwargs['pause_bg_color']
 
     def run(self):
 
@@ -96,6 +99,8 @@ class _Process(pyglet.window.Window):
 
             self.resume = self.video_player.resumeVideo
             self.pause = self.video_player.pauseVideo
+            self._paused = self.video_player._paused
+
         else:
             if self.sinogram is not None:
                 assert self.image_config is not None, "image_config must be specified along with sinogram geometry"
@@ -160,7 +165,7 @@ class _Process(pyglet.window.Window):
             self.sequence_player._frame_index = self.start_index
             self.resume = self.sequence_player.resumeSequence
             self.pause = self.sequence_player.pauseSequence
-            
+            self._paused = self.sequence_player._paused
 
 
         display = pyglet.canvas.Display()
@@ -182,46 +187,86 @@ class _Process(pyglet.window.Window):
         self.set_mouse_visible(False)
         self.set_visible(True)
 
+        if self.pause_bg_color is not None:
+            idle_image = vamtoolbox.dlp.arrayimage.idleImage((height,width),self.pause_bg_color)
+            self.idle_sprite = pyglet.sprite.Sprite(idle_image)
 
         print("Beginning display... Press SPACE to play or pause/resume. Press ESC to exit.")
         
         # pyglet.clock.schedule_interval(self.on_draw,dt)
+        self._started = False
+        self._paused_time = 0.0
         pyglet.app.run()
 
+    def on_show(self):
+        # run once to get the start time immediately before the first frame
+        if self._started == False:
+            self._start_time = time.perf_counter()
+            self._started = True
 
 
     def on_draw(self):
         self.clear()
-        if hasattr(self,'sequence_player'):
-            self.sequence_player.draw()
-        elif hasattr(self,'video_player'):
-            try:
-                self.video_player._player.texture.blit(0, 0)
-            except:
-                pyglet.app.exit()
+
+        # can be run here, on_show assumes the window remains maximized forever
+        # # run once to get the start time immediately before the first frame
+        # if self._started == False:
+        #     self._start_time = time.perf_counter()
+        #     self._started = True
+
+
+        # calculate total played time, accounting for the total paused time
+        self._played_time = time.perf_counter() - self._paused_time - self._start_time
+
+        # kill player if played time > duration
+        if self._played_time >= self.duration:
+            pyglet.app.exit()
+
+        if self._paused == False:
+            if hasattr(self,'sequence_player'):
+                self.sequence_player.draw()
+            elif hasattr(self,'video_player'):
+                try:
+                    self.video_player._player.texture.blit(0, 0)
+                except:
+                    pyglet.app.exit()
+
+        if self._paused == True and self.pause_bg_color is not None:
+            self.idle_sprite.draw()
 
         if self.debug_fps == True:
             self.fps_display.draw()
             
 
     def on_key_press(self, symbol, modifiers):
+        
         if hasattr(self,'sequence_player'):
             if not self.sequence_player._paused and symbol == key.SPACE:
                 print("paused at index: %d/%d"%(self.sequence_player._frame_index,self.N_images_per_rot))
+                self._start_paused_time = time.perf_counter()
                 self.pause()
+                self._paused = True
                 
             elif self.sequence_player._paused and symbol == key.SPACE:
                 print("resume")
+                self._end_paused_time = time.perf_counter() - self._start_paused_time
+                self._paused_time = self._paused_time + self._end_paused_time
                 self.resume()
+                self._paused = False
 
         elif hasattr(self,'video_player'):
             if not self.video_player._paused and symbol == key.SPACE:
                 print("paused")
+                self._start_paused_time = time.perf_counter()
+                self._paused = True
                 self.pause()
                 
             elif self.video_player._paused and symbol == key.SPACE:
                 print("resume")
+                self._end_paused_time = time.perf_counter() - self._start_paused_time
+                self._paused_time = self._paused_time + self._end_paused_time
                 self.resume()
+                self._paused = False
             
 
 
@@ -262,6 +307,12 @@ def player(*args,**kwargs):
     windowed : bool, optional
         bordered window, default False
 
+    duration : float, optional
+        duration of sequence or video playback
+
+    pause_bg_color : tuple, optional
+        color to be shown when playback is paused
+        
     debug_fps : bool, optional
         display estimated fps on the displayed window, default
 

@@ -36,6 +36,7 @@
 
 
 from pyglet.image import ImageData
+import numpy as np
 import ctypes
 
 __version__ = '1.0' # keep in sync with ../setup.py
@@ -68,6 +69,29 @@ def get_stride0(inter):
         for i in range(1,len(shape)):
             cumproduct *= shape[i]
         return cumproduct
+
+def idleImage(size:tuple,color:tuple=None):
+    """Creates solid color image
+    
+    Creates an image to be displayed during paused playback of a sequence or video. Color may be specified
+
+    Parameters
+    ----------
+    size : tuple
+        size of the output image (height,width)
+    color : tuple, optional
+        RGB color of the image (R,G,B) [0-255]. Default is (0,0,0) black
+    """
+    if color is None:
+        color = (0,0,0)
+    array = np.ascontiguousarray(np.zeros((size[0],size[1],3),dtype=np.uint8))
+    array[:,:,0] = color[0]
+    array[:,:,1] = color[1]
+    array[:,:,2] = color[2]
+
+    aii = ArrayInterfaceImage(array)
+    pyglet_image = aii.texture
+    return pyglet_image
 
 class ArrayInterfaceImage(ImageData):
     def __init__(self,arr,format=None,allow_copy=True):
