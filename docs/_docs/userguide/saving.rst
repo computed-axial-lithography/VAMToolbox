@@ -36,7 +36,7 @@ VAMToolbox objects, including :py:class:`~vamtoolbox.geometry.TargetGeometry`, :
 Loading data
 ************
 
-To load :py:class:`vamtoolbox.geometry.Volume` objects, a convenience function is provided in the :py:meth:`vamtoolbox.geometry.loadVolume`.
+To load :py:class:`~vamtoolbox.geometry.Volume` objects, a convenience function is provided in the :py:meth:`~vamtoolbox.geometry.loadVolume`.
 
 .. code-block:: python
    
@@ -46,7 +46,7 @@ To load :py:class:`vamtoolbox.geometry.Volume` objects, a convenience function i
    sino_load = vam.geometry.loadVolume("C:\User\myfiles\mysinogram.sino")
    recon_load = vam.geometry.loadVolume("C:\User\myfiles\myreconstruction.recon")
 
-Similarly, to load :py:class:`vamtoolbox.geometry.Volume`
+Similarly, to load :py:class:`~vamtoolbox.imagesequence.ImageSeq` objects, a convenience function is provided in the :py:meth:`~vamtoolbox.imagesequence.loadImageSeq`.
 
 .. code-block:: python
 
