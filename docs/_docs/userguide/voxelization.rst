@@ -22,13 +22,13 @@ When the on-axis model is voxelized when a :py:class:`~vamtoolbox.geometry.Targe
 
 .. image:: /_images/userguide/onaxismodel_voxels.png
 
-When the off-axis model is voxelized, the voxelized cylinder is created according to the models position in relation to its global origin. Here, that means the cylinder is created in the first quadrant (i.e. +x, +y) because it was modeled in a CAD software in the first quadrant. 
+When the off-axis model is voxelized, the voxelized cylinder is created according to the models position in relation to its global origin. Here, that means the cylinder is created in the first quadrant (i.e. +x, +y) because it was modeled in a CAD software in the first quadrant. Note that the voxelized cylinder appears smaller but it is actually the same size as the on-axis model but the voxel domain is larger. 
 
 .. image:: /_images/userguide/offaxismodel_voxels.png
 
 .. warning:: 
 
-    When an off-axis model is voxelized, it requires a voxel domain sufficiently large to enclose the non-zero voxels within the *inscribed cylinder*. The inscribed cylinder is an imaginary boundary that the tomographic projector sweeps out over a complete rotation. Anything outside of the inscribed cylinder cannot be accurately reconstructed due to missing sinogram data in certain angular ranges. For large off-axis offsets, the requirement that the non-zero voxels must reside within the inscribed cylinder can lead to very large voxel domains and consequently very large memory requirements to store the voxel array.
+    When an off-axis model is voxelized, it requires a voxel domain sufficiently large to enclose the non-zero voxels within the *inscribed cylinder*. The inscribed cylinder is an imaginary region that the tomographic projector sweeps out over a complete rotation. Anything outside of the inscribed cylinder cannot be accurately reconstructed due to missing sinogram data in certain angular ranges. For large off-axis offsets, the requirement that the non-zero voxels must reside within the inscribed cylinder can lead to very large voxel domains and consequently very large memory requirements to store the voxel array.
 
     .. image:: /_images/userguide/inscribedcylinder.png
 
