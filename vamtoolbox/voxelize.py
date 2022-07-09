@@ -98,7 +98,12 @@ def voxelizeTarget(input_path, resolution, bodies='all', rot_angles=[0,0,0]): # 
 	density = abs(z_max-z_min)/resolution
 	# the diameter of the inscribed circle should be at least equal in length to the diagonal of the bounding box in x-y
 	d = np.sqrt((x_max-x_min)**2 + (y_max-y_min)**2)
-	r = np.arange(-d/2, d/2, density,dtype=np.float32) # coordinate array in radius
+	r_max_1 = np.sqrt(x_max**2 + y_max**2)
+	r_max_2 = np.sqrt(x_min**2 + y_min**2)
+	r_max = r_max_1 if r_max_1 > r_max_2 else r_max_2
+	r = np.arange(-r_max, r_max, density,dtype=np.float32) # coordinate array in radius
+
+	# r = np.arange(-d/2, d/2, density,dtype=np.float32) # coordinate array in radius
 	z = np.arange(z_min, z_max, density,dtype=np.float32) # coordinate array in z
 	X, Y, Z = np.meshgrid(r, r, z) # coordinate grids to be used to query the mesh for inside/outside-ness 
 

@@ -12,10 +12,15 @@ Geometry
 
 The :py:mod:`vamtoolbox.geometry` module contains classes to organize flow of data within the toolbox. 
 
-* :py:class:`vamtoolbox.geometry.TargetGeometry` is used to hold the voxelized target. It is passed into the optimization function.
-* :py:class:`vamtoolbox.geometry.ProjectionGeometry` holds data about the type of projector used, the projection angles, the inclination angle for laminographic geometries, etc. It is passed into the optimization function. 
-* :py:class:`vamtoolbox.geometry.Sinogram` 
-* :py:class:`vamtoolbox.geometry.Reconstruction`
+* :py:class:`~vamtoolbox.geometry.TargetGeometry` is used to hold the voxelized target. It is passed into the optimization function.
+* :py:class:`~vamtoolbox.geometry.ProjectionGeometry` holds data about the type of projector used, the projection angles, the inclination angle for laminographic geometries, etc. It is passed into the optimization function. 
+* :py:class:`~vamtoolbox.geometry.Sinogram` 
+* :py:class:`~vamtoolbox.geometry.Reconstruction`
+
+
+************
+Voxelization
+************
 
 **********
 Projectors
