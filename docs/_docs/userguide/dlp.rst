@@ -17,10 +17,10 @@ DLP player
         Example player from video file source.
     </video>
 
-The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several types of image sequence formats and video and displays the image sequence or video on the DLP device. 
+The :py:meth:`vamtoolbox.dlp.players.player` is a tool which accepts several types of image sequence formats and video and displays the image sequence or video on the DLP device. 
 
 .. warning::
-    The :py:meth:`vamtoolbox.dlp.players.player` must be run from within 
+    The :py:meth:`~vamtoolbox.dlp.players.player` must be run from within 
 
     .. code-block:: python
         
@@ -31,7 +31,7 @@ The :py:class:`vamtoolbox.dlp.players.player` is a tool which accepts several ty
 Options
 =======
 
-There are several options that can be changed to control the display of videos and image sequences. These options are specified in the :py:def:`vamtoolbox.dlp.players.player` initialization. 
+There are several options that can be changed to control the display of videos and image sequences. These options are specified in the :py:meth:`~vamtoolbox.dlp.players.player` initialization. 
 
 The starting image index can also be specified with the ``start_index`` keyword argument. See :ref:`examples_DLPplayer`. This is useful if some rotation alignment is required at the beginning of exposure.
 
@@ -57,12 +57,12 @@ While the image sequence or video is playing, the user can press the spacebar to
 
 Image sequence
 ==============
-The :py:mod:`vamtoolbox.imagesequence` module contains the :py:class:`vamtoolbox.imagesequence.ImageSeq` class and helper functions insert a sinogram into a sequence of images for display on DLP device. A :py:class:`vamtoolbox.imagesequence.ImageSeq` object can be saved with the :py:meth:`vamtoolbox.imagesequence.ImageSeq.save` method or the image sequence itself can be saved as a video (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsVideo`) or sequence of image files (:py:meth:`vamtoolbox.imagesequence.ImageSeq.saveAsImages`).
+The :py:mod:`vamtoolbox.imagesequence` module contains the :py:class:`vamtoolbox.imagesequence.ImageSeq` class and helper functions insert a sinogram into a sequence of images for display on DLP device. A :py:class:`~vamtoolbox.imagesequence.ImageSeq` object can be saved with the :py:meth:`~vamtoolbox.imagesequence.ImageSeq.save` method or the image sequence itself can be saved as a video (:py:meth:`~vamtoolbox.imagesequence.ImageSeq.saveAsVideo`) or sequence of image files (:py:meth:`~vamtoolbox.imagesequence.ImageSeq.saveAsImages`).
 
 
 Image configuration
 -------------------
-A :py:class:`vamtoolbox.imagesequence.ImageConfig` object contains the settings which describe how the sinogram is inserted into the image that is to be displayed on the DLP device. 
+A :py:class:`~vamtoolbox.imagesequence.ImageConfig` object contains the settings which describe how the sinogram is inserted into the image that is to be displayed on the DLP device. 
 
 
 
@@ -77,8 +77,8 @@ The :py:mod:`vamtoolbox.dlp.setup` module has several utility functions to assis
 
 Axis alignment
 ==============
-:py:class:`vamtoolbox.dlp.setup.AxisAlignment` is a class that allows the user to align the rotation axis of the VAM printer to the "central" axis of the projector device. 
+:py:class:`~vamtoolbox.dlp.setup.AxisAlignment` is a class that allows the user to align the rotation axis of the VAM printer to the "central" axis of the projector device. 
 
 Focus
 =====
-:py:class:`vamtoolbox.dlp.setup.Focus` is a class that will display a Siemen's star (or spoke target) to assist in focusing the optical system inside the resin container. 
+:py:class:`~vamtoolbox.dlp.setup.Focus` is a class that will display a Siemen's star (or spoke target) to assist in focusing the optical system inside the resin container. 

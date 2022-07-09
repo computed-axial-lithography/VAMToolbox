@@ -19,7 +19,7 @@ The image sequence is created from a sinogram. First, load (or optimize) a sinog
 Create image sequence configurations
 ====================================
 
-The image sequence configuration contains the properties that determine how the sinogram is to be displayed on a screen or digital light projection device. See :py:class:`vamtoolbox.imagesequence.ImageConfig` to see the options and how they affect the image sequence. Here, two different :py:class:`vamtoolbox.imagesequence.ImageConfig` objects are created for demonstration.
+The image sequence configuration contains the properties that determine how the sinogram is to be displayed on a screen or digital light projection device. See :py:class:`~vamtoolbox.imagesequence.ImageConfig` to see the options and how they affect the image sequence. Here, two different :py:class:`~vamtoolbox.imagesequence.ImageConfig` objects are created for demonstration.
 
 .. literalinclude:: ../../../examples/imagesequence.py
     :lines: 4-5
@@ -27,7 +27,7 @@ The image sequence configuration contains the properties that determine how the 
 Creating image sequence objects
 ===============================
 
-With the :py:class:`vamtoolbox.imagesequence.ImageConfig` and a :py:class:`vamtoolbox.geometry.Sinogram` the :py:class:`vamtoolbox.imagesequence.ImageSeq` object can be created. The :py:meth:`vamtoolbox.imagesequence.ImageSeq.preview` method of the object is used to show a preview of image sequence.
+With the :py:class:`~vamtoolbox.imagesequence.ImageConfig` and a :py:class:`~vamtoolbox.geometry.Sinogram` the :py:class:`~vamtoolbox.imagesequence.ImageSeq` object can be created. The :py:meth:`~vamtoolbox.imagesequence.ImageSeq.preview` method of the object is used to show a preview of image sequence.
 
 .. literalinclude:: ../../../examples/imagesequence.py
     :lines: 7-11

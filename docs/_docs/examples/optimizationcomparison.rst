@@ -8,7 +8,7 @@ Optimization comparison
 Walkthrough
 ***********
 
-Import VAMToolbox and numpy. Create the target Create the :py:class:`vamtoolbox.geometry.TargetGeometry` object and the :py:class:`vamtoolbox.geometry.ProjectionGeometry` object.
+Import VAMToolbox and numpy. Create the target Create the :py:class:`~vamtoolbox.geometry.TargetGeometry` object and the :py:class:`~vamtoolbox.geometry.ProjectionGeometry` object.
 
 .. literalinclude:: ../../../examples/optimizationcomparison.py
     :lines: 1-9
