@@ -8,6 +8,9 @@ User guide
 :ref:`userguide_keyconcepts`
    Learn about important concepts and organization of the VAMToolbox
 
+:ref:`userguide_voxelization`
+   Learn how to voxelize a boundary representation model, how its CAD-defined location affects the voxel representation location in the voxel domain, and how multibody models can be voxelized
+
 :ref:`userguide_projectors`
    Learn about the tomographic projector geometry, third-party tomography integration, and 
 
