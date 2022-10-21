@@ -9,8 +9,9 @@ class Options:
     __default_CAL = {"learning_rate":0.01,"momentum":0,"positivity":0,"sigmoid":0.01}
     __default_PM = {"rho_1":1,"rho_2":1,"p":1}
     __default_OSMO = {"inhibition":0}
+    __default_BCLP = {"response_model":vamtoolbox.material.ResponseModel(), "eps":0.1, "weight":1, "p":2, "q":1,  "learning_rate":0.01, "optim_alg":"grad_des"}
 
-    def __init__(self,method : str ='CAL',n_iter : int = 50,d_h : float = 0.8,d_l : float = 0.7,filter : str ='ram-lak',units:str='normalized',**kwargs):
+    def __init__(self,method : str ='CAL',n_iter : int = 50,d_h : float = 0.8,d_l : float = 0.7,filter : str ='ram-lak',units:str='normalized', blb = 0, bub = None, **kwargs):
         """
         Parameters
         ----------
@@ -21,6 +22,7 @@ class Options:
                 - "CAL"
                 - "PM"
                 - "OSMO"
+                - "BCLP"
         
         n_iter : int
             number of iterations to perform
@@ -34,7 +36,13 @@ class Options:
         filter : str
             filter for initialization ("ram-lak", "shepp-logan", "cosine", "hamming", "hanning", None)
 
-        learning_rate : float, optional (CAL)
+        blb : double
+            lower bound of sinogram pixel value. If None is given, no lower limit.
+
+        bub : double
+            upper bound of sinogram pixel value. If None is given, no upper limit.
+
+        learning_rate : float, optional (CAL) (BCLP)
             step size in approximate gradient descent
         
         momentum : float, optional (CAL)
@@ -54,9 +62,21 @@ class Options:
 
         inhibition : float, optional (OSMO)
 
+        response model : ResponseModel, optional (BCLP)
+            ResponseModel object to capture material response
 
+        eps : float, optional (BCLP)
+            band tolerance is +-eps around target value. Scalar or same array size as target array.
 
+        weights : float, optional (BCLP)
+            weightings in Lp minimization. Scalar (no local emphasis) or same array size as target array.
 
+        p : float, optional (BCLP)
+            p as in Lp norm. Not required to be integer in BCLP.
+
+        q : float, optional (BCLP)
+            Cost function is a Lp norm (scalar) raised to q-th power. Changing q does not affect minimizer on solution landscape but affect convergence behavior.
+        
         """
         self.method = method
         self.n_iter = n_iter
@@ -64,10 +84,14 @@ class Options:
         self.d_l = d_l
         self.filter = filter
         self.units = units
+        self.blb = blb
+        self.bub = bub
+
         self.__default_FBP.update(kwargs)
         self.__default_CAL.update(kwargs)
         self.__default_PM.update(kwargs)
         self.__default_OSMO.update(kwargs)
+        self.__default_BCLP.update(kwargs) #TODO: The class definition of dict "__default_BCLP" should not be edited in place here. 
         self.__dict__.update(kwargs)  # Store all the extra variables
 
         self.verbose = self.__dict__.get('verbose',False)
@@ -91,7 +115,14 @@ class Options:
         if method == "OSMO":
             self.inhibition = self.__default_OSMO["inhibition"]
 
-
+        if method == "BCLP":
+            self.response_model = self.__default_BCLP["response_model"]
+            self.eps = self.__default_BCLP["eps"]
+            self.weight = self.__default_BCLP["weight"]
+            self.p = self.__default_BCLP["p"]
+            self.q = self.__default_BCLP["q"]
+            self.learning_rate = self.__default_BCLP["learning_rate"]
+            self.optim_alg = self.__default_BCLP["optim_alg"]
 
 
 def optimize(target_geo : vamtoolbox.geometry.TargetGeometry,proj_geo : vamtoolbox.geometry.ProjectionGeometry,options:Options):
@@ -129,8 +160,9 @@ def optimize(target_geo : vamtoolbox.geometry.TargetGeometry,proj_geo : vamtoolb
     elif options.method == "OSMO":
         return vamtoolbox.optimizer.OSMO.minimizeOSMO(target_geo,proj_geo,options)
 
+    elif options.method == "BCLP":
+        return vamtoolbox.optimizer.BCLP.minimizeBCLP(target_geo,proj_geo,options)
 
-        
 
 
 
