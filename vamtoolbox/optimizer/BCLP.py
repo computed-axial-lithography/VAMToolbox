@@ -3,6 +3,7 @@ import numpy as np
 import time
 from scipy import optimize
 import warnings
+import matplotlib.pyplot as plt
 import vamtoolbox
 
 class LogPerf:
@@ -11,6 +12,7 @@ class LogPerf:
         self.options = options        #This copy only updated after optimization.    
         self.curr_iter = 0
         self.loss = np.zeros(options.n_iter+1) #including the init
+        self.loss[:] = np.NaN
         self.l0_v = np.zeros(options.n_iter+1) #L0 norm evaluated with equal weights, q=1, eps as in optimization
         self.l1_v = np.zeros(options.n_iter+1) #L1 norm evaluated with equal weights, q=1, eps as in optimization
         self.l2_v = np.zeros(options.n_iter+1) #L2 norm evaluated with equal weights, q=1, eps as in optimization
@@ -46,33 +48,35 @@ class BCLPNorm:
     def __init__(self,target_geo,proj_geo,options):
         self.target_geo = target_geo
         self.proj_geo = proj_geo
-        
+        self.tomogram_scale = 1/proj_geo.n_angles #This scale will be applied to reconstruction after P.backward()
+
         #Initialize performance logger
         self.logs = LogPerf(options)
         self.logs.startTiming()
 
         #Unpack options
-        self.__dict__.update(options) #unpack the option variables to itself
+        # self.__dict__.update(options.__dict__) #unpack the option variables to itself
 
         #Renamed variables has a separate copy
-        # self.response_model = options.response_model
-        # self.eps = options.eps
-        # self.weight = options.weight
-        # self.p = options.p
-        # self.q = options.q
-        # self.learning_rate = options.learning_rate
-        # self.optim_alg = options.optim_alg
+        self.response_model = options.response_model
+        self.eps = options.eps
+        self.weight = options.weight
+        self.p = options.p
+        self.q = options.q
+        self.learning_rate = options.learning_rate
+        self.optim_alg = options.optim_alg
         self.glb = options.blb
-        self.gub = options.gub
-        # self.bit_depth = options.bit_depth
+        self.gub = options.bub
+        self.bit_depth = options.bit_depth
         self.dvol = 1 #differential volume in integration
+        self.verbose = options.verbose
 
         #State variables, in the order of computation
-        self.dose
-        self.mapped_dose
-        self.mapped_dose_error_from_f_T  #error from f_T. Without subtracting epsilon
-        self.mapped_dose_error_from_band #error from f_T. Without subtracting epsilon
-        self.v  #indicator function of constraint violation
+        self.dose = None
+        self.mapped_dose = None
+        self.mapped_dose_error_from_f_T = None #error from f_T. Without subtracting epsilon
+        self.mapped_dose_error_from_band = None #error from f_T. Without subtracting epsilon
+        self.v = None #indicator function of constraint violation
 
         #Iteration index of each variable.
         self.dose_iter = -1
@@ -81,15 +85,21 @@ class BCLPNorm:
         self.mapped_dose_error_from_band_iter = -1
         self.v_iter = -1
 
+        if self.verbose == 'plot':
+            self.dp = vamtoolbox.display.EvolvingPlot(target_geo,self.logs.options.n_iter+1)
+
+
         #Setup projector
         self.P = vamtoolbox.projectorconstructor.projectorconstructor(self.target_geo, self.proj_geo)
 
-        
+        self.custom_fig1, self.custom_ax1 = plt.subplots()
+        self.custom_fig2, self.custom_ax2 = plt.subplots()
+
         #Check if input f_T in range of response function over non-negative real
         if self.response_model.checkResponseTarget(self.target_geo.array) is False:
-            warnings.warn("Target is out of range")
+            warnings.warn("Target is either out of range of response function over non-negative real dose input, or contains inf/nan.")
 
-        #Initialize sinogram. #TODO: Inversion should be done in an 1D interpolation step.
+        #Initialize sinogram.
         self.g0 = self.P.forward(self.response_model.map_inv(self.target_geo.array))
         self.g0_shape = self.g0.shape
         self.g0 = vamtoolbox.util.data.filterSinogram(self.g0, options.filter)
@@ -105,15 +115,15 @@ class BCLPNorm:
         
         if self.dose_iter != self.logs.curr_iter:
             g_iter = self.checkSinogramShape(g_iter, desired_shape = "cylindrical")
-            self.dose  = self.P.backward(g_iter)
+            self.dose  = self.P.backward(g_iter)*self.tomogram_scale
             self.dose_iter = self.logs.curr_iter
 
         if self.mapped_dose_iter != self.logs.curr_iter:
-            self.mapped_dose = self.response_model.map(self.dose_iter)
+            self.mapped_dose = self.response_model.map(self.dose)
             self.mapped_dose_iter = self.logs.curr_iter
 
         if self.mapped_dose_error_from_f_T_iter != self.logs.curr_iter:
-            self.mapped_dose_error_from_f_T = self.mapped_dose_iter - self.target_geo.array
+            self.mapped_dose_error_from_f_T = self.mapped_dose - self.target_geo.array
             self.mapped_dose_error_from_f_T_iter = self.logs.curr_iter
 
         if self.mapped_dose_error_from_band_iter != self.logs.curr_iter:
@@ -126,7 +136,7 @@ class BCLPNorm:
 
 
     def computeLoss(self, g_iter):
-        self.updateVariables(self, g_iter)
+        self.updateVariables(g_iter)
 
         loss_integrand = self.v*self.weight*(self.mapped_dose_error_from_band)**self.p
 
@@ -139,19 +149,28 @@ class BCLPNorm:
 
 
     def computeLossGradient(self, g_iter):
-        self.updateVariables(self, g_iter)
+        self.updateVariables(g_iter)
 
         operand = self.v * self.weight * ((self.mapped_dose_error_from_band)**(self.p-1)) * np.sign(self.mapped_dose_error_from_f_T) * self.response_model.dmapdf(self.dose)
-        loss_grad =  ( self.q * self.logs.loss[self.logs.curr_iter]**((self.q - self.p)/self.q) ) * self.P.forward(operand)
 
-        self.checkSinogramShape(loss_grad, desired_shape= "flattened")
+        #Computation of gradient happens between the two iterations. Now the index just incremented, but we need to access the loss evaluated in last iteration
+        loss_grad =  ( self.q * self.logs.loss[self.logs.curr_iter-1]**((self.q - self.p)/self.q) ) * self.P.forward(operand) 
+
+        loss_grad = self.checkSinogramShape(loss_grad, desired_shape= "flattened")
         return loss_grad
 
     def callback(self, g_iter):
         #This function evaluate other metrics and record iter time
         self.logs.recordIterTime()
         if self.verbose == 'time' or self.verbose == 'plot':
-            print(f'Iteration {self.logs.curr_iter: 4.0f} at time: { self.iter_times[self.logs.curr_iter]: 6.1f} s')
+            print(f'Iteration {self.logs.curr_iter: 4.0f} at time: { self.logs.iter_times[self.logs.curr_iter]: 6.1f} s')
+        
+        # self.dp.update(self.logs.loss, self.dose)
+        self.dp.update(self.logs.loss, self.mapped_dose)
+
+        self.custom_ax1.imshow(self.dose, vmin= np.amin(self.dose),  vmax= np.amax(self.dose))
+        self.custom_ax2.imshow(self.mapped_dose, vmin= np.amin(self.mapped_dose),  vmax= np.amax(self.mapped_dose))
+
         self.logs.curr_iter += 1
 
 
@@ -161,7 +180,7 @@ class BCLPNorm:
         g_iter = self.checkSinogramShape(self.g0, desired_shape = 'flattened')
 
         #Impose constraint on latest g here
-        for iter in range(self.logs.n_iter): 
+        for iter in range(self.logs.options.n_iter): 
             g_iter = g_iter - self.learning_rate * self.computeLossGradient(g_iter)
             g_iter = self.imposeSinogramConstraints(g_iter)
             
@@ -190,6 +209,8 @@ class BCLPNorm:
         elif desired_shape == 'cylindrical':
             if len(g.shape) == 1:
                 g = np.reshape(g, self.g0_shape)
+        
+        return g
         
 
 
@@ -223,6 +244,10 @@ def minimizeBCLP(target_geo,proj_geo,options):
     bclp = BCLPNorm(target_geo, proj_geo, options)
     g_opt = bclp.gradientDescent()
     g_opt = bclp.checkSinogramShape(g_opt)
+
+    if bclp.verbose == 'plot':
+        bclp.dp.ioff()
+
     return vamtoolbox.geometry.Sinogram(g_opt, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.dose, proj_geo, options), bclp.logs.loss
 
     # lbfgs_options = {}

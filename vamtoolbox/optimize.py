@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 
+# import vamtoolbox.material #This exception has to be made since this definition is used in the __init__ of Options class.
 import vamtoolbox
 
 
@@ -9,7 +10,7 @@ class Options:
     __default_CAL = {"learning_rate":0.01,"momentum":0,"positivity":0,"sigmoid":0.01}
     __default_PM = {"rho_1":1,"rho_2":1,"p":1}
     __default_OSMO = {"inhibition":0}
-    __default_BCLP = {"response_model":vamtoolbox.material.ResponseModel(), "eps":0.1, "weight":1, "p":2, "q":1,  "learning_rate":0.01, "optim_alg":"grad_des"}
+    __default_BCLP = {"response_model":"default", "eps":0.1, "weight":1, "p":2, "q":1,  "learning_rate":0.01, "optim_alg":"grad_des"}
 
     def __init__(self,method : str ='CAL',n_iter : int = 50,d_h : float = 0.8,d_l : float = 0.7,filter : str ='ram-lak',units:str='normalized', blb = 0, bub = None, **kwargs):
         """
@@ -116,7 +117,13 @@ class Options:
             self.inhibition = self.__default_OSMO["inhibition"]
 
         if method == "BCLP":
-            self.response_model = self.__default_BCLP["response_model"]
+            if self.__default_BCLP["response_model"] == "default":  
+                #Initialize a response model by default, only upon __init__ of Options class. 
+                #This avoids putting the ResponseModel object inside the class definition of Options (and hence avoid import problems and unnesscary init of default response model)
+                self.response_model = vamtoolbox.material.ResponseModel()
+            else:
+                self.response_model = self.__default_BCLP["response_model"] #If a response model is given, use the provided one instead.
+
             self.eps = self.__default_BCLP["eps"]
             self.weight = self.__default_BCLP["weight"]
             self.p = self.__default_BCLP["p"]

@@ -298,6 +298,7 @@ class SlicePlot():
 
 		if self.array.ndim == 2:
 			self.im = self.ax.imshow(self.array,vmin=0,vmax=1,**kwargs)
+			# self.im = self.ax.imshow(self.array,**kwargs)
 
 		else:
 			if show_bodies == True:
