@@ -188,7 +188,7 @@ class Volume:
         plt.show()
 
 class TargetGeometry(Volume):
-    def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',options=None):
+    def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',binarize_image=True, options=None):
         """
         Parameters
         ----------
@@ -242,8 +242,11 @@ class TargetGeometry(Volume):
             # normalize image to 0-1 range
             image = image/np.max(image)
             # binarize image
-            array = np.where(image>=0.5,1.0,0.0)
-
+            if binarize_image == True:
+                array = np.where(image>=0.5,1.0,0.0)
+            else:
+                array = image
+                
             if bodies != "all":
                 print("Warning: zero dose and insert bodies are not implemented in 2D yet.")
                 self.zero_dose = None

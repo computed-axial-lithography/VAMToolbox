@@ -220,24 +220,38 @@ class ResponseModel:
 
 
     #=================================Utilities==========================================================================
-    def plotMap(self, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+    def plotMap(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
 
         f_test = np.linspace(lb,ub,n_pts)
         mapped_f_test = self.map(f_test)
-        # plt.figure()
-        plt.plot(f_test, mapped_f_test)
+
+        if ax == None:
+            fig, ax =  plt.subplots()
+
+        ax.plot(f_test, mapped_f_test)
+        ax.set_xlabel('Optical dose')
+        ax.set_ylabel('Material response (mapped dose)')
+
         if block == False:
             plt.ion()
         if show == True:
             plt.show()
 
+        return fig, ax
 
-    def plotDmapDf(self, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+
+    def plotDmapDf(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
 
         f_test = np.linspace(lb,ub,n_pts)
         mapped_f_test = self.dmapdf(f_test)
-        # plt.figure()
-        plt.plot(f_test, mapped_f_test)
+
+        if ax == None:
+            fig, ax =  plt.subplots()
+
+        ax.plot(f_test, mapped_f_test)
+        ax.set_xlabel('Optical dose')
+        ax.set_ylabel('1st derivative of material response (mapped dose)')
+
         if block == True:
             plt.ioff()
         else:
@@ -245,20 +259,31 @@ class ResponseModel:
 
         if show == True:
             plt.show()    
+        
+        return fig, ax
 
-    def plotMapInv(self, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+
+    def plotMapInv(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
 
         map_test = np.linspace(lb,ub,n_pts)
         f_test = self.map_inv(map_test)
-        # plt.figure()
-        plt.plot(map_test, f_test)
+
+        if ax == None:
+            fig, ax =  plt.subplots()
+
+        ax.plot(map_test, f_test)
+        ax.set_xlabel('Material response (mapped dose)')
+        ax.set_ylabel('Optical dose')
+
         if block == True:
             plt.ioff()
         else:
             plt.ion()
 
         if show == True:
-            plt.show()    
+            plt.show() 
+
+        return fig, ax
 
     def checkResponseTarget(self, f_T : np.ndarray):
         #Check if the response target is reachable with non-negative real inputs, and if it contains inf or nan.
@@ -296,7 +321,7 @@ class ResponseModel:
 ## Test
 
 if __name__ == "__main__":
-
+    """
     plt.figure()
     plt.title('Generalized logistic function with varying B')
     plt.grid(True)
@@ -387,6 +412,18 @@ if __name__ == "__main__":
     test_rm = ResponseModel(nu=5)
     test_rm.plotMapInv(show = False)
     print(test_rm.params)
+    """
 
+    test_rm = ResponseModel(B=10)
+    fig, ax = test_rm.plotMap(show = False)
+    test_rm = ResponseModel(B=25)
+    test_rm.plotMap(ax = ax, show = False)
+    test_rm = ResponseModel(B=50)
+    test_rm.plotMap(ax = ax, show = False)
+
+    ax.set_title('Generalized logistic function when B=[10,25,50], A=0, K=1, M=0.5, nu = 1')
+    ax.legend(["B=10", "B=25", "B=50"])
+    print(test_rm.params)
+    plt.grid(True)
     plt.show()
     input()
