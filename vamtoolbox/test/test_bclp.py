@@ -22,7 +22,7 @@ proj_geo = vam.geometry.ProjectionGeometry(angles,ray_type='parallel',CUDA=True)
 #Linear response with negative offset
 # response_model = vam.material.ResponseModel(form = "linear", M = 2, C = -1)
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=30,filter='ram-lak',verbose='plot', learning_rate = 0.02, response_model = response_model, eps=0.05)
-optimizer_params = vam.optimize.Options(method='BCLP',n_iter=30,filter='ram-lak',verbose='plot', learning_rate = 0.02, response_model = "default", eps=0.05)
+optimizer_params = vam.optimize.Options(method='BCLP',n_iter=10,filter='ram-lak',verbose='plot', learning_rate = 0.02, response_model = "default", eps=0.05)
 opt_sino, opt_recon, error = vam.optimize.optimize(target_geo, proj_geo,optimizer_params)
 # opt_recon.show()
 opt_sino.show()
