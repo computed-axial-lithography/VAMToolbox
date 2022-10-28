@@ -188,7 +188,7 @@ class Volume:
         plt.show()
 
 class TargetGeometry(Volume):
-    def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',binarize_image=True, options=None):
+    def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',binarize_image=True, clip_to_circle = True, options=None):
         """
         Parameters
         ----------
@@ -265,6 +265,8 @@ class TargetGeometry(Volume):
 
         
         self.gel_inds, self.void_inds = getInds(array)
+        if clip_to_circle:
+            array = vamtoolbox.util.data.clipToCircle(array)
         super().__init__(array=array,
         options=options,
         file_extension=".target",
