@@ -336,7 +336,7 @@ class SlicePlot():
 
 
 class ErrorPlot():
-	def __init__(self,*args,ax=None,fig=None):
+	def __init__(self,*args,ax=None,fig=None, title = None, xlabel = None, ylabel=None):
 		if ax is None and fig is None:
 			fig, ax = plt.subplots(1, 1)
 		self.ax = ax
@@ -350,9 +350,9 @@ class ErrorPlot():
 			self.line.set(linestyle='-',color=colors[ii])
 			
 		
-		self.ax.set(title='Value of Lp-norm cost function',
-					xlabel='Iterations',
-					ylabel='Cost',
+		self.ax.set(title=title,
+					xlabel=xlabel,
+					ylabel=ylabel,
 					xlim=[0,n_iter-1],
 					xticks=np.arange(0,n_iter,step = np.max([int(n_iter/10),1])),
 					xticklabels=np.arange(0,n_iter,step = np.max([int(n_iter/10),1]))
@@ -437,10 +437,12 @@ class EvolvingPlot():
 		self.target = target_geo.array
 		self.n_dim = target_geo.n_dim
 		self.n_iter = n_iter
-
-		self.fig, self.axs = plt.subplots(2,2,figsize=(12,10))
+		
+		self.fig, self.axs = plt.subplots(2,2) #Create figure
+		self.fig.set_size_inches(12, 10) #Resize figure
+		# self.fig, self.axs = plt.subplots(2,2,figsize=(12,10)) #WARNING: This line is preventing proper drawing of the figure. Potentially a bug in the matplotlib backend.
 		self.target_plot = SlicePlot(self.target,vol_type='target',ax=self.axs[0,0],fig=self.fig,cmap='gray',interpolation='none')
-		self.error_plot = ErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig)
+		self.error_plot = ErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig, title= 'Value of Lp-norm cost function', xlabel= 'Iterations', ylabel='Cost')
 		self.recon_plot_dose = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig,cmap='gray')
 		self.recon_plot_mapped = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[1,1],fig=self.fig,cmap='gray')
 
