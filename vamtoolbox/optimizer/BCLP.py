@@ -13,15 +13,15 @@ class LogPerf:
         self.curr_iter = 0
         self.loss = np.zeros(options.n_iter+1)*np.nan #including the init
         
-        self.l0_v = np.zeros(options.n_iter+1)*np.nan #L0 norm evaluated with equal weights, q=1, eps as in optimization
-        self.l1_v = np.zeros(options.n_iter+1)*np.nan #L1 norm evaluated with equal weights, q=1, eps as in optimization
-        self.l2_v = np.zeros(options.n_iter+1)*np.nan #L2 norm evaluated with equal weights, q=1, eps as in optimization
-        self.lf_v = np.zeros(options.n_iter+1)*np.nan #Linf norm evaluated with equal weights, q=1, eps as in optimization
+        self.l0 = np.zeros(options.n_iter+1)*np.nan #L0 norm evaluated with equal weights, q=1, eps as in optimization
+        self.l1 = np.zeros(options.n_iter+1)*np.nan #L1 norm evaluated with equal weights, q=1, eps as in optimization
+        self.l2 = np.zeros(options.n_iter+1)*np.nan #L2 norm evaluated with equal weights, q=1, eps as in optimization
+        self.lf = np.zeros(options.n_iter+1)*np.nan #Linf norm evaluated with equal weights, q=1, eps as in optimization
 
-        self.l0_all = np.zeros(options.n_iter+1)*np.nan #L0 norm evaluated with equal weights, q=1, eps=0
-        self.l1_all = np.zeros(options.n_iter+1)*np.nan #L1 norm evaluated with equal weights, q=1, eps=0
-        self.l2_all = np.zeros(options.n_iter+1)*np.nan #L2 norm evaluated with equal weights, q=1, eps=0
-        self.lf_all = np.zeros(options.n_iter+1)*np.nan #Linf norm evaluated with equal weights, q=1, eps=0
+        self.l0_eps0 = np.zeros(options.n_iter+1)*np.nan #L0 norm evaluated with equal weights, q=1, eps=0
+        self.l1_eps0 = np.zeros(options.n_iter+1)*np.nan #L1 norm evaluated with equal weights, q=1, eps=0
+        self.l2_eps0 = np.zeros(options.n_iter+1)*np.nan #L2 norm evaluated with equal weights, q=1, eps=0
+        self.lf_eps0 = np.zeros(options.n_iter+1)*np.nan #Linf norm evaluated with equal weights, q=1, eps=0
         
         self.ver = np.zeros(options.n_iter+1)*np.nan
 
@@ -109,9 +109,9 @@ class BCLPNorm:
         else:
             self.g0 = g0
 
-        #Evaluate performance of initialization
-        self.updateVariables(self.g0) #update loss and gradient.
-        self.callback(self.g0) #Record other metrics and initialization time as iter 0
+        # #Evaluate performance of initialization --> Turns out it should not be run here. It will be executed in the first iteration anyway.
+        # self.updateVariables(self.g0) #update loss and gradient.
+        # self.callback(self.g0) #Record other metrics and initialization time as iter 0
 
 
     def updateVariables(self, g_iter):
@@ -153,10 +153,11 @@ class BCLPNorm:
 
 
     def computeLoss(self):
-
+        #Computation of the loss function
         loss_integrand = self.v*self.weight*(self.mapped_dose_error_from_band)**self.p
 
-        loss = (np.sum(loss_integrand).astype('double')*self.dvol)**(self.q/self.p) #multiply by a constant differential volume, self.dvol
+        # loss = (np.sum(loss_integrand).astype('double')*self.dvol)**(self.q/self.p) #multiply by a constant differential volume, self.dvol. #We may not need the astype('double')
+        loss = (np.sum(loss_integrand)*self.dvol)**(self.q/self.p) #multiply by a constant differential volume, self.dvol
         
         self.logs.loss[self.logs.curr_iter] = loss
 
@@ -165,7 +166,7 @@ class BCLPNorm:
 
 
     def computeLossGradient(self):
-
+        #Computation of the loss gradient. Output as a flattened array.
         operand = self.v * self.weight * ((self.mapped_dose_error_from_band)**(self.p-1)) * np.sign(self.mapped_dose_error_from_f_T) * self.response_model.dmapdf(self.dose)
 
         #Computation of gradient happens between the two iterations. Now the index just incremented, but we need to access the loss evaluated in last iteration
@@ -186,39 +187,81 @@ class BCLPNorm:
         return self.loss_grad
 
 
+    def evaluateNormMetrics(self):
+        #All following norms are evaluated with eps = original value and eps = 0
+        #l0 and l0_eps0
+
+        # l0 = np.sum(self.v).astype('double')*self.dvol #multiply by a constant differential volume, self.dvol
+        l0 = np.sum(self.v)*self.dvol #multiply by a constant differential volume, self.dvol
+        self.logs.l0[self.logs.curr_iter] = l0
+        
+        v_eps0 = (np.abs(self.mapped_dose_error_from_f_T) > 0)
+        l0_eps0 = np.sum(v_eps0)*self.dvol #multiply by a constant differential volume, self.dvol
+        self.logs.l0_eps0[self.logs.curr_iter] = l0_eps0
+
+        #l1 and l1_eps0
+        l1 = np.sum(self.v*np.abs(self.mapped_dose_error_from_band))*self.dvol
+        self.logs.l1[self.logs.curr_iter] = l1
+
+        l1_eps0 = np.sum(np.abs(self.mapped_dose_error_from_f_T))*self.dvol  #multiplication with v_eps0 is suppressed for performance. Such binary mask is unnecessary in this case. 
+        self.logs.l1_eps0[self.logs.curr_iter] = l1_eps0
+
+        #l2 and l2_eps0 
+        l2 = np.sqrt(np.sum(self.v*(self.mapped_dose_error_from_band**2))*self.dvol)
+        self.logs.l2[self.logs.curr_iter] = l2
+
+        l2_eps0 = np.sqrt(np.sum(self.mapped_dose_error_from_f_T**2)*self.dvol)  #multiplication with v_eps0 is suppressed for performance. Such binary mask is unnecessary in this case.
+        self.logs.l2_eps0[self.logs.curr_iter] = l2_eps0
+
+        #lf and lf_eps0 
+        #The existance of self.v here is important. Without it, we can't select only the constraint violation only.
+        #In the case where all voxels have negative errors (constraint satisfaction), these values could possibly show up either as negative (without abs) and positive (with abs)
+        lf = np.amax(self.v*np.abs(self.mapped_dose_error_from_band))  
+        self.logs.lf[self.logs.curr_iter] = lf
+        
+        lf_eps0 = np.amax(v_eps0 * np.abs(self.mapped_dose_error_from_f_T))  
+        self.logs.lf_eps0[self.logs.curr_iter] = lf_eps0
+        
+
     def callback(self, g_iter):
         #This function evaluate other metrics and record iter time
-
         #Evaluate other metrics
-
+        self.updateVariables(g_iter)
+        self.evaluateNormMetrics()
 
         #record iter time
         self.logs.recordIterTime()
         if self.verbose == 'time' or self.verbose == 'plot':
             print(f'Iteration {self.logs.curr_iter: 4.0f} at time: { self.logs.iter_times[self.logs.curr_iter]: 6.1f} s')
         
-        self.dp.update(self.logs.loss, self.dose, self.mapped_dose)
+        self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
 
         self.logs.curr_iter += 1
 
 
-
-    def gradientDescent(self): #TODO: using scipy optimize method format such that it could be called by "minimize" front end
-
+    def gradientDescent(self): 
+        #TODO: using scipy optimize method format such that it could be called by "minimize" front end
         g_iter = self.checkSinogramShape(self.g0, desired_shape = 'flattened')
 
         #Impose constraint on latest g here
         for iter in range(self.logs.options.n_iter): 
+            #The first iteration here evaluate the initial solution performance, and generate the next g_iter (for iteration 1).
+            #Variables and performance are evaluated at the beginning of each loop iteration (by construction). g_iter generated is for the next iteration.
+            #This process is repeated for n_iter times.
             g_iter = g_iter - self.learning_rate * self.getLossGrad(g_iter)
             g_iter = self.imposeSinogramConstraints(g_iter)
             
             #Evaluate performance
             self.getLoss(g_iter)
             self.callback(g_iter)
+            
+        self.updateVariables(g_iter) #Update the variables according to the last generated g_iter
+        self.evaluateNormMetrics() #compute the metrics for the last generated g_iter
+        self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
+
 
         return g_iter
 
-        
 
     def imposeSinogramConstraints(self, g):
         if self.bit_depth is not None:
@@ -242,7 +285,7 @@ class BCLPNorm:
         
 
 
-def minimizeBCLP(target_geo, proj_geo, options, mode = "compatibility"):
+def minimizeBCLP(target_geo, proj_geo, options, output = "packaged"):
     """
     Band constraint Lp norm minimization. 
 
@@ -277,11 +320,13 @@ def minimizeBCLP(target_geo, proj_geo, options, mode = "compatibility"):
         bclp.dp.ioff()
 
 
-    if mode == "compatibility":
-        return vamtoolbox.geometry.Sinogram(g_opt, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.dose, proj_geo, options), bclp.logs.loss
-    elif mode == "full":
-        return vamtoolbox.geometry.Sinogram(g_opt, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.dose, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.mapped_dose, proj_geo, options), bclp.logs
 
+    if output == "packaged":
+        return vamtoolbox.geometry.Sinogram(g_opt, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.dose, proj_geo, options), bclp.logs.loss
+    elif output == "full":
+        return vamtoolbox.geometry.Sinogram(g_opt, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.dose, proj_geo, options), vamtoolbox.geometry.Reconstruction(bclp.mapped_dose, proj_geo, options), bclp.logs
+    elif output == "components":
+        return g_opt, bclp.dose, bclp.mapped_dose, bclp.logs
 
     #Future improvement: Parse options and run other optimization methods in Scipy minimize 
     # lbfgs_options = {}

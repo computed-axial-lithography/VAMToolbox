@@ -132,7 +132,7 @@ class Options:
             self.optim_alg = self.__default_BCLP["optim_alg"]
 
 
-def optimize(target_geo : vamtoolbox.geometry.TargetGeometry,proj_geo : vamtoolbox.geometry.ProjectionGeometry,options:Options):
+def optimize(target_geo : vamtoolbox.geometry.TargetGeometry,proj_geo : vamtoolbox.geometry.ProjectionGeometry,options:Options, output = "packaged"):
     """
     Performs VAM optimization using the selected optimizer in options
 
@@ -168,7 +168,7 @@ def optimize(target_geo : vamtoolbox.geometry.TargetGeometry,proj_geo : vamtoolb
         return vamtoolbox.optimizer.OSMO.minimizeOSMO(target_geo,proj_geo,options)
 
     elif options.method == "BCLP":
-        return vamtoolbox.optimizer.BCLP.minimizeBCLP(target_geo,proj_geo,options)
+        return vamtoolbox.optimizer.BCLP.minimizeBCLP(target_geo, proj_geo, options, output)
 
 
 
