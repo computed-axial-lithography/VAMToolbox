@@ -34,6 +34,41 @@ class LogPerf:
     def recordIterTime(self):
         self.iter_times[self.curr_iter] = time.perf_counter() - self.t0
 
+    def show(self, normalation_flags = (True, True, True, True)):
+        #Plot cost function and all other metrics
+        fig, axs = plt.subplots(1,3) #Create figure
+        fig.set_size_inches(12, 8) #Resize figure
+        error_plot = vamtoolbox.displaygrayscale.MultiErrorPlot(self.loss,ax=axs[0],fig=fig, title= 'Weighted $L_{p}$ norm cost function', xlabel= 'Iteration', ylabel='Cost')
+        error_lp_plot = vamtoolbox.displaygrayscale.MultiErrorPlot(
+            self.l0,
+			self.l1,
+			self.l2,
+			self.lf,
+			ax=axs[1],
+			fig=fig,
+			title= r'Other $L_{p}$ norms with original tolerance $\varepsilon$',
+			xlabel= 'Iteration',
+			ylabel='Normalized norm value',
+			legends = ['$L_{0}$','$L_{1}$','$L_{2}$','$L_{\infty}$'],
+			normalization_flags= normalation_flags
+			)
+
+        error_lp_eps0_plot = vamtoolbox.displaygrayscale.MultiErrorPlot(
+            self.l0_eps0,
+			self.l1_eps0,
+			self.l2_eps0,
+			self.lf_eps0,
+			ax=axs[2],
+			fig=fig,
+			title= r'Other $L_{p}$ norms with zero tolerance $\varepsilon = 0$',
+			xlabel= 'Iteration',
+			ylabel='Normalized norm value',
+			legends = ['$L_{0}$','$L_{1}$','$L_{2}$','$L_{\infty}$'],
+			normalization_flags= normalation_flags
+			)
+        
+        plt.show()
+        return fig, axs, error_plot, error_lp_plot, error_lp_eps0_plot
 
 class BCLPNorm:
     """

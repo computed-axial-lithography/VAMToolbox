@@ -131,6 +131,8 @@ class Options:
             self.learning_rate = self.__default_BCLP["learning_rate"]
             self.optim_alg = self.__default_BCLP["optim_alg"]
 
+    def __str__(self):
+        return str(self.__dict__)
 
 def optimize(target_geo : vamtoolbox.geometry.TargetGeometry,proj_geo : vamtoolbox.geometry.ProjectionGeometry,options:Options, output = "packaged"):
     """
