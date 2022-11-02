@@ -171,6 +171,7 @@ class BCLPNorm:
             self.mapped_dose_error_from_f_T_iter = self.logs.curr_iter
 
         if self.mapped_dose_error_from_band_iter != self.logs.curr_iter:
+            #"mapped_dose_error_from_band" is by definition positive in the constraint violation zone, and either zero or negative outside.
             self.mapped_dose_error_from_band = np.abs(self.mapped_dose_error_from_f_T) - self.eps
             self.mapped_dose_error_from_band_iter = self.logs.curr_iter
 
@@ -188,8 +189,14 @@ class BCLPNorm:
 
 
     def computeLoss(self):
-        #Computation of the loss function
-        loss_integrand = self.v*self.weight*(self.mapped_dose_error_from_band)**self.p
+        """
+        Computation of the loss function
+        """
+
+        #The absolute sign around "mapped_dose_error_from_band" (as in the definition of Lp norm) is preserved here, although simiplification in the paper hides it.
+        #This absolute sign is to avoid letting the negative values of mapped_dose_error_from_band to create NaNs in **p operation when p<1. The NaNs would avoid the sum to be properly evaluated.
+        #These originally negative voxels would not contribute to the loss_integrand due to selection by v. 
+        loss_integrand = self.v*self.weight*np.abs(self.mapped_dose_error_from_band)**self.p
 
         # loss = (np.sum(loss_integrand).astype('double')*self.dvol)**(self.q/self.p) #multiply by a constant differential volume, self.dvol. #We may not need the astype('double')
         loss = (np.sum(loss_integrand)*self.dvol)**(self.q/self.p) #multiply by a constant differential volume, self.dvol
@@ -201,8 +208,14 @@ class BCLPNorm:
 
 
     def computeLossGradient(self):
-        #Computation of the loss gradient. Output as a flattened array.
-        operand = self.v * self.weight * ((self.mapped_dose_error_from_band)**(self.p-1)) * np.sign(self.mapped_dose_error_from_f_T) * self.response_model.dmapdf(self.dose)
+        """
+        Computation of the loss gradient. Output gradient as a flattened array.
+        """
+
+        #The absolute sign around "mapped_dose_error_from_band" (as in the definition of Lp norm) is preserved here, although simiplification in the paper hides it.
+        #This absolute sign is to avoid letting the negative values of mapped_dose_error_from_band to create NaNs in **(p-1) operation when p<2. The NaNs would start to spread throughout g_iter can cause errors.
+        #These originally negative voxels would not contribute to the operand due to selection by v. 
+        operand = self.v * self.weight * (np.abs(self.mapped_dose_error_from_band)**(self.p-1)) * np.sign(self.mapped_dose_error_from_f_T) * self.response_model.dmapdf(self.dose)
 
         #Computation of gradient happens between the two iterations. Now the index just incremented, but we need to access the loss evaluated in last iteration
         loss_grad =  ( self.q * self.loss**((self.q - self.p)/self.q) ) * self.P.forward(operand) 
