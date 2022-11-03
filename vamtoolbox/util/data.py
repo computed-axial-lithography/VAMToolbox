@@ -133,13 +133,13 @@ def filterSinogram(sinogram : np.ndarray,filter_name : str):
     sinogram : np.ndarray
         input sinogram
     filter_name : str
-        type of filter to apply to sinogram, options: "ram-lak", "shepp-logan", "cosine", "hamming", "hanning", "none"
+        type of filter to apply to sinogram, options: "ram-lak", "shepp-logan", "cosine", "hamming", "hanning", "ram-lak_freq", "none"
     Returns
     -------
     sinogram_filt : np.ndarray
         filtered sinogram
     """
-    filter_types = ('ram-lak', 'shepp-logan', 'cosine', 'hamming', 'hanning', 'none',None)
+    filter_types = ('ram-lak', 'shepp-logan', 'cosine', 'hamming', 'hanning', 'ram-lak_freq', 'none',None)
     if filter_name.lower() not in filter_types:
         raise ValueError("Unknown filter: %s" % filter_name)
 
@@ -207,6 +207,7 @@ def _get_fourier_filter(size : int, filter_name : str):
            Imaging", IEEE Press 1988.
     """
     n = np.concatenate((np.arange(1, size / 2 + 1, 2, dtype=np.int),np.arange(size / 2 - 1, 0, -2, dtype=np.int)))
+    #n = fftmodule.fftfreq(size)[1::2]*size #equivalent way to write the odd spatial coordinate (this version is signed)
     f = np.zeros(size)
     f[0] = 0.25
     f[1::2] = -1 / (np.pi * n) ** 2
@@ -229,6 +230,9 @@ def _get_fourier_filter(size : int, filter_name : str):
         fourier_filter *= fftmodule.fftshift(np.hamming(size))
     elif filter_name == "hanning":
         fourier_filter *= fftmodule.fftshift(np.hanning(size))
+    elif filter_name == "ram-lak_freq":
+        fourier_filter /= (np.pi/4)**2  #fudge factor 1/(pi/4)^2 is needed on top of the original filter to reconstruct values close to original. So far this yields the best performance.
+        # fourier_filter = np.abs(fftmodule.fftfreq(size)*4) #Build filter from ground up. Somehow we still need a factor of 4 to reconstruct original values. So far this yields the second best performance.
     elif filter_name is None or filter_name.lower() is "none":
         fourier_filter[:] = 1
 

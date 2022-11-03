@@ -273,7 +273,7 @@ def showSinoSlicer(array,**kwargs):
 
 
 class SlicePlot():
-	def __init__(self,array,vol_type,show_bodies=False,ax=None,fig=None,**kwargs):
+	def __init__(self,array,vol_type,show_bodies=False,ax=None,fig=None, title = None, vmin = 0, vmax = 1, **kwargs):
 		if ax is None and fig is None:
 			fig, ax = plt.subplots(1, 1,figsize=(5,5))
 		self.ax = ax
@@ -281,10 +281,10 @@ class SlicePlot():
 
 		if isinstance(array, np.ndarray):
 			self.array = array.astype(np.float32)
-			v_min, v_max = np.min(array), np.max(array)
+			# v_min, v_max = np.min(array), np.max(array)
 		elif isinstance(array, vamtoolbox.geometry.TargetGeometry):
 			self.array = array.array.astype(np.float32)
-			v_min, v_max = np.min(array.array), np.max(array.array)
+			# v_min, v_max = np.min(array.array), np.max(array.array)
 
 		if show_bodies == True:
 			self.array = np.stack((self.array,self.array,self.array,np.ones_like(self.array)),axis=-1)
@@ -297,14 +297,14 @@ class SlicePlot():
 				self.array[array.zero_dose.astype(np.bool_),:] = color_zero_dose
 
 		if self.array.ndim == 2:
-			self.im = self.ax.imshow(self.array,vmin=0,vmax=1,**kwargs)
+			self.im = self.ax.imshow(self.array, vmin=vmin, vmax=vmax, **kwargs)
 			# self.im = self.ax.imshow(self.array,**kwargs)
 
 		else:
 			if show_bodies == True:
-				self.im = self.ax.imshow(self.array[:,:,int(array.shape[-1]/2),:],vmin=0,vmax=1,**kwargs)
+				self.im = self.ax.imshow(self.array[:,:,int(array.shape[-1]/2),:], vmin=vmin, vmax=vmax, **kwargs)
 			else:
-				self.im = self.ax.imshow(self.array[:,:,int(array.shape[-1]/2)],vmin=0,vmax=1,**kwargs)
+				self.im = self.ax.imshow(self.array[:,:,int(array.shape[-1]/2)], vmin=vmin, vmax=vmax, **kwargs)
 
 
 		if vol_type == 'recon' or vol_type == 'target':
@@ -319,7 +319,8 @@ class SlicePlot():
 		self.ax.set_ylabel(ylabel)
 		self.ax.xaxis.set_ticks_position('top')
 		self.ax.xaxis.set_label_position('top')
-
+		if title is not None:
+			self.ax.set_title(title)
 		vamtoolbox.util.matplotlib.addColorbar(self.im)
 
 		# self.ax.axis('off')
@@ -336,7 +337,7 @@ class SlicePlot():
 
 
 class ErrorPlot():
-	def __init__(self,*args,ax=None,fig=None):
+	def __init__(self,*args,ax=None,fig=None, title = None, xlabel = None, ylabel=None):
 		if ax is None and fig is None:
 			fig, ax = plt.subplots(1, 1)
 		self.ax = ax
@@ -350,45 +351,122 @@ class ErrorPlot():
 			self.line.set(linestyle='-',color=colors[ii])
 			
 		
-		self.ax.set(title='Error',
-					xlabel='Iterations',
-					ylabel='VER',
+		self.ax.set(title=title,
+					xlabel=xlabel,
+					ylabel=ylabel,
 					xlim=[0,n_iter-1],
 					xticks=np.arange(0,n_iter,step = np.max([int(n_iter/10),1])),
 					xticklabels=np.arange(0,n_iter,step = np.max([int(n_iter/10),1]))
 					)
 		self.ax.grid()
-		# self.ax.set_ylim(bottom=0)
+		self.ax.set_ylim(bottom=0)
 
 	def update(self,error):
 		self.ax.set_yscale('log')
 		self.line.set_ydata(error)
 		self.ax.relim()
 		self.ax.autoscale(axis='y')
-		# self.ax.set_ylim(bottom=0)
+		self.ax.set_ylim(bottom=0)
 
 def showErrorPlot(*args,**kwargs):
 	x = ErrorPlot(*args,**kwargs)
 	return x
 
+
+class MultiErrorPlot():
+	def __init__(self,*args,ax=None,fig=None, title = None, xlabel = None, ylabel=None, legends=None, normalization_flags = False, log_y = False):
+		"""
+		This function plots multiple error metrics altogether. 
+		Each error, as an 1D array, is input as its own argument.
+		The number of arguments equals the number of lines.
+		Title, axis labels and legends (legends as list of str) can be specified.
+		When normalization flag is True, the lines is normalized by its respective first element.
+		normalize argument can be True, False or a tuple of boolean values.
+		"""
+		n_arg = len(args)	#Number of metrics to be plotted
+		if ax is None and fig is None:
+			fig, ax = plt.subplots(1, 1)
+		self.ax = ax
+		self.fig = fig
+		if (type(normalization_flags) is tuple) or (type(normalization_flags) is list) :
+			self.normalization_flags = normalization_flags
+		else:
+			self.normalization_flags = (bool(normalization_flags),)*n_arg
+
+		self.log_y = log_y
+		colors = ['red','blue','lime','darkviolet','cyan','olive'] #Color scheme
+
+		self.lines = [None]*n_arg #Number of metrics to be plotted
+
+		for ii, error in enumerate(args):
+			n_iter = np.size(error)
+			if self.normalization_flags[ii]:
+				self.lines[ii], = self.ax.plot(range(n_iter), error/error[0])
+			else:
+				self.lines[ii],  = self.ax.plot(range(n_iter),error)
+				
+			self.lines[ii].set(linestyle='-',color=colors[ii])
+
+		self.ax.set(title=title,
+					xlabel=xlabel,
+					ylabel=ylabel,
+					xlim=[0,n_iter-1],
+					xticks=np.arange(0,n_iter,step = np.max([int(n_iter/10),1])),
+					xticklabels=np.arange(0,n_iter,step = np.max([int(n_iter/10),1]))
+					)
+		self.ax.grid()
+		self.ax.set_ylim(bottom=0)
+		if legends is not None:
+			self.ax.legend(legends)
+
+	def update(self,*args):
+		if self.log_y:
+			self.ax.set_yscale('log')
+
+		for ii, error in enumerate(args):
+			if self.normalization_flags[ii]:
+				self.lines[ii].set_ydata(error/error[0])
+			else:
+				self.lines[ii].set_ydata(error)
+
+		self.ax.relim()
+		self.ax.autoscale(axis='y')
+		self.ax.set_ylim(bottom=0)
+
+
 class HistogramPlot():
-	def __init__(self,x,target,scale='linear',ax=None,fig=None):
+	def __init__(self,x,target,scale='linear',ax=None,fig=None, title=None, xlabel = None, ylabel = None, vmin=0, vmax =1, n_bins = 100, target_binary = True):
 		if ax is None and fig is None:
 			fig, ax = plt.subplots(1, 1)
 		self.ax = ax
 		self.fig = fig
 		self.scale = scale
-		self.hist_bins = np.linspace(0,1,100)
-		self.target = target
-		void_dose = x[self.target.void_inds]
-		gel_dose = x[self.target.gel_inds]
+		self.target_binary = target_binary
+		self.title = title
+		self.xlabel = xlabel
+		self.ylabel = ylabel
+		self.hist_bins = np.linspace(vmin,vmax,n_bins)
 
-		self.ax.hist(void_dose,bins=self.hist_bins,color='red',alpha=0.5,edgecolor='black',label='out-of-part dose')
-		self.ax.hist(gel_dose,bins=self.hist_bins,color='blue',alpha=0.5,edgecolor='black',label='in-part dose')
-		self.ax.set(title='Dose distribution',
-					xlabel='Normalized Dose',
-					ylabel='Frequency')
-		self.ax.legend()
+		#The commented lines are for binary target
+		if self.target_binary:
+			self.target = target
+			void_dose = x[self.target.void_inds]
+			gel_dose = x[self.target.gel_inds]
+
+			self.ax.hist(void_dose,bins=self.hist_bins,color='red',alpha=0.5,edgecolor='black',label='out-of-part dose')
+			self.ax.hist(gel_dose,bins=self.hist_bins,color='blue',alpha=0.5,edgecolor='black',label='in-part dose')
+			self.ax.set(title='Dose distribution',
+				xlabel='Normalized Dose',
+				ylabel='Frequency')
+		else:
+			self.ax.hist(x[x<0].flatten(),bins=self.hist_bins,color='blue',alpha=0.5,edgecolor='black', label='Negative error, $M(f)<f_{T}$')
+			self.ax.hist(x[x>0].flatten(),bins=self.hist_bins,color='red',alpha=0.5,edgecolor='black', label='Positive error, $M(f)>f_{T}$')
+			self.ax.set(title= self.title,
+				xlabel= self.xlabel,
+				ylabel= self.ylabel)			
+
+			self.ax.grid(True)
+			self.ax.legend()
 		
 		if self.scale == 'log':
 			self.ax.set_yscale('log')
@@ -399,16 +477,23 @@ class HistogramPlot():
 
 	def update(self,x):
 
-		void_dose = x[self.target.void_inds]
-		gel_dose = x[self.target.gel_inds]
-
 		self.ax.clear()
-		self.ax.hist(void_dose,bins=self.hist_bins,color='red',alpha=0.5,edgecolor='black',label='out-of-part dose')
-		self.ax.hist(gel_dose,bins=self.hist_bins,color='blue',alpha=0.5,edgecolor='black',label='in-part dose')
+		if self.target_binary:
+			void_dose = x[self.target.void_inds]
+			gel_dose = x[self.target.gel_inds]
+			self.ax.hist(void_dose,bins=self.hist_bins,color='red',alpha=0.5,edgecolor='black',label='out-of-part dose')
+			self.ax.hist(gel_dose,bins=self.hist_bins,color='blue',alpha=0.5,edgecolor='black',label='in-part dose')
+			self.ax.set(title='Dose distribution',
+						xlabel='Normalized Dose',
+						ylabel='Frequency')
+		else:
+			self.ax.hist(x[x<0].flatten(),bins=self.hist_bins,color='blue',alpha=0.5,edgecolor='black', label='Negative error, $M(f)<f_{T}$')
+			self.ax.hist(x[x>0].flatten(),bins=self.hist_bins,color='red',alpha=0.5,edgecolor='black', label='Positive error, $M(f)>f_{T}$')
+			self.ax.set(title= self.title,
+						xlabel= self.xlabel,
+						ylabel= self.ylabel)
+		self.ax.grid(True)
 		self.ax.legend()
-		self.ax.set(title='Dose distribution',
-					xlabel='Normalized Dose',
-					ylabel='Frequency')
 		if self.scale == 'log':
 			self.ax.set_yscale('log')
 
@@ -437,23 +522,74 @@ class EvolvingPlot():
 		self.target = target_geo.array
 		self.n_dim = target_geo.n_dim
 		self.n_iter = n_iter
+		
+		self.fig, self.axs = plt.subplots(2,4, gridspec_kw={'height_ratios': [1, 1]}) #Create figure
+		self.fig.set_size_inches(15, 10) #Resize figure
+		manager = plt.get_current_fig_manager()
+		manager.full_screen_toggle()
+		# self.fig, self.axs = plt.subplots(2,2,figsize=(12,10)) #WARNING: This line is preventing proper drawing of the figure. Potentially a bug in the matplotlib backend.
+		self.target_plot = SlicePlot(self.target,vol_type='target',ax=self.axs[0,0],fig=self.fig, title = 'Response target, $f_{T}$', cmap='gray',interpolation='none')
+		self.recon_plot_dose = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig, title = 'Optical dose, $f$', cmap='gray')
+		self.recon_plot_mapped = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,2],fig=self.fig, title = 'Dose response, $M(f)$', cmap='gray')
+		self.recon_plot_mapped_error = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,3],fig=self.fig, title = 'Response error, $M(f)-f_{T}$', vmin = -1, vmax = 1, cmap='coolwarm')
+		self.error_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig, title= 'Weighted $L_{p}$ norm cost function', xlabel= 'Iteration', ylabel='Cost')
+		self.error_lp_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),
+			np.full(self.n_iter,np.nan),
+			np.full(self.n_iter,np.nan),
+			np.full(self.n_iter,np.nan),
+			ax=self.axs[1,1],
+			fig=self.fig,
+			title= r'Other $L_{p}$ norms with original tolerance $\varepsilon$',
+			xlabel= 'Iteration',
+			ylabel='Normalized norm value',
+			legends = ['$L_{0}$','$L_{1}$','$L_{2}$','$L_{\infty}$'],
+			normalization_flags= (True, True, True, True)
+			)
 
-		self.fig, self.axs = plt.subplots(2,2,figsize=(12,10))
-		self.target_plot = SlicePlot(self.target,vol_type='target',ax=self.axs[0,0],fig=self.fig,cmap='gray',interpolation='none')
-		self.error_plot = ErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig)
-		self.recon_plot = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig,cmap='CMRmap')
-		self.hist_plot = HistogramPlot(np.zeros_like(self.target),target_geo,ax=self.axs[1,1],fig=self.fig,scale='log')
+		self.error_lp_eps0_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),
+			np.full(self.n_iter,np.nan),
+			np.full(self.n_iter,np.nan),
+			np.full(self.n_iter,np.nan),
+			ax=self.axs[1,2],
+			fig=self.fig,
+			title= r'Other $L_{p}$ norms with zero tolerance $\varepsilon = 0$',
+			xlabel= 'Iteration',
+			ylabel='Normalized norm value',
+			legends = ['$L_{0}$','$L_{1}$','$L_{2}$','$L_{\infty}$'],
+			normalization_flags= (True, True, True, True)
+			)
+
+		self.hist_plot = HistogramPlot(
+			np.zeros_like(self.target),
+			target_geo, ax=self.axs[1,3],
+			fig=self.fig,
+			scale='log', 
+			title = 'Response error distribution', 
+			xlabel='Response error', 
+			ylabel='Frequency', 
+			vmin = -1, 
+			vmax = 1, 
+			target_binary= False
+			)
+
 		self.fig.canvas.draw()
 		self.fig.canvas.flush_events()
 		plt.draw()
 		plt.show()
 		plt.pause(0.01)
 
-	def update(self,error,x=None):
-		self.error_plot.update(error)
-		self.recon_plot.update(x)
-		self.hist_plot.update(x)
+
+	def update(self,cost,dose=None, mapped=None, norms_list=None):
+		self.recon_plot_dose.update(dose)
+		self.recon_plot_mapped.update(mapped)
+		self.recon_plot_mapped_error.update(mapped-self.target)
+		self.error_plot.update(cost)
+
+		if norms_list is not None:
+			self.error_lp_plot.update(norms_list[0],norms_list[1],norms_list[2],norms_list[3])
+			self.error_lp_eps0_plot.update(norms_list[4],norms_list[5],norms_list[6],norms_list[7])
 		
+		self.hist_plot.update(mapped-self.target)
 		self.fig.canvas.draw()
 		self.fig.canvas.flush_events()
 
