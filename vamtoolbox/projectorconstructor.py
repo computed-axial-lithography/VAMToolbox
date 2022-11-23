@@ -43,48 +43,53 @@ def projectorconstructor(target_geo : geometry.TargetGeometry, proj_geo : geomet
 
     # if GPU projection
     if proj_geo.CUDA is True:
-
-        # if absorption or occlusion
-        if proj_geo.attenuation_field is not None:
-            if target_geo.n_dim == 2:
-                raise NotImplementedError("2D attenuation CUDA projector not yet implemented.")
-            else:
-                raise NotImplementedError("3D attenuation CUDA projector not yet implemented.")
-                # from vamtoolbox.projector.Projector3DParallelCUDA import Projector3DParallelCUDATigre
-                # A = Projector3DParallelCUDATigre(target_geo,proj_geo)
-
+        if proj_geo.ray_type == 'algebraic':
+            raise Exception('GPU version of algebraic propagation is not yet implemented')
         else:
-            if target_geo.n_dim == 2:
-                from vamtoolbox.projector.Projector2DParallelCUDA import Projector2DParallelCUDAAstra
-                A = Projector2DParallelCUDAAstra(target_geo,proj_geo)
+            # if absorption or occlusion
+            if proj_geo.attenuation_field is not None:
+                if target_geo.n_dim == 2:
+                    raise NotImplementedError("2D attenuation CUDA projector not yet implemented.")
+                else:
+                    raise NotImplementedError("3D attenuation CUDA projector not yet implemented.")
+                    # from vamtoolbox.projector.Projector3DParallelCUDA import Projector3DParallelCUDATigre
+                    # A = Projector3DParallelCUDATigre(target_geo,proj_geo)
 
             else:
-                from vamtoolbox.projector.Projector3DParallelCUDA import Projector3DParallelCUDAAstra
-                A = Projector3DParallelCUDAAstra(target_geo,proj_geo)
+                if target_geo.n_dim == 2:
+                    from vamtoolbox.projector.Projector2DParallelCUDA import Projector2DParallelCUDAAstra
+                    A = Projector2DParallelCUDAAstra(target_geo,proj_geo)
+
+                else:
+                    from vamtoolbox.projector.Projector3DParallelCUDA import Projector3DParallelCUDAAstra
+                    A = Projector3DParallelCUDAAstra(target_geo,proj_geo)
 
     # if CPU projection
     else:
-
-        # if absorption or occlusion
-        if proj_geo.attenuation_field is not None:
-            if target_geo.n_dim == 2:
-                from vamtoolbox.projector.Projector2DParallel import Projector2DParallelPython
-                A = Projector2DParallelPython(target_geo,proj_geo)
-            else:
-                from vamtoolbox.projector.Projector3DParallel import Projector3DParallelPython
-                A = Projector3DParallelPython(target_geo,proj_geo)
-                
+        if proj_geo.ray_type == 'algebraic':
+            from vamtoolbox.projector.algebraicPropagation import AlgebraicPropagator
+            A = AlgebraicPropagator(target_geo,proj_geo)
         else:
-            if target_geo.n_dim == 2:
-                from vamtoolbox.projector.Projector2DParallel import Projector2DParallelAstra
-                A = Projector2DParallelAstra(target_geo,proj_geo)
-
+            # if absorption or occlusion
+            if proj_geo.attenuation_field is not None:
+                if target_geo.n_dim == 2:
+                    from vamtoolbox.projector.Projector2DParallel import Projector2DParallelPython
+                    A = Projector2DParallelPython(target_geo,proj_geo)
+                else:
+                    from vamtoolbox.projector.Projector3DParallel import Projector3DParallelPython
+                    A = Projector3DParallelPython(target_geo,proj_geo)
+                    
             else:
-                from vamtoolbox.projector.Projector3DParallel import Projector3DParallelAstra
-                A = Projector3DParallelAstra(target_geo,proj_geo)
+                if target_geo.n_dim == 2:
+                    from vamtoolbox.projector.Projector2DParallel import Projector2DParallelAstra
+                    A = Projector2DParallelAstra(target_geo,proj_geo)
 
-                # from vamtoolbox.projector.Projector3DParallel import Projector3DParallelPython
-                # A = Projector3DParallelPython(target_geo,proj_geo)
+                else:
+                    from vamtoolbox.projector.Projector3DParallel import Projector3DParallelAstra
+                    A = Projector3DParallelAstra(target_geo,proj_geo)
+
+                    # from vamtoolbox.projector.Projector3DParallel import Projector3DParallelPython
+                    # A = Projector3DParallelPython(target_geo,proj_geo)
 
     if target_geo.zero_dose is not None:
         proj_geo.calcZeroDoseSinogram(A,target_geo)
