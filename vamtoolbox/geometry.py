@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image, ImageOps
 from scipy import interpolate
-
+from scipy import sparse
 import vamtoolbox
 
 
@@ -27,7 +27,7 @@ class ProjectionGeometry:
             vector of angles at which to forward/backward project
 
         ray_type : str
-            ray type of projection geometry e.g. "parallel","cone"
+            ray type of projection geometry e.g. "parallel","cone","algebraic"
 
         CUDA : boolean, optional
             activates CUDA-GPU accelerated projectors
@@ -43,11 +43,21 @@ class ProjectionGeometry:
 
         attenuation_field : np.ndarray, optional
 
+        index_field : np.ndarray, optional, only used when ray-tracing is enabled
+
         occlusion : np.ndarray, optional
 
         inclination_angle : float, optional
             laminography configuration angle above the plane of normal tomography configuration
-       
+
+        ray_tracer : str, optional
+            None, 'none', 'grin', 'surface'. Specifying ray_tracer means each forward/backward projection will involve ray-tracing operations. 
+            To perform projection at reasonable speed, only use this option for generating sparse propagation matrix and switch to algebraic propagation in optimization. 
+
+        loading_path_for_matrix : str, Required for algebraic propagation (when ray_type == 'algebraic')
+            For algebraic propagation only.
+            File path to algebraic propagation matrix. File type .npz (scipy sparse matrix format)
+
         """
         
         self.angles = angles
@@ -61,6 +71,8 @@ class ProjectionGeometry:
         self.occlusion = None if 'occlusion' not in kwargs else kwargs['occlusion']
         self.inclination_angle = None if 'inclination_angle' not in kwargs else kwargs['inclination_angle']
         self.zero_dose_sino = None if 'zero_dose_sino' not in kwargs else kwargs['zero_dose_sino']
+        self.ray_tracer : None if 'ray_tracer' not in kwargs else kwargs['ray_tracer']
+        self.loading_path_for_matrix = True if 'loading_path_for_matrix' not in kwargs else kwargs['loading_path_for_matrix']
 
     def calcZeroDoseSinogram(self,A,target_geo):
         b = A.forward(target_geo.zero_dose)
