@@ -4,7 +4,6 @@ import vedo
 import vedo.applications
 
 #2D targets
-# target_geo = vam.geometry.TargetGeometry(imagefilename=vam.resources.load("reschart.png"),pixels=501)
 target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\boss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
 # target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\grayscale bars.png",pixels=501, binarize_image=False)
 # target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\thisisfine_nobg.png",pixels=501, binarize_image=False)
@@ -27,7 +26,7 @@ proj_geo = vam.geometry.ProjectionGeometry(angles,ray_type='parallel',CUDA=True)
 #Linear response with negative offset
 # response_model = vam.material.ResponseModel(form = "linear", M = 2, C = -1)
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50,filter='ram-lak_freq',verbose='plot', learning_rate = 0.02, response_model = response_model, eps=0.05)
-# optimizer_params = vam.optimize.Options(method='BCLP',n_iter=30, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.01, response_model = "default", eps=0.05) #Working
+optimizer_params = vam.optimize.Options(method='BCLP',n_iter=10, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.02, response_model = "default", eps=0.1) #Working
 
 # ========================================= q = 1 ==============================================================================
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.01, response_model = "default", eps=0.05) #Working
@@ -60,6 +59,16 @@ print(f'Loss = {logs.loss}')
 # opt_recon.show()
 # opt_sino.show()
 logs.show()
+
+# imconfig = vam.imagesequence.ImageConfig(image_dims= (opt_sino.array.shape[0],opt_sino.array.shape[2]))
+# imseq = vam.imagesequence.ImageSeq(imconfig, opt_sino)
+# imseq.saveAsVideo(save_path = r'C:\Users\ccli\Documents\internship project - junction\Project data\optimization outputs\example_proj_video\trifurcatedvasculature', rot_vel = 24, duration = 15)
+
+
+# Display 3D reconstruction
+# vol = vedo.Volume(opt_response.array,mode=0)
+# vedo.applications.RayCastPlotter(vol,bg='black').show(viewup="x")
+
 input()
 # Display 3D reconstruction
 # vol = vedo.Volume(opt_recon.array,mode=0)

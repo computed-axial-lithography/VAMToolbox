@@ -517,12 +517,14 @@ def showHistogramPlot(*args,**kwargs):
 
 
 class EvolvingPlot():
-	def __init__(self,target_geo,n_iter):
+	def __init__(self,target_geo,n_iter, save_img_path = None):
 		plt.ion()
 		self.target = target_geo.array
 		self.n_dim = target_geo.n_dim
 		self.n_iter = n_iter
-		
+		self.save_img_path = save_img_path
+		self.frame_ind = 0
+
 		self.fig, self.axs = plt.subplots(2,4, gridspec_kw={'height_ratios': [1, 1]}) #Create figure
 		self.fig.set_size_inches(15, 10) #Resize figure
 		manager = plt.get_current_fig_manager()
@@ -532,7 +534,7 @@ class EvolvingPlot():
 		self.recon_plot_dose = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig, title = 'Optical dose, $f$', cmap='gray')
 		self.recon_plot_mapped = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,2],fig=self.fig, title = 'Dose response, $M(f)$', cmap='gray')
 		self.recon_plot_mapped_error = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,3],fig=self.fig, title = 'Response error, $M(f)-f_{T}$', vmin = -1, vmax = 1, cmap='coolwarm')
-		self.error_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig, title= 'Weighted $L_{p}$ norm cost function', xlabel= 'Iteration', ylabel='Cost')
+		self.error_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig, title= 'Weighted $L_{p}$ norm loss function', xlabel= 'Iteration', ylabel='Cost')
 		self.error_lp_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),
 			np.full(self.n_iter,np.nan),
 			np.full(self.n_iter,np.nan),
@@ -577,13 +579,16 @@ class EvolvingPlot():
 		plt.draw()
 		plt.show()
 		plt.pause(0.01)
+		if self.save_img_path is not None:
+			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			self.frame_ind +=1
 
 
-	def update(self,cost,dose=None, mapped=None, norms_list=None):
+	def update(self,loss,dose=None, mapped=None, norms_list=None):
 		self.recon_plot_dose.update(dose)
 		self.recon_plot_mapped.update(mapped)
 		self.recon_plot_mapped_error.update(mapped-self.target)
-		self.error_plot.update(cost)
+		self.error_plot.update(loss)
 
 		if norms_list is not None:
 			self.error_lp_plot.update(norms_list[0],norms_list[1],norms_list[2],norms_list[3])
@@ -592,9 +597,76 @@ class EvolvingPlot():
 		self.hist_plot.update(mapped-self.target)
 		self.fig.canvas.draw()
 		self.fig.canvas.flush_events()
+		if self.save_img_path is not None:
+			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			self.frame_ind +=1
 
 	def ioff(self):
 		plt.ioff()
+
+class EvolvingPlotDemo():
+	"""
+	This is a concise form of Evolving Plot for demonstration purposes.
+	"""
+	def __init__(self,target_geo,n_iter, save_img_path = None):
+		plt.ion()
+		self.target = target_geo.array
+		self.n_dim = target_geo.n_dim
+		self.n_iter = n_iter
+		self.save_img_path = save_img_path
+		self.frame_ind = 0
+
+		self.fig, self.axs = plt.subplots(2,3, gridspec_kw={'height_ratios': [1, 1]}) #Create figure
+		self.fig.set_size_inches(15, 10) #Resize figure
+		manager = plt.get_current_fig_manager()
+		manager.full_screen_toggle()
+		# self.fig, self.axs = plt.subplots(2,2,figsize=(12,10)) #WARNING: This line is preventing proper drawing of the figure. Potentially a bug in the matplotlib backend.
+		self.target_plot = SlicePlot(self.target,vol_type='target',ax=self.axs[0,0],fig=self.fig, title = 'Response target, $f_{T}$', cmap='gray',interpolation='none')
+		self.recon_plot_dose = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig, title = 'Optical dose, $f$', cmap='gray')
+		self.recon_plot_mapped = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,2],fig=self.fig, title = 'Dose response, $M(f)$', cmap='gray')
+		self.error_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig, title= 'Weighted $L_{p}$ norm loss function', xlabel= 'Iteration', ylabel='Cost')
+		self.recon_plot_mapped_error = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[1,1],fig=self.fig, title = 'Response error, $M(f)-f_{T}$', vmin = -1, vmax = 1, cmap='coolwarm')
+
+		self.hist_plot = HistogramPlot(
+			np.zeros_like(self.target),
+			target_geo, ax=self.axs[1,2],
+			fig=self.fig,
+			scale='log', 
+			title = 'Response error distribution', 
+			xlabel='Response error', 
+			ylabel='Frequency', 
+			vmin = -1, 
+			vmax = 1, 
+			target_binary= False
+			)
+
+		self.fig.canvas.draw()
+		self.fig.canvas.flush_events()
+		plt.draw()
+		plt.show()
+		plt.pause(0.01)
+		if self.save_img_path is not None:
+			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			self.frame_ind +=1
+
+
+	def update(self,loss,dose=None, mapped=None,):
+		self.recon_plot_dose.update(dose)
+		self.recon_plot_mapped.update(mapped)
+		self.recon_plot_mapped_error.update(mapped-self.target)
+		self.error_plot.update(loss)
+
+		self.hist_plot.update(mapped-self.target)
+		self.fig.canvas.draw()
+		self.fig.canvas.flush_events()
+
+		if self.save_img_path is not None:
+			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			self.frame_ind +=1
+
+	def ioff(self):
+		plt.ioff()
+
 
 
 # class Visualize:

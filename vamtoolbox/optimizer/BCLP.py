@@ -104,6 +104,7 @@ class BCLPNorm:
         self.bit_depth = options.bit_depth
         self.dvol = 1 #differential volume in integration
         self.verbose = options.verbose
+        self.save_img_path = options.save_img_path
 
         #State variables, in the order of computation
         self.dose = None
@@ -122,7 +123,9 @@ class BCLPNorm:
         self.loss_grad_iter = -1
 
         if self.verbose == 'plot':
-            self.dp = vamtoolbox.displaygrayscale.EvolvingPlot(target_geo,self.logs.options.n_iter+1)
+            self.dp = vamtoolbox.displaygrayscale.EvolvingPlot(target_geo,self.logs.options.n_iter+1, self.save_img_path)
+        elif self.verbose == 'plot_demo':
+            self.dp = vamtoolbox.displaygrayscale.EvolvingPlotDemo(target_geo,self.logs.options.n_iter+1, self.save_img_path)
 
 
         #Setup projector
@@ -279,10 +282,13 @@ class BCLPNorm:
 
         #record iter time
         self.logs.recordIterTime()
-        if self.verbose == 'time' or self.verbose == 'plot':
+        if self.verbose == 'time' or self.verbose == 'plot' or self.verbose == 'plot_demo':
             print(f'Iteration {self.logs.curr_iter: 4.0f} at time: { self.logs.iter_times[self.logs.curr_iter]: 6.1f} s')
         
-        self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
+        if self.verbose == 'plot':
+            self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
+        elif self.verbose == 'plot_demo':
+            self.dp.update(self.logs.loss, self.dose, self.mapped_dose)
 
         self.logs.curr_iter += 1
 
@@ -305,8 +311,11 @@ class BCLPNorm:
             
         self.updateVariables(g_iter) #Update the variables according to the last generated g_iter
         self.evaluateNormMetrics() #compute the metrics for the last generated g_iter
-        self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
 
+        if self.verbose == 'plot':
+            self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
+        elif self.verbose == 'plot_demo':
+            self.dp.update(self.logs.loss, self.dose, self.mapped_dose)
 
         return g_iter
 

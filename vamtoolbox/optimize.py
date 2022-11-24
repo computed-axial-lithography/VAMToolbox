@@ -96,6 +96,7 @@ class Options:
         self.__dict__.update(kwargs)  # Store all the extra variables
 
         self.verbose = self.__dict__.get('verbose',False)
+        self.save_img_path = self.__dict__.get('save_img_path',None)
         self.bit_depth = self.__dict__.get('bit_depth',None)
         self.exit_param = self.__dict__.get('exit_param',None)
 
