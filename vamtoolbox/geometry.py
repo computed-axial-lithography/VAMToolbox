@@ -27,7 +27,7 @@ class ProjectionGeometry:
             vector of angles at which to forward/backward project
 
         ray_type : str
-            ray type of projection geometry e.g. "parallel","cone","algebraic"
+            ray type of projection geometry e.g. "parallel","cone","algebraic","ray_trace"
 
         CUDA : boolean, optional
             activates CUDA-GPU accelerated projectors
@@ -43,16 +43,27 @@ class ProjectionGeometry:
 
         attenuation_field : np.ndarray, optional
 
-        index_field : np.ndarray, optional, only used when ray-tracing is enabled
-
         occlusion : np.ndarray, optional
 
         inclination_angle : float, optional
             laminography configuration angle above the plane of normal tomography configuration
 
-        ray_tracer : str, optional
-            None, 'none', 'grin', 'surface'. Specifying ray_tracer means each forward/backward projection will involve ray-tracing operations. 
-            To perform projection at reasonable speed, only use this option for generating sparse propagation matrix and switch to algebraic propagation in optimization. 
+        index_field : np.ndarray, optional, only used when ray tracing is enabled
+            If None (not provided), internally ray trace use 1.0 (homogeneous)
+
+        index_gradient : np.ndarray, optional, only used when ray tracing is enabled
+            This vector field array should have 2 or 3 elements in the last dimension.
+            If None (not provided), internally ray trace use 0.0 (homogeneous)
+
+        ray_trace_method : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
+            'eikonal', 'snells', 'hybrid'. Default: 'eikonal'            
+
+        ray_trace_ode_solver : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
+            'forward_symplectic_euler', 'forward_euler', 'verlet', 'leapfrog'
+
+        ray_trace_ray_config : str, optional
+            'parallel', 'cone', user_defined RayState. Default: 'parallel'
+            user_defined RayState is an object storing the initial position and direction of the set of rays.
 
         loading_path_for_matrix : str, Required for algebraic propagation (when ray_type == 'algebraic')
             For algebraic propagation only.
@@ -71,7 +82,12 @@ class ProjectionGeometry:
         self.occlusion = None if 'occlusion' not in kwargs else kwargs['occlusion']
         self.inclination_angle = None if 'inclination_angle' not in kwargs else kwargs['inclination_angle']
         self.zero_dose_sino = None if 'zero_dose_sino' not in kwargs else kwargs['zero_dose_sino']
-        self.ray_tracer : None if 'ray_tracer' not in kwargs else kwargs['ray_tracer']
+        self.index_field = None if 'index_field' not in kwargs else kwargs['index_field']
+        self.index_gradient = None if 'index_gradient' not in kwargs else kwargs['index_gradient']
+        self.ray_trace_method = None if 'ray_trace_method' not in kwargs else kwargs['ray_trace_method']
+        self.ray_trace_ray_config = None if 'ray_trace_ray_config' not in kwargs else kwargs['ray_trace_ray_config']
+        self.tensor_dtype = None if 'tensor_dtype' not in kwargs else kwargs['tensor_dtype']
+        self.ray_density = None if 'ray_density' not in kwargs else kwargs['ray_density']
         self.loading_path_for_matrix = True if 'loading_path_for_matrix' not in kwargs else kwargs['loading_path_for_matrix']
 
     def calcZeroDoseSinogram(self,A,target_geo):
@@ -113,8 +129,10 @@ class Volume:
         self.proj_geo = proj_geo
         self.file_extension = None if 'file_extension' not in kwargs else kwargs['file_extension']
         self.vol_type = None if 'vol_type' not in kwargs else kwargs['vol_type']
+        self.spatial_sampling_rate = None if 'spatial_sampling_rate' not in kwargs else kwargs['spatial_sampling_rate']
 
         self.n_dim = self.array.ndim
+        # self.n_dim = len(np.squeeze(self.array).shape) #robust against singleton dimensions
         if self.vol_type == 'recon' or self.vol_type == 'target':
             if self.n_dim == 2:
                 self.nY, self.nX = self.array.shape
@@ -198,6 +216,88 @@ class Volume:
             plt.savefig(savepath,dpi=dpi,transparent=transparent)
 
         plt.show()
+
+
+    def constructCoordinateGrid(self, spatial_sampling_rate = None):
+        '''
+        Get coordinate grid centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
+        Unit of spatial_samplign_rate is voxel/mm
+        '''
+        if self.vol_type == 'sino':
+            print('Coordinate system of sinogram is defined by propagator, using both target_geo and proj_geo.')
+            return None
+
+        ###=============== This part accommodate the cases where sampling rate to be either predefined, supplied, or neither.
+        if spatial_sampling_rate is not None:
+            self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
+        
+        if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
+            self.spatial_sampling_rate = 50 #the assumed 50 voxel/mm correspond to 20 micron per voxel
+        ###===============
+
+        coord_vec_list = self.constructCoordVec(self.spatial_sampling_rate) #get the coordinate vectors
+
+        #Construct grid using meshgrid 'ij' indexing. Order of coordinate axes are x,y,z (instead of y,x,z)
+        ''' Old implementation. The length of the output list varies.
+        if self.n_dim == 2:
+            xv = coord_vec_list[0]
+            yv = coord_vec_list[1]
+            Xg, Yg = np.meshgrid(xv, yv, indexing = 'ij')
+            self.coord_grid_list = [Xg, Yg]
+
+        elif self.n_dim == 3:
+            xv = coord_vec_list[0]
+            yv = coord_vec_list[1]
+            zv = coord_vec_list[2]
+            Xg, Yg, Zg = np.meshgrid(xv, yv, zv, indexing = 'ij')
+            self.coord_grid_list = [Xg, Yg, Zg]
+        '''
+        #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
+        Xg, Yg, Zg = np.meshgrid(coord_vec_list[0], coord_vec_list[1], coord_vec_list[2], indexing = 'ij')
+        self.coord_grid_list = [Xg, Yg, Zg]
+        return self.coord_grid_list
+
+
+    def constructCoordVec(self, spatial_sampling_rate = None):
+        '''
+        Get coordinate vectors centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
+        Unit of spatial_samplign_rate is voxel/mm
+        '''
+        if self.vol_type == 'sino':
+            print('Coordinate system of sinogram is defined by propagator, using both target_geo and proj_geo.')
+            return None
+
+        ###=============== This part accommodate the cases where sampling rate to be either predefined, supplied, or neither.
+        if spatial_sampling_rate is not None:
+            self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
+        
+        if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
+            self.spatial_sampling_rate = 50 #the assumed 50 voxel/mm correspond to 20 micron per voxel
+        ###===============
+        ''' Old implementation. The length of the output list varies.
+        #Construct vectors
+        if self.n_dim == 2:
+            xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
+            yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
+            self.coord_vec_list = [xv, yv]
+
+        elif self.n_dim == 3:
+            xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
+            yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
+            zv = np.linspace(-(self.nZ-1)/(2*self.spatial_sampling_rate), (self.nZ-1)/(2*self.spatial_sampling_rate), self.nZ)
+            self.coord_vec_list = [xv, yv, zv]
+        '''
+        #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
+        xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
+        yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
+        if self.n_dim == 2:
+            zv = np.atleast_1d(0) #we can't use the same expression as in 3D case because self.nZ is defined as 0 =/= 1 for 2D case.
+        elif self.n_dim == 3:
+            zv = np.linspace(-(self.nZ-1)/(2*self.spatial_sampling_rate), (self.nZ-1)/(2*self.spatial_sampling_rate), self.nZ)
+        
+        self.coord_vec_list = [xv, yv, zv]
+        return self.coord_vec_list
+
 
 class TargetGeometry(Volume):
     def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',binarize_image=True, clip_to_circle = True, options=None):
