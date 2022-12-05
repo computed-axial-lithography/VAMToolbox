@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 from scipy import interpolate
 from scipy import sparse
 import vamtoolbox
-
+import torch
 
 def defaultKwargs(**default_kwargs):
     def actualDecorator(fn):
@@ -218,7 +218,7 @@ class Volume:
         plt.show()
 
 
-    def constructCoordinateGrid(self, spatial_sampling_rate = None):
+    def constructCoordGrid(self, spatial_sampling_rate = None, device = None):
         '''
         Get coordinate grid centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
         Unit of spatial_samplign_rate is voxel/mm
@@ -234,8 +234,9 @@ class Volume:
         if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
             self.spatial_sampling_rate = 50 #the assumed 50 voxel/mm correspond to 20 micron per voxel
         ###===============
-
-        coord_vec_list = self.constructCoordVec(self.spatial_sampling_rate) #get the coordinate vectors
+        
+        #get the coordinate vectors as numpy arrays
+        coord_vec_list = self.constructCoordVec(self.spatial_sampling_rate, device = None) 
 
         #Construct grid using meshgrid 'ij' indexing. Order of coordinate axes are x,y,z (instead of y,x,z)
         ''' Old implementation. The length of the output list varies.
@@ -254,11 +255,19 @@ class Volume:
         '''
         #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
         Xg, Yg, Zg = np.meshgrid(coord_vec_list[0], coord_vec_list[1], coord_vec_list[2], indexing = 'ij')
+
+        #If device is specified, the vectors are provided as tensor. Otherwise, numpy array are provided.
+        #Providing tensor directly at this level facilitate data sharing and avoid storing duplicates unnecessarily.
+        # if device is not None:
+        #     Xg = torch.as_tensor(Xg, device=device)
+        #     Yg = torch.as_tensor(Yg, device=device)
+        #     Zg = torch.as_tensor(Zg, device=device)
+
         self.coord_grid_list = [Xg, Yg, Zg]
         return self.coord_grid_list
 
 
-    def constructCoordVec(self, spatial_sampling_rate = None):
+    def constructCoordVec(self, spatial_sampling_rate = None, device = None):
         '''
         Get coordinate vectors centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
         Unit of spatial_samplign_rate is voxel/mm
@@ -291,10 +300,17 @@ class Volume:
         xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
         yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
         if self.n_dim == 2:
-            zv = np.atleast_1d(0) #we can't use the same expression as in 3D case because self.nZ is defined as 0 =/= 1 for 2D case.
+            zv = np.atleast_1d(0.0) #we can't use the same expression as in 3D case because self.nZ is defined as 0 =/= 1 for 2D case.
         elif self.n_dim == 3:
             zv = np.linspace(-(self.nZ-1)/(2*self.spatial_sampling_rate), (self.nZ-1)/(2*self.spatial_sampling_rate), self.nZ)
         
+        #If device is specified, the vectors are provided as tensor. Otherwise, numpy array are provided.
+        #Providing tensor directly at this level facilitate data sharing and avoid storing duplicates unnecessarily.
+        # if device is not None:
+        #     xv = torch.as_tensor(xv, device=device)
+        #     yv = torch.as_tensor(yv, device=device)
+        #     zv = torch.as_tensor(zv, device=device)
+
         self.coord_vec_list = [xv, yv, zv]
         return self.coord_vec_list
 

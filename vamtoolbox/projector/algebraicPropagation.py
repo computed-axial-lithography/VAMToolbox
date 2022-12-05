@@ -65,6 +65,10 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
             #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
             self.forward_cache[z_section::self.z_tiling] = self.propagation_matrix.dot(x[z_section::self.z_tiling])
 
+        ''' #To be tested
+        x = x.reshape((x.shape[0]//self.z_tiling,self.z_tiling)) # x.shape[0]//self.z_tiling = self.n_col_internal
+        return self.propagation_matrix.dot(x).flatten() #or ravel
+        '''
         return self.forward_cache
 
 
@@ -78,6 +82,10 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
             self.backward_cache[z_section::self.z_tiling] = AT.dot(b[z_section::self.z_tiling])
             #Although mathematically, np.dot(b.T,A).T is equivalent but np will convert the sparse array to dense array so it will consume unreasonable amount of memory. It should not be faster either.  
 
+        ''' #To be tested
+        b = b.reshape((b.shape[0]//self.z_tiling,self.z_tiling)) # b.shape[0]//self.z_tiling = self.n_row_internal
+        return AT.dot(b).flatten() #or ravel
+        '''
         return self.backward_cache
 
     def forward(self, x):
