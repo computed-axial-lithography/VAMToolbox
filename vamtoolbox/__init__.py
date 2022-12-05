@@ -12,6 +12,7 @@ from . import projector
 from . import resources
 
 from . import material
+from . import medium
 from . import displaygrayscale
 
 __version__ = "0.1.5b"
