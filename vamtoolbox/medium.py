@@ -1,8 +1,7 @@
-from cmath import isnan
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import warnings
+import logging
 import torch
 
 class IndexModel:
@@ -45,6 +44,8 @@ class IndexModel:
             The absolute index of the lenses or other analytical index distribution will be adjusted accordingly to achieve equivalent refraction.
             Also, this sets the extrapolation value when index is queried outside the grid
         '''
+        self.logger = logging.getLogger(__name__)
+        
         #Save inputs as attributes
         self.type = type
         self.form = form
@@ -77,7 +78,7 @@ class IndexModel:
             self.device = torch.device('cuda')
         else:
             self.device = torch.device('cpu')
-        print(f'Medium computation is performed on: {repr(self.device)}')
+        self.logger.info(f'Medium computation is performed on: {repr(self.device)}')
 
         #Set up grid as tensor
         self.xv = torch.as_tensor(coord_vec[0], device = self.device)
@@ -176,9 +177,33 @@ class IndexModel:
 
             else:
                 raise Exception('Other interpolation functions are not supported yet.')                
+            
+            #================Setup pyTorch interpolation grid_sample inputs
+            #Two requirements of grid_sample function: https://pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample
+            #(1)Volumetric data stored in a 5D grid
+            #(2)Sampled position normalized to be within [-1, +1] in all dimensions of the grid
 
+            #For index
+            self.interp_n_x_5D = torch.permute(self.interp_n_x_sample, (2,1,0)) #Swapping the x and z axis because grid_sample takes input tensor in (N,Ch,Z,Y,X) order
+            self.interp_n_x_5D = self.interp_n_x_5D[None, None, :,:,:] #Inser N and Ch axis
+            #Note that the query points[0],[1],[2] are still arranged in x,y,z order
+            self.logger.debug(f"interp_n_x_5D has shape of {self.interp_n_x_5D.shape}")
+            
+            self.grid_span = torch.tensor([torch.amax(self.xv) - torch.amin(self.xv), torch.amax(self.yv) - torch.amin(self.yv), torch.amax(self.zv) - torch.amin(self.zv)], device = self.device)
+            self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
+            if torch.isnan(self.position_normalization_factor[2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0
+                self.position_normalization_factor[2] = 0.0
+
+            #For index gradient
+            self.interp_grad_n_x_5D = torch.permute(self.interp_grad_n_x_sample, (3, 2, 1, 0)) #shape = [Ch, Z, Y, X] where Ch is the components of the gradient in x,y,z
+            self.interp_grad_n_x_5D = self.interp_grad_n_x_5D[None, :, :, :, :] #Insert N axis
+            self.logger.debug(f"interp_grad_n_x_5D has shape of {self.interp_grad_n_x_5D.shape}")
+            
         else:
             raise Exception('"type" should be either "analytical" or "interpolation".')
+
+    #=================================Init functions================================================
+
 
     #=================================Analytic: Homogeneous medium================================================
     @torch.inference_mode()
@@ -221,7 +246,7 @@ class IndexModel:
         
         return n
 
-
+    @torch.inference_mode()
     def _grad_n_lune(self, x : torch.Tensor):
         r = torch.sqrt(x[:,0]**2 + x[:,1]**2 + x[:,2]**2) #radial position, r of vector x
 
@@ -240,40 +265,79 @@ class IndexModel:
 
         return grad_n
     #=================================Analytic: Maxwell lens============================================================
+    @torch.inference_mode()
     def _n_maxwell(self):
         raise Exception('To be implemented.')
 
+    @torch.inference_mode()
     def _grad_n_maxwell(self):
         raise Exception('To be implemented.')
     #=================================Analytic: Eaton lens============================================================
+    @torch.inference_mode()
     def _n_eaton(self):
         raise Exception('To be implemented.')
 
+    @torch.inference_mode()
     def _grad_n_eaton(self):
         raise Exception('To be implemented.')
     #=================================Interpolation==========================================================================
+    @torch.inference_mode()
     def _n_interp(self, x : torch.Tensor):
         '''
-
-
+        Obtain index value via interpolating on provided or pre-sampled data points
         '''
-        return 
+        x = self.normalizePosition(x) #Normalize x such that the computation domain is between [-1,+1] in all dimensions
 
+        #self.interp_n_x_5D has already its axes permuted such that the last 3 dimensions are Z,Y,X in the class __init__
+        #The query points x should still have x,y,z components in its [:,0], [:,1], [:,2] respectively
 
+        n = torch.nn.functional.grid_sample(input = self.interp_n_x_5D, #shape = [N, Ch, D_in, H_in, W_in], where D_in, H_in, W_in are ZYX dimension respectively
+                                        grid = x[None, None, None, :,:], #shape = [N,D_out, H_out, W_out,3], where N = D_out = H_out = 1, and W_out = number of samples
+                                        mode='bilinear',
+                                        padding_mode= 'border',
+                                        align_corners = True # True: extrema refers to center of corner voxels. False: extrema refers to corner of corner voxels
+                                        )
+
+        return n[0,0,0,0,:] #n originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
+
+    @torch.inference_mode()
     def _grad_n_interp(self, x : torch.Tensor):
         '''
-        
+        Obtain value of index gradient via interpolating on provided or pre-sampled data points
         '''
-        return
+        x = self.normalizePosition(x) #Normalize x such that the computation domain is between [-1,+1] in all dimensions
 
+        #self.interp_grad_n_x_5D has already its axes permuted such that the last 4 dimensions are Ch,Z,Y,X in the class __init__
+        #The query points x should still have x,y,z components in its [:,0], [:,1], [:,2] respectively
+
+        grad_n = torch.nn.functional.grid_sample(input = self.interp_grad_n_x_5D, #shape = [N, Ch, D_in, H_in, W_in], where Ch is channel, and D_in, H_in, W_in are ZYX dimension respectively
+                                        grid = x[None, None, None, :,:], #shape = [N,D_out, H_out, W_out,3], where N = D_out = H_out = 1, and W_out = number of samples
+                                        mode='bilinear',
+                                        padding_mode= 'border',
+                                        align_corners = True # True: extrema refers to center of corner voxels. False: extrema refers to corner of corner voxels
+                                        )
+        #grad_n originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
+        return torch.squeeze(grad_n[0,:,0,0,:]).T #remove singleton dimension and transpose. Resultant shape should be [number of samples, Ch], where Ch = 3
+
+    @torch.inference_mode()
+    def normalizePosition(self, x):
+        #Need to check if the meshgrid has index increasing from the negative physical location to positive physical location
+        return x*self.position_normalization_factor
 
     #=================================Utilities==========================================================================
     def plotIndex(self, fig = None, ax = None, block=False, show = True):
         '''
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
+        if 'interp_x_sample' not in self.__dict__:
+            x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+        else:
+            x_sample = self.interp_x_sample
 
-        n_slice = self.interp_n_x_sample[:,:,self.interp_n_x_sample.shape[2]//2].cpu().numpy()
+        n = self.n(x_sample).reshape(self.Xg.shape)
+        # n_slice = self.interp_n_x_sample[:,:,self.interp_n_x_sample.shape[2]//2].cpu().numpy()
+        n_slice = n[:,:,n.shape[2]//2].cpu().numpy()
+
         vmin, vmax = np.amin(n_slice), np.amax(n_slice)
 
         if ax == None:
@@ -293,12 +357,18 @@ class IndexModel:
         return fig, ax
 
 
-    def plotGradNMag(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+    def plotGradNMag(self, fig = None, ax = None, block=False, show = True):
         '''
         Plot a 2D slice of index gradient. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
+        if 'interp_x_sample' not in self.__dict__:
+            x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+        else:
+            x_sample = self.interp_x_sample
 
-        grad_n_slice = self.interp_grad_n_x_sample[:,:,self.interp_grad_n_x_sample.shape[2]//2,:].cpu().numpy()
+        grad_n = self.grad_n(x_sample)
+        grad_n = grad_n.reshape((self.Xg.shape[0],self.Xg.shape[1],self.Xg.shape[2],3))
+        grad_n_slice = grad_n[:,:,grad_n.shape[2]//2,:].cpu().numpy()
 
         grad_n_slice_mag = np.sqrt(grad_n_slice[:,:,0]**2 + grad_n_slice[:,:,1]**2 + grad_n_slice[:,:,2]**2)
 

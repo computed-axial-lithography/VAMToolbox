@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
 
 class PyTorchRayTracingPropagator():
     """
@@ -32,7 +33,7 @@ class PyTorchRayTracingPropagator():
             self.device = torch.device('cuda')
         else:
             self.device = torch.device('cpu')
-        print(f'Ray tracing computation is performed on: {repr(self.device)}')
+        logging.info(f'Ray tracing computation is performed on: {repr(self.device)}')
 
 
         
@@ -164,6 +165,7 @@ class RayState():
             self.tensor_dtype = tensor_dtype
         else:
             self.tensor_dtype = torch.float16
+        torch.set_default_tensor_type(self.tensor_dtype)
 
         #Option to directly prescribe contents when ray positions and directions are generated externally (not using the provided methods)
         # self.x0 = torch.as_tensor(x0, device = self.device, dtype = self.tensor_dtype)
