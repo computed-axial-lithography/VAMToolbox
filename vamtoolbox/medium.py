@@ -5,8 +5,7 @@ import logging
 import torch
 
 class IndexModel:
-
-    _default_analytical = {'R': 1.0, 'length_unit': 'fractional_domain_radius', 'p': 2.0, 'n_sur' : 1.0}
+    _default_analytical = {'R': 1.0, 'length_unit': 'fractional_domain_radius', 'p': 2.0, 'n_sur' : 1.0} #default arguments for **kwargs
     _default_interpolation = {}
 
     @torch.inference_mode()

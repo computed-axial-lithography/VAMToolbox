@@ -48,18 +48,14 @@ class ProjectionGeometry:
         inclination_angle : float, optional
             laminography configuration angle above the plane of normal tomography configuration
 
-        index_field : np.ndarray, optional, only used when ray tracing is enabled
-            If None (not provided), internally ray trace use 1.0 (homogeneous)
-
-        index_gradient : np.ndarray, optional, only used when ray tracing is enabled
-            This vector field array should have 2 or 3 elements in the last dimension.
-            If None (not provided), internally ray trace use 0.0 (homogeneous)
+        index_model : class IndexModel, optional, only used when ray tracing is enabled
+            index_model is configured prior to initialization of proj_geo, using class vamtoolbox.medium.IndexModel.
 
         ray_trace_method : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
             'eikonal', 'snells', 'hybrid'. Default: 'eikonal'            
 
         ray_trace_ode_solver : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
-            'forward_symplectic_euler', 'forward_euler', 'verlet', 'leapfrog'
+            'forward_symplectic_euler', 'forward_euler', 'leapfrog', 'rk4'
 
         ray_trace_ray_config : str, optional
             'parallel', 'cone', user_defined RayState. Default: 'parallel'
@@ -82,9 +78,9 @@ class ProjectionGeometry:
         self.occlusion = None if 'occlusion' not in kwargs else kwargs['occlusion']
         self.inclination_angle = None if 'inclination_angle' not in kwargs else kwargs['inclination_angle']
         self.zero_dose_sino = None if 'zero_dose_sino' not in kwargs else kwargs['zero_dose_sino']
-        self.index_field = None if 'index_field' not in kwargs else kwargs['index_field']
-        self.index_gradient = None if 'index_gradient' not in kwargs else kwargs['index_gradient']
+        self.index_model = None if 'index_model' not in kwargs else kwargs['index_model']
         self.ray_trace_method = None if 'ray_trace_method' not in kwargs else kwargs['ray_trace_method']
+        self.ray_trace_ode_solver = None if 'ray_trace_ode_solver' not in kwargs else kwargs['ray_trace_ode_solver']
         self.ray_trace_ray_config = None if 'ray_trace_ray_config' not in kwargs else kwargs['ray_trace_ray_config']
         self.tensor_dtype = None if 'tensor_dtype' not in kwargs else kwargs['tensor_dtype']
         self.ray_density = None if 'ray_density' not in kwargs else kwargs['ray_density']

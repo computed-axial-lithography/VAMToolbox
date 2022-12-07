@@ -11,7 +11,7 @@ class PyTorchRayTracingPropagator():
 
     Since storing all curved ray path is prohibitively memory-intensive, this tracing operation is designed to have as low memory requirement as possible.
     Supposing a GPU option but fallback to CPU computation if GPU is not found.
-    Currently occulsion is not supported.
+    Currently occulsion is not supported yet.
 
     Internally, 2D and 3D problem is handled identically. Conditional handling only happens in I/O.
     #Implement ray_setup, coordinate systems
@@ -22,6 +22,8 @@ class PyTorchRayTracingPropagator():
 
     @torch.inference_mode()
     def __init__(self, target_geo, proj_geo, output_torch_tensor = False) -> None:
+        self.logger = logging.getLogger(__name__)
+
         self.target_geo = target_geo
         self.proj_geo = proj_geo
         self.output_torch_tensor = output_torch_tensor #Select if the output should be torch tensor or numpy array
@@ -35,9 +37,6 @@ class PyTorchRayTracingPropagator():
             self.device = torch.device('cpu')
         logging.info(f'Ray tracing computation is performed on: {repr(self.device)}')
 
-
-        
-
         if isinstance(self.proj_geo.ray_trace_ray_config, RayState): #if state of a set of rays is already provided, use that as initial state.
             self.ray_state = self.proj_geo.ray_trace_ray_config
         else: #otherwise build initial ray state based on option 'parallel', 'cone'
@@ -50,7 +49,7 @@ class PyTorchRayTracingPropagator():
                                     ray_width_fun = None
                                     )
         
-        # self.solver = RayTraceSolver(self.proj_geo.index_field, self.proj_geo.index_gradient, self.proj_geo.ray_trace_method, self.proj_geo.ray_trace_ode_solver)
+        self.solver = RayTraceSolver(self.device, self.proj_geo.index_model, self.proj_geo.ray_trace_method, self.proj_geo.ray_trace_ode_solver)
 
     @torch.inference_mode()
     def forward(self, f):
@@ -81,10 +80,6 @@ class PyTorchRayTracingPropagator():
         pass
 
     @torch.inference_mode()
-    def raySetup(self):
-        pass
-    
-    @torch.inference_mode()
     def perAngleTrace(self):
         pass
     
@@ -107,36 +102,175 @@ class RayTraceSolver():
 
     """
     @torch.inference_mode()
-    def __init__(self, device, index_field, index_gradient) -> None:
+    def __init__(self, device, index_model, ray_trace_method, ode_solver, max_num_step = 750) -> None:
+        self.logger = logging.getLogger(__name__) #Inputting the same name just output the same logger. No need to pass logger around.
         self.device = device
-        self.index_field = torch.as_tensor(index_field, device = self.device)
+        self.index_model = index_model
+        self.ray_trace_method = ray_trace_method
+        self.ode_solver = ode_solver
+
+        self.max_num_step = max_num_step
+        self.step_counter = 0
+        
+        #Parse ray_trace_method
+        if self.ray_trace_method == 'snells' or self.ray_trace_method == 'hybrid':
+            self.surface_intersection_check = True
+        else:
+            self.surface_intersection_check = False
+
+        #Parse ODE solver
+        if self.ode_solver == 'forward_symplectic_euler':
+            self.step_init = self._no_step_init
+            self.step = self._forwardSymplecticEuler
+
+        elif self.ode_solver == 'forward_euler':
+            self.step_init = self._no_step_init
+            self.step = self._forwardEuler
+
+        elif self.ode_solver == 'leapfrog': 
+            #leapfrog is identical to velocity verlet. Both differs from symplectic euler only by a half step in velocity in the beginning and the end.
+            #However, they have higher order error performance
+            self.step_init = self._leapfrog_init
+            self.step = self._forwardSymplecticEuler
+
+        elif self.ode_solver == 'rk4':
+            pass #self.step = self._rk4
+        else:
+            raise Exception(f'ode_solver = {self.ode_solver} and is not one of the available options.')
+
+        #Equation form
+        self.dx_dstep = self._dx_dsigma
+        self.dv_dstep = self._dv_dsigma
 
 
     @torch.inference_mode()
-    def step(self, *args, **kwargs): #step forward the RayObj
-        #A number of stepping scheme can be employed
+    def solveUntilExit(self, ray_state, step_size, callback = None, tracker_on = False, track_every = 5):
+        #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
+        if tracker_on:
+            ray_tracker = torch.zeros(((ray_state.num_rays//track_every),3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype)
+        else:
+            ray_tracker = None
+
+        #Initialize stepping (only applies to certain methods, e.g. leapfrog)
+        ray_state = self.step_init(ray_state, step_size)
+
+        while self.step_counter < self.max_num_step:
+            
+            #Check exit condition
+            ray_state = self.step(ray_state, step_size)
+
+            if self.surface_intersection_check:
+                self.discreteSurfaceIntersectionCheck(ray_state)
 
 
-        pass
+            if tracker_on:
+                ray_tracker[:,:,self.step_counter] = ray_state.x_n[::track_every, :]
+
+
+            if self.step_counter%10 == 0:
+                self.logger.debug(f'completed {self.step_counter}th-step')
+            self.step_counter += 1
+
+        # termination_type = None
+        return ray_state, ray_tracker
+
+    #=======================ODE solvers======================
+    @torch.inference_mode()
+    def _forwardSymplecticEuler(self, ray_state, step_size): #step forward the RayState
+        #push np1 to be n
+        ray_state.x_n = ray_state.x_np1
+        ray_state.v_n = ray_state.v_np1
+
+        #Compute new np1 based on n (the old np1)
+        #Compute v_np1 using x_n
+        ray_state.v_np1 = ray_state.v_n + self.dv_dstep(ray_state.x_n)*step_size
+
+        #Then compute x_np1 using v_np1
+        ray_state.x_np1 = ray_state.x_n + self.dx_dstep(ray_state.v_np1)*step_size
+
+        return ray_state
 
     @torch.inference_mode()
-    def deposit(): #deposit projected values along the ray
+    def _forwardEuler(self, ray_state, step_size): #step forward the RayState
+        #push np1 to be n
+        ray_state.x_n = ray_state.x_np1
+        ray_state.v_n = ray_state.v_np1
+
+        #Compute new np1 based on n (the old np1)
+        #Compute v_np1 using x_n
+        ray_state.v_np1 = ray_state.v_n + self.dv_dstep(ray_state.x_n)*step_size
+
+        #Then compute x_np1 using v_n
+        ray_state.x_np1 = ray_state.x_n + self.dx_dstep(ray_state.v_n)*step_size
+
+        return ray_state
+    
+    '''
+    @torch.inference_mode()
+    def _velocityVerlet(self, ray_state, step_size):  #Same as leapfrog
+        
+        #(Deprecated)
+        #As written below, this form takes one more dv_dstep calculation than symplectic euler.
+        #However, it doesn't have to be the case if there is a half step shift in v prior to the regular stepping.
+        #That would result a verlet method (essentially a leapfrog) with same computational cost as symplectic euler, but with higher order accuracy.
+
+        #push np1 to be n
+        ray_state.x_n = ray_state.x_np1
+        ray_state.v_n = ray_state.v_np1
+
+        #Compute new np1 based on n (the old np1)
+        #Compute v_np1 using x_n (half step forward)
+        ray_state.v_np1 = ray_state.v_n + self.dv_dstep(ray_state.x_n)*step_size/2
+
+        #Then compute x_np1 using v_np1 (full step forward)
+        ray_state.x_np1 = ray_state.x_n + self.dx_dstep(ray_state.v_np1)*step_size
+
+        ray_state.v_np1 += self.dv_dstep(ray_state.x_np1)*step_size/2 #Another half step for v, using updated x
+        return ray_state
+       
+        return self._forwardSymplecticEuler(ray_state, step_size)
+    '''
+
+    @torch.inference_mode()
+    def _leapfrog_init(self, ray_state, step_size):
+        #Step backward ray_state.v_np1 by half-step. After entering _forwardSymplecticEuler, v_np1 will be half-step forward relative to x, when x is updated with v.
+        ray_state.v_np1 = ray_state.v_np1 - self.dv_dstep(ray_state.x_n)*step_size/2.0
+        return ray_state
+
+    @torch.inference_mode()
+    def _no_step_init(self, ray_state, _):
+        return ray_state
+
+    #=======================Equation form======================
+    @torch.inference_mode()
+    def _dx_dsigma(self, v):
+        return v
+
+    @torch.inference_mode()
+    def _dv_dsigma(self, x):
+        # return self.index_model.n(x)*self.index_model.grad_n(x) #broadcasted to all xyz components
+        n = self.index_model.n(x)[:,None]
+        grad_n = self.index_model.grad_n(x)
+        return n*grad_n
+    #=======================Ray-voxel interactions======================
+    @torch.inference_mode()
+    def deposit(self): #deposit projected values along the ray
         #Check python line integral, ray-box intersection
         
         pass
 
     @torch.inference_mode()
-    def integrate(): #integrate real space quantities along the ray
+    def integrate(self): #integrate real space quantities along the ray
         #Check python line integral, ray-box intersection
         
         pass
 
     @torch.inference_mode()
-    def discreteSurfaceIntersectionCheck():
+    def discreteSurfaceIntersectionCheck(self):
         pass
 
     @torch.inference_mode()
-    def exitCheck():
+    def exitCheck(self):
         #When the rays are outside the bounding box AND pointing awayw
         #Distance tolerance
 
@@ -146,10 +280,13 @@ class RayTraceSolver():
         
         #exit = exit_x | exit_y | exit_z
 
-        #Can use a step counter for substitue for now
-
+        #Check if intensity close to zero (e.g. due to occulsion)
 
         pass
+        
+
+
+        
     
 class RayState():
     '''
@@ -158,21 +295,24 @@ class RayState():
     For parallelization and generality, x_0 and v_0 has shape of (n_rays,n_dim).
     
     '''
+
+    _dtype_to_tensor_type = {torch.float16 : torch.HalfTensor, torch.float32: torch.FloatTensor, torch.float64: torch.DoubleTensor} #Class attribute: mapping dtype to tensor type.
+    
     @torch.inference_mode()
-    def __init__(self, device, tensor_dtype = torch.float16, x0 : torch.Tensor = None, v0: torch.Tensor = None, sino_shape : tuple = None, sino_coord : list = None) -> None:
+    def __init__(self, device, tensor_dtype = torch.float16, x_0 : torch.Tensor = None, v_0: torch.Tensor = None, sino_shape : tuple = None, sino_coord : list = None) -> None:
         self.device = device
         if tensor_dtype is not None:
             self.tensor_dtype = tensor_dtype
         else:
             self.tensor_dtype = torch.float16
-        torch.set_default_tensor_type(self.tensor_dtype)
+        torch.set_default_tensor_type(self._dtype_to_tensor_type[self.tensor_dtype]) #A conversion between dtype and tensor type is needed since they are different objects and 'set_default_tensor_type' only accepts the latter.
 
         #Option to directly prescribe contents when ray positions and directions are generated externally (not using the provided methods)
-        # self.x0 = torch.as_tensor(x0, device = self.device, dtype = self.tensor_dtype)
-        # self.v0 = torch.as_tensor(v0, device = self.device, dtype = self.tensor_dtype)
+        # self.x_0 = torch.as_tensor(x_0, device = self.device, dtype = self.tensor_dtype)
+        # self.v_0 = torch.as_tensor(v_0, device = self.device, dtype = self.tensor_dtype)
         # self.sino_shape = sino_shape
         # self.sino_coord = sino_coord            
-        # self.num_rays = self.x0.size
+        # self.num_rays = self.x_0.size
         # self.s
         # self.int_factor
         # self.width 
@@ -206,9 +346,15 @@ class RayState():
         else:
             raise Exception(f"Ray config: {str(self.ray_trace_ray_config)} is not one of the supported string: 'parallel', 'cone'.")
         
+        #Initialize the iterate position and direction
+        self.x_n = self.x_0
+        self.x_np1 = self.x_0 #torch.zeros_like(self.x_0)
+        self.v_n = self.v_0
+        self.v_np1 = self.v_0 #torch.zeros_like(self.v_0)
+
         #Initialize other properties of the rays
         self.s = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
-        self.int_factor = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #current intensity relative to the intensity at x0
+        self.int_factor = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #current intensity relative to the intensity at x_0
         self.width = torch.ones((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #constant if FOV is in depth of focus. Converging or Diverging if not. Function of s.
         self.integral = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #accumulating integral along the path
         self.exited = torch.zeros((self.num_rays, 1), device = self.device, dtype = torch.bool) #boolean value. Tracing of corresponding ray stops when its exited flag is true.
@@ -264,28 +410,28 @@ class RayState():
             G1 = G1.ravel()
             G2 = G2.ravel()
             
-            self.x0 = np.ndarray((G0.size,3))
+            self.x_0 = np.ndarray((G0.size,3))
             #Center of projection plane relative to grid center. Refers to documentations for derivation.
-            self.x0[:,0] = proj_plane_radial_offset*np.cos(G1)*np.cos(inclination_angle_rad)
-            self.x0[:,1] = proj_plane_radial_offset*np.sin(G1)*np.cos(inclination_angle_rad)
-            self.x0[:,2] = proj_plane_radial_offset*np.sin(inclination_angle_rad)
+            self.x_0[:,0] = proj_plane_radial_offset*np.cos(G1)*np.cos(inclination_angle_rad)
+            self.x_0[:,1] = proj_plane_radial_offset*np.sin(G1)*np.cos(inclination_angle_rad)
+            self.x_0[:,2] = proj_plane_radial_offset*np.sin(inclination_angle_rad)
 
             #Adding vectors from center of projection plane to pixel. Refers to documentations for derivation.
-            self.x0[:,0]+= -G0*np.sin(G1) - G2*np.cos(G1)*np.sin(inclination_angle_rad)
-            self.x0[:,1]+= G0*np.cos(G1) - G2*np.sin(G1)*np.sin(inclination_angle_rad)
-            self.x0[:,2]+= G2*np.cos(inclination_angle_rad)
+            self.x_0[:,0]+= -G0*np.sin(G1) - G2*np.cos(G1)*np.sin(inclination_angle_rad)
+            self.x_0[:,1]+= G0*np.cos(G1) - G2*np.sin(G1)*np.sin(inclination_angle_rad)
+            self.x_0[:,2]+= G2*np.cos(inclination_angle_rad)
 
-            self.v0 = np.ndarray((G0.size,3))
-            self.v0[:,0] = -np.cos(G1)*np.cos(inclination_angle_rad)
-            self.v0[:,1] = -np.sin(G1)*np.cos(inclination_angle_rad)
-            self.v0[:,2] = -np.sin(inclination_angle_rad)
+            self.v_0 = np.ndarray((G0.size,3))
+            self.v_0[:,0] = -np.cos(G1)*np.cos(inclination_angle_rad)
+            self.v_0[:,1] = -np.sin(G1)*np.cos(inclination_angle_rad)
+            self.v_0[:,2] = -np.sin(inclination_angle_rad)
 
-            self.x0 = torch.as_tensor(self.x0, device = self.device)
-            self.v0 = torch.as_tensor(self.v0, device = self.device)
+            self.x_0 = torch.as_tensor(self.x_0, device = self.device)
+            self.v_0 = torch.as_tensor(self.v_0, device = self.device)
 
         else: 
             #Create with GPU (which is faster if GPU memory is sufficient)
-            inclination_angle_rad = torch.as_tensor(inclination_angle_rad)
+            inclination_angle_rad = torch.as_tensor(inclination_angle_rad, device = self.device, dtype = self.tensor_dtype)
 
             sino_n0 = torch.as_tensor(sino_n0, device = self.device, dtype = self.tensor_dtype)
             sino_n1_rad = torch.as_tensor(sino_n1_rad, device = self.device, dtype = self.tensor_dtype)
@@ -296,21 +442,21 @@ class RayState():
             G2 = torch.ravel(G2)
 
 
-            self.x0 = torch.empty((self.num_rays,3), device = self.device, dtype = self.tensor_dtype) #using same date type as sino_n0, which is inferred from its numpy version
+            self.x_0 = torch.empty((self.num_rays,3), device = self.device, dtype = self.tensor_dtype) #using same date type as sino_n0, which is inferred from its numpy version
             #Center of projection plane relative to grid center. Refers to documentations for derivation.
-            self.x0[:,0] = proj_plane_radial_offset*torch.cos(G1)*torch.cos(inclination_angle_rad)
-            self.x0[:,1] = proj_plane_radial_offset*torch.sin(G1)*torch.cos(inclination_angle_rad)
-            self.x0[:,2] = proj_plane_radial_offset*torch.sin(inclination_angle_rad)
+            self.x_0[:,0] = proj_plane_radial_offset*torch.cos(G1)*torch.cos(inclination_angle_rad)
+            self.x_0[:,1] = proj_plane_radial_offset*torch.sin(G1)*torch.cos(inclination_angle_rad)
+            self.x_0[:,2] = proj_plane_radial_offset*torch.sin(inclination_angle_rad)
 
             #Adding vectors from center of projection plane to pixel. Refers to documentations for derivation.
-            self.x0[:,0]+= -G0*torch.sin(G1) - G2*torch.cos(G1)*torch.sin(inclination_angle_rad)
-            self.x0[:,1]+= G0*torch.cos(G1) - G2*torch.sin(G1)*torch.sin(inclination_angle_rad)
-            self.x0[:,2]+= G2*torch.cos(inclination_angle_rad)
+            self.x_0[:,0]+= -G0*torch.sin(G1) - G2*torch.cos(G1)*torch.sin(inclination_angle_rad)
+            self.x_0[:,1]+= G0*torch.cos(G1) - G2*torch.sin(G1)*torch.sin(inclination_angle_rad)
+            self.x_0[:,2]+= G2*torch.cos(inclination_angle_rad)
 
-            self.v0 = torch.empty((self.num_rays,3), device = self.device, dtype = self.tensor_dtype)
-            self.v0[:,0] = -torch.cos(G1)*torch.cos(inclination_angle_rad)
-            self.v0[:,1] = -torch.sin(G1)*torch.cos(inclination_angle_rad)
-            self.v0[:,2] = -torch.sin(inclination_angle_rad)
+            self.v_0 = torch.empty((self.num_rays,3), device = self.device, dtype = self.tensor_dtype)
+            self.v_0[:,0] = -torch.cos(G1)*torch.cos(inclination_angle_rad)
+            self.v_0[:,1] = -torch.sin(G1)*torch.cos(inclination_angle_rad)
+            self.v_0[:,2] = -torch.sin(inclination_angle_rad)
     
     
     @torch.inference_mode()
@@ -334,17 +480,17 @@ class RayState():
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
 
-        x0 = self.x0.cpu()
-        v0 = self.v0.cpu()
+        x_0 = self.x_0.cpu()
+        v_0 = self.v_0.cpu()
         #This only plot positions
-        # ax.scatter(x0[relevant_points,0], x0[relevant_points,1], x0[relevant_points,2], marker='o')
+        # ax.scatter(x_0[relevant_points,0], x_0[relevant_points,1], x_0[relevant_points,2], marker='o')
         #This plot both position and direction with arrows.
-        ax.quiver(x0[relevant_points,0],
-                x0[relevant_points,1],
-                x0[relevant_points,2],
-                v0[relevant_points,0],
-                v0[relevant_points,1],
-                v0[relevant_points,2],
+        ax.quiver(x_0[relevant_points,0],
+                x_0[relevant_points,1],
+                x_0[relevant_points,2],
+                v_0[relevant_points,0],
+                v_0[relevant_points,1],
+                v_0[relevant_points,2],
                 length=0.15,
                 color = color)
         ax.set_xlabel('X Label')
