@@ -102,7 +102,7 @@ class RayTraceSolver():
 
     """
     @torch.inference_mode()
-    def __init__(self, device, index_model, ray_trace_method, ode_solver, max_num_step = 750) -> None:
+    def __init__(self, device, index_model, ray_trace_method, ode_solver, max_num_step = 750, num_step_per_exit_check = 10) -> None:
         self.logger = logging.getLogger(__name__) #Inputting the same name just output the same logger. No need to pass logger around.
         self.device = device
         self.index_model = index_model
@@ -110,7 +110,7 @@ class RayTraceSolver():
         self.ode_solver = ode_solver
 
         self.max_num_step = max_num_step
-        self.step_counter = 0
+        self.num_step_per_exit_check = num_step_per_exit_check
         
         #Parse ray_trace_method
         if self.ray_trace_method == 'snells' or self.ray_trace_method == 'hybrid':
@@ -147,31 +147,40 @@ class RayTraceSolver():
     def solveUntilExit(self, ray_state, step_size, callback = None, tracker_on = False, track_every = 5):
         #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
         if tracker_on:
-            ray_tracker = torch.zeros(((ray_state.num_rays//track_every),3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype)
+            ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_n[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
         else:
             ray_tracker = None
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
 
-        while self.step_counter < self.max_num_step:
+        self.step_counter = 0
+        exit_ray_count = 0
+        all_ray_exited = False
+        while (self.step_counter < self.max_num_step) and not all_ray_exited:
             
-            #Check exit condition
-            ray_state = self.step(ray_state, step_size)
+            if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
+                ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
+                exit_ray_count = torch.sum(ray_state.exited, dim = 0) #.int()
+                all_ray_exited = (exit_ray_count == ray_state.num_rays)
+
+            ray_state = self.step(ray_state, step_size) #step forward. Where x_n and v_n will be replaced by x_np1 and v_np1 respectively
 
             if self.surface_intersection_check:
                 self.discreteSurfaceIntersectionCheck(ray_state)
 
-
             if tracker_on:
                 ray_tracker[:,:,self.step_counter] = ray_state.x_n[::track_every, :]
 
-
-            if self.step_counter%10 == 0:
-                self.logger.debug(f'completed {self.step_counter}th-step')
+            if self.step_counter%self.num_step_per_exit_check == 0:
+                self.logger.debug(f'completed {self.step_counter}th-step. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                
             self.step_counter += 1
 
-        # termination_type = None
+        
+        if not all_ray_exited:
+            self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
+
         return ray_state, ray_tracker
 
     #=======================ODE solvers======================
@@ -268,21 +277,34 @@ class RayTraceSolver():
     @torch.inference_mode()
     def discreteSurfaceIntersectionCheck(self):
         pass
-
+    
     @torch.inference_mode()
-    def exitCheck(self):
-        #When the rays are outside the bounding box AND pointing awayw
-        #Distance tolerance
-
-        #Check the coordinate PER DIMENSION, <min-tol or >max+tol
-        #then check sign of v for such dimension
+    def exitCheck(self, ray_state):
+        '''
+        When the rays are outside the bounding box AND pointing away. As long as this condition is satisfied in one of the dimension, the rest of the straight ray will not intersect the domain.
+                
         #for (position < min-tol & direction < 0) or (position > max+tol & direction > 0)
         
         #exit = exit_x | exit_y | exit_z
+        '''
+        
+        #Check for position if it is outside domain bounds (as defined by center of edge voxels). Check the coordinate PER DIMENSION, <min-tol or >max+tol
+        #Distance tolerance is one voxel away from the bound (so the rest of the edge voxels are included, plus another half voxel in extra)
+        exited_in_positive_direction = (ray_state.x_np1 > self.index_model.xv_yv_zv_max + self.index_model.voxel_size) & (ray_state.v_np1 > 0.0)
+        exited_in_negative_direction = (ray_state.x_np1 < self.index_model.xv_yv_zv_min - self.index_model.voxel_size) & (ray_state.v_np1 < 0.0)
+        
+        #Perform logical or in the spatial dimension axis
+        exited_in_positive_direction = exited_in_positive_direction[:,0] | exited_in_positive_direction[:,1] | exited_in_positive_direction[:,2]
+        exited_in_negative_direction = exited_in_negative_direction[:,0] | exited_in_negative_direction[:,1] | exited_in_negative_direction[:,2]
+        # #Alternatively check logical OR with sum
+        # exited_in_positive_direction = torch.sum(exited_in_positive_direction, dim = 1, keepdim = False).bool()
+        # exited_in_negative_direction = torch.sum(exited_in_negative_direction, dim = 1, keepdim = False).bool()
 
-        #Check if intensity close to zero (e.g. due to occulsion)
+        ray_state.exited =  exited_in_positive_direction | exited_in_negative_direction
 
-        pass
+        #Optionally check if intensity close to zero (e.g. due to occulsion)
+
+        return ray_state
         
 
 
@@ -366,7 +388,7 @@ class RayState():
         real_nY = target_coord_vec_list[1].size 
         real_nZ = target_coord_vec_list[2].size
         
-        self.sino_shape = (round(max(real_nX,real_nY) * ray_density), azimuthal_angles_rad.size, round(real_nZ * ray_density))
+        self.sino_shape = (round(max(real_nX,real_nY) * ray_density), azimuthal_angles_rad.size, max(round(real_nZ * ray_density),1)) #At least compute 1 z layer
         self.num_rays = self.sino_shape[0]*self.sino_shape[1]*self.sino_shape[2]
 
         #The following assumes the patterning volume is inscribed inside the simulation cube

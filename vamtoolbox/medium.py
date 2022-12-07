@@ -48,7 +48,7 @@ class IndexModel:
         #Save inputs as attributes
         self.type = type
         self.form = form
-        
+
         #Merge all kwargs into params
         self.params = self._default_analytical.copy() #Shallow copy avoid editing dict '_default_lenses' in place 
         self.params.update(self._default_interpolation) #Add relevant parameters
@@ -84,7 +84,14 @@ class IndexModel:
         self.yv = torch.as_tensor(coord_vec[1], device = self.device)
         self.zv = torch.as_tensor(coord_vec[2], device = self.device)
         self.Xg, self.Yg, self.Zg = torch.meshgrid(self.xv, self.yv, self.zv, indexing = 'ij') #This grid is to be used for interpolation, simulation
-
+        
+        #Max min of grid coordinate
+        self.xv_yv_zv_max = torch.tensor([torch.amax(self.xv), torch.amax(self.yv), torch.amax(self.zv)], device = self.device)
+        self.xv_yv_zv_min = torch.tensor([torch.amin(self.xv), torch.amin(self.yv), torch.amin(self.zv)], device = self.device)
+        if self.zv.numel() == 1:
+            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], 0], device = self.device) #Sampling rate along z is 0
+        else:
+            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], self.zv[1]-self.zv[0]], device = self.device) #Only valid when self.zv.size > 1
         #==========================Setup according to type and form================================
         if self.type == 'analytical':
             # self.Xg, self.Yg, self.Zg = None, None, None
@@ -188,7 +195,7 @@ class IndexModel:
             #Note that the query points[0],[1],[2] are still arranged in x,y,z order
             self.logger.debug(f"interp_n_x_5D has shape of {self.interp_n_x_5D.shape}")
             
-            self.grid_span = torch.tensor([torch.amax(self.xv) - torch.amin(self.xv), torch.amax(self.yv) - torch.amin(self.yv), torch.amax(self.zv) - torch.amin(self.zv)], device = self.device)
+            self.grid_span = self.xv_yv_zv_max - self.xv_yv_zv_min
             self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
             if torch.isnan(self.position_normalization_factor[2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0
                 self.position_normalization_factor[2] = 0.0
