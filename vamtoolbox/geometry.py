@@ -52,7 +52,10 @@ class ProjectionGeometry:
             index_model is configured prior to initialization of proj_geo, using class vamtoolbox.medium.IndexModel.
 
         ray_trace_method : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
-            'eikonal', 'snells', 'hybrid'. Default: 'eikonal'            
+            'eikonal', 'snells', 'hybrid'. Default: 'eikonal' 
+
+        eikonal_parametrization : str, Required for when (ray_trace_method == 'eikonal') or (ray_trace_method == 'hybrid')
+            'canonical', 'physical_path_length', 'optical_path_length'
 
         ray_trace_ode_solver : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
             'forward_symplectic_euler', 'forward_euler', 'leapfrog', 'rk4'
@@ -80,6 +83,7 @@ class ProjectionGeometry:
         self.zero_dose_sino = None if 'zero_dose_sino' not in kwargs else kwargs['zero_dose_sino']
         self.index_model = None if 'index_model' not in kwargs else kwargs['index_model']
         self.ray_trace_method = None if 'ray_trace_method' not in kwargs else kwargs['ray_trace_method']
+        self.eikonal_parametrization = None if 'eikonal_parametrization' not in kwargs else kwargs['eikonal_parametrization']
         self.ray_trace_ode_solver = None if 'ray_trace_ode_solver' not in kwargs else kwargs['ray_trace_ode_solver']
         self.ray_trace_ray_config = None if 'ray_trace_ray_config' not in kwargs else kwargs['ray_trace_ray_config']
         self.tensor_dtype = None if 'tensor_dtype' not in kwargs else kwargs['tensor_dtype']

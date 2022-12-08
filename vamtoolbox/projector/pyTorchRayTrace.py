@@ -49,7 +49,7 @@ class PyTorchRayTracingPropagator():
                                     ray_width_fun = None
                                     )
         
-        self.solver = RayTraceSolver(self.device, self.proj_geo.index_model, self.proj_geo.ray_trace_method, self.proj_geo.ray_trace_ode_solver)
+        self.solver = RayTraceSolver(self.device, self.proj_geo.index_model, self.proj_geo.ray_trace_method, self.proj_geo.eikonal_parametrization, self.proj_geo.ray_trace_ode_solver)
 
     @torch.inference_mode()
     def forward(self, f):
@@ -102,11 +102,12 @@ class RayTraceSolver():
 
     """
     @torch.inference_mode()
-    def __init__(self, device, index_model, ray_trace_method, ode_solver, max_num_step = 750, num_step_per_exit_check = 10) -> None:
+    def __init__(self, device, index_model, ray_trace_method, eikonal_parametrization, ode_solver, max_num_step = 750, num_step_per_exit_check = 10) -> None:
         self.logger = logging.getLogger(__name__) #Inputting the same name just output the same logger. No need to pass logger around.
         self.device = device
         self.index_model = index_model
         self.ray_trace_method = ray_trace_method
+        self.eikonal_parametrization = eikonal_parametrization
         self.ode_solver = ode_solver
 
         self.max_num_step = max_num_step
@@ -117,6 +118,24 @@ class RayTraceSolver():
             self.surface_intersection_check = True
         else:
             self.surface_intersection_check = False
+
+        if self.ray_trace_method == 'eikonal' or self.ray_trace_method == 'hybrid':
+            #Eikonal equation parametrization 
+            if self.eikonal_parametrization == 'canonical':
+                self.dx_dstep = self._dx_dsigma
+                self.dv_dstep = self._dv_dsigma
+            elif self.eikonal_parametrization == 'physical_path_length':
+                #Physical path length
+                self.dx_dstep = self._dx_ds
+                self.dv_dstep = self._dv_ds
+            elif self.eikonal_parametrization == 'optical_path_length':
+                #Optical path length
+                self.dx_dstep = self._dx_dopl
+                self.dv_dstep = self._dv_dopl
+            else:
+                raise Exception(f'eikonal_parametrization = {self.eikonal_parametrization} and is not one of the available options.')
+
+
 
         #Parse ODE solver
         if self.ode_solver == 'forward_symplectic_euler':
@@ -137,10 +156,6 @@ class RayTraceSolver():
             pass #self.step = self._rk4
         else:
             raise Exception(f'ode_solver = {self.ode_solver} and is not one of the available options.')
-
-        #Equation form
-        self.dx_dstep = self._dx_dsigma
-        self.dv_dstep = self._dv_dsigma
 
 
     @torch.inference_mode()
@@ -183,6 +198,51 @@ class RayTraceSolver():
 
         return ray_state, ray_tracker
 
+    #=======================Eikonal equation parametrizations======================
+    #Canonical parameter, as sigma in "Adjoint Nonlinear Ray Tracing, Teh, et al. 2022"
+    @torch.inference_mode()
+    def _dx_dsigma(self, _, v, *arg):
+        return v
+
+    @torch.inference_mode()
+    def _dv_dsigma(self, x, _, known_n = None):
+        if known_n is None:
+            n = self.index_model.n(x)[:,None]
+        else:
+            n = known_n
+
+        return n*self.index_model.grad_n(x) #broadcasted to all xyz components
+
+    #Physical path length, as s in "Eikonal Rendering: Efficient Light Transport in Refractive Objects, Ihrke, et al. 2007"
+    @torch.inference_mode()
+    def _dx_ds(self, x, v, known_n = None):
+        if known_n is None:
+            n = self.index_model.n(x)[:,None]
+        else:
+            n = known_n
+        return v/n
+
+    @torch.inference_mode()
+    def _dv_ds(self, x, _, *arg):
+        return self.index_model.grad_n(x) 
+
+    #Optical path length, opl as t in "Eikonal Rendering: Efficient Light Transport in Refractive Objects, Ihrke, et al. 2007"
+    @torch.inference_mode()
+    def _dx_dopl(self, x, v, known_n = None):
+        if known_n is None:
+            n = self.index_model.n(x)[:,None]
+        else:
+            n = known_n
+        return v*(n**(-2))
+
+    @torch.inference_mode()
+    def _dv_dopl(self, x, _, known_n = None):
+        if known_n is None:
+            n = self.index_model.n(x)[:,None]
+        else:
+            n = known_n
+        return self.index_model.grad_n(x)/n
+        
     #=======================ODE solvers======================
     @torch.inference_mode()
     def _forwardSymplecticEuler(self, ray_state, step_size): #step forward the RayState
@@ -192,10 +252,10 @@ class RayTraceSolver():
 
         #Compute new np1 based on n (the old np1)
         #Compute v_ip1 using x_i
-        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i)*step_size
+        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i, ray_state.v_i)*step_size
 
         #Then compute x_ip1 using v_ip1
-        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.v_ip1)*step_size
+        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.x_i, ray_state.v_ip1)*step_size
 
         return ray_state
 
@@ -207,10 +267,10 @@ class RayTraceSolver():
 
         #Compute new np1 based on n (the old np1)
         #Compute v_ip1 using x_i
-        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i)*step_size
+        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i, ray_state.v_i)*step_size
 
         #Then compute x_ip1 using v_i
-        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.v_i)*step_size
+        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.x_i, ray_state.v_i)*step_size
 
         return ray_state
     
@@ -243,24 +303,14 @@ class RayTraceSolver():
     @torch.inference_mode()
     def _leapfrog_init(self, ray_state, step_size):
         #Step backward ray_state.v_ip1 by half-step. After entering _forwardSymplecticEuler, v_ip1 will be half-step forward relative to x, when x is updated with v.
-        ray_state.v_ip1 = ray_state.v_ip1 - self.dv_dstep(ray_state.x_i)*step_size/2.0
+        #Initially x_0 = x_i = x_ip1, and v_0 = v_i = v_ip1, so it doesn't matter which input we use.
+        ray_state.v_ip1 = ray_state.v_ip1 - self.dv_dstep(ray_state.x_ip1, ray_state.v_ip1)*step_size/2.0
         return ray_state
 
     @torch.inference_mode()
     def _no_step_init(self, ray_state, _):
         return ray_state
 
-    #=======================Equation form======================
-    @torch.inference_mode()
-    def _dx_dsigma(self, v):
-        return v
-
-    @torch.inference_mode()
-    def _dv_dsigma(self, x):
-        # return self.index_model.n(x)*self.index_model.grad_n(x) #broadcasted to all xyz components
-        n = self.index_model.n(x)[:,None]
-        grad_n = self.index_model.grad_n(x)
-        return n*grad_n
     #=======================Ray-voxel interactions======================
     @torch.inference_mode()
     def deposit(self): #deposit projected values along the ray
@@ -369,10 +419,7 @@ class RayState():
             raise Exception(f"Ray config: {str(self.ray_trace_ray_config)} is not one of the supported string: 'parallel', 'cone'.")
         
         #Initialize the iterate position and direction
-        self.x_i = self.x_0
-        self.x_ip1 = self.x_0 #torch.zeros_like(self.x_0)
-        self.v_i = self.v_0
-        self.v_ip1 = self.v_0 #torch.zeros_like(self.v_0)
+        self.resetRaysIterateToInitial() #Initialize x_i and x_ip1 to be x_0. Same for v.
 
         #Initialize other properties of the rays
         self.s = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
@@ -481,6 +528,13 @@ class RayState():
             self.v_0[:,2] = -torch.sin(inclination_angle_rad)
     
     
+    def resetRaysIterateToInitial(self):
+        self.x_i = self.x_0
+        self.x_ip1 = self.x_0 #torch.zeros_like(self.x_0)
+        self.v_i = self.v_0
+        self.v_ip1 = self.v_0 #torch.zeros_like(self.v_0)
+
+
     @torch.inference_mode()
     def plot_ray_init_position(self, angles_deg, color = 'black'):
 
@@ -522,7 +576,40 @@ class RayState():
         plt.show()
 
 
-    # class RayTracker():
+    class RaySelector():
+        def __init__(self, ray_state) -> None:
+            self.device = ray_state.device
+            self.num_rays = ray_state.num_rays
+            self.sino_coord = ray_state.sino_coord
+
+            self.selectParallelAngles = self.select
+
+            self.selected_idx = torch.zeros((self.num_rays, 1), device = self.device, dtype = torch.bool)
+
+        def selectCoord(self, angles, mode = 'and'):
+            #mode: 'and', 'or', 'xor'. This is the relationship BETWEEN the sinogram coordinates.
+            #AND will only select rays that simultaneously satisfy requirements for sino_n0, sino_n1, sino_n2
+            #OR will select rays that satisfy any requirements for sino_n0, sino_n1, sino_n2
+            #So is XOR and NOT
+
+
+            
+            return self.selected_idx
+
+        def selectInverse(self):
+            #invert current selection
+            pass
+
+        def _selectSino0(self, sino0_coord):
+            return #idx
+
+        def _selectSino1(self, sino0_coord):
+            return #idx
+
+        def _selectSino2(self, sino0_coord):
+            return #idx
+
+    # class RayTracker(RaySelector):
     #     def __init__(self, ray_state, angles_rad, ) -> None:
     #         ray_state.sino_coord
 
