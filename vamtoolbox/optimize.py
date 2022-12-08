@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 
-# import vamtoolbox.material #This exception has to be made since this definition is used in the __init__ of Options class.
 import vamtoolbox
 
 
@@ -121,7 +120,7 @@ class Options:
             if self.__default_BCLP["response_model"] == "default":  
                 #Initialize a response model by default, only upon __init__ of Options class. 
                 #This avoids putting the ResponseModel object inside the class definition of Options (and hence avoid import problems and unnesscary init of default response model)
-                self.response_model = vamtoolbox.material.ResponseModel()
+                self.response_model = vamtoolbox.response.ResponseModel()
             else:
                 self.response_model = self.__default_BCLP["response_model"] #If a response model is given, use the provided one instead.
 

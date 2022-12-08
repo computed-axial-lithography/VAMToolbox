@@ -11,7 +11,7 @@ from . import optimizer
 from . import projector
 from . import resources
 
-from . import material
+from . import response
 from . import medium
 from . import displaygrayscale
 

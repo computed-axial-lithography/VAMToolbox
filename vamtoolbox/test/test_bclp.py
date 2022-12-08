@@ -11,7 +11,7 @@ target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads
 # target_geo.show()
 
 #3D targets
-target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("trifurcatedvasculature.stl"),resolution=300)
+# target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("trifurcatedvasculature.stl"),resolution=300)
 # target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("thinker.stl"),resolution=300)
 # target_geo = vam.geometry.TargetGeometry(stlfilename=r"C:\Users\ccli\Documents\internship project - junction\Drawings\FRMMA-Conformed-new.STL",resolution=200)
 # vol = vedo.Volume(target_geo.array,mode=0)
@@ -23,9 +23,9 @@ angles = np.linspace(0, 180 - 180 / num_angles, num_angles)
 proj_geo = vam.geometry.ProjectionGeometry(angles,ray_type='parallel',CUDA=True)
 
 #Identity response model
-# response_model = vam.material.ResponseModel(form = "identity")
+# response_model = vam.response.ResponseModel(form = "identity")
 #Linear response with negative offset
-# response_model = vam.material.ResponseModel(form = "linear", M = 2, C = -1)
+# response_model = vam.response.ResponseModel(form = "linear", M = 2, C = -1)
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50,filter='ram-lak_freq',verbose='plot', learning_rate = 0.02, response_model = response_model, eps=0.05)
 optimizer_params = vam.optimize.Options(method='BCLP',n_iter=10, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.02, response_model = "default", eps=0.1) #Working
 

@@ -5,7 +5,7 @@ import numpy as np
 # target_geo = vam.geometry.TargetGeometry(imagefilename=vam.resources.load("reschart.png"),pixels=501)
 # target_geo.show()
 
-# rm = vam.material.ResponseModel()
+# rm = vam.response.ResponseModel()
 # print(rm.checkResponseTarget(target_geo.array))
 # map_inv = rm.map_inv(target_geo.array)
 
@@ -19,7 +19,7 @@ import numpy as np
 target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("trifurcatedvasculature.stl"),resolution=200)
 target_geo.show()
 
-rm = vam.material.ResponseModel()
+rm = vam.response.ResponseModel()
 print(rm.checkResponseTarget(target_geo.array))
 map_inv = rm.map_inv(target_geo.array)
 
