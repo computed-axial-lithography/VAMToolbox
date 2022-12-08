@@ -79,6 +79,7 @@ class IndexModel:
             self.device = torch.device('cpu')
         self.logger.info(f'Medium computation is performed on: {repr(self.device)}')
 
+        #==========================Setup coordinate grid according ======================================================
         #Set up grid as tensor
         self.xv = torch.as_tensor(coord_vec[0], device = self.device)
         self.yv = torch.as_tensor(coord_vec[1], device = self.device)
@@ -89,10 +90,16 @@ class IndexModel:
         self.xv_yv_zv_max = torch.tensor([torch.amax(self.xv), torch.amax(self.yv), torch.amax(self.zv)], device = self.device)
         self.xv_yv_zv_min = torch.tensor([torch.amin(self.xv), torch.amin(self.yv), torch.amin(self.zv)], device = self.device)
         if self.zv.numel() == 1:
-            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], 0], device = self.device) #Sampling rate along z is 0
+            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], torch.inf], device = self.device) #Sampling rate [voxel/mm] along z is 0, therefore voxel size is inf to stay consistent
         else:
             self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], self.zv[1]-self.zv[0]], device = self.device) #Only valid when self.zv.size > 1
-        #==========================Setup according to type and form================================
+
+        self.grid_span = self.xv_yv_zv_max - self.xv_yv_zv_min
+        self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
+        if torch.isinf(self.position_normalization_factor[2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0 which yields inf
+            self.position_normalization_factor[2] = 0.0 #If inf, clamp the z position down back to 0
+
+        #==========================Setup index query functions according to type and form================================
         if self.type == 'analytical':
             # self.Xg, self.Yg, self.Zg = None, None, None
             # self.params = self._default_analytical.copy() #Shallow copy avoid editing dict '_default_lenses' in place 
@@ -125,11 +132,11 @@ class IndexModel:
             #function alias
             self.n = self._n_interp
             self.grad_n = self._grad_n_interp
+            self.interp_x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous':
                 #build interpolant arrays
-                self.interp_x_sample = torch.vstack(torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg)).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
                 self.interp_n_x_sample = self._n_homo(self.interp_x_sample).reshape(self.Xg.shape)
                 grad_n_shape = list(self.Xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
@@ -138,7 +145,6 @@ class IndexModel:
 
             elif self.form == 'luneburg_lens':
                 #build interpolant arrays
-                self.interp_x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
                 self.interp_n_x_sample = self._n_lune(self.interp_x_sample).reshape(self.Xg.shape) #Save as a 3D tensor
                 grad_n_shape = list(self.Xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
@@ -146,7 +152,6 @@ class IndexModel:
 
             elif self.form == 'maxwell_lens':
                 #build interpolant arrays
-                self.interp_x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
                 self.interp_n_x_sample = self._n_maxwell(self.interp_x_sample).reshape(self.Xg.shape)
                 grad_n_shape = list(self.Xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
@@ -154,7 +159,6 @@ class IndexModel:
 
             elif self.form == 'eaton_lens':
                 #build interpolant arrays
-                self.interp_x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
                 self.interp_n_x_sample = self._n_eaton(self.interp_x_sample).reshape(self.Xg.shape)
                 grad_n_shape = list(self.Xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
@@ -162,25 +166,24 @@ class IndexModel:
 
 
             elif self.form == 'freeform': #Directly import data instead of generating.
-                self.interp_x_sample = self.params.get('interp_x_sample',None) #Input data points are designated with sample subscript
-                self.interp_n_x_sample = self.params.get('interp_n_x_sample',None)  
+                self.interp_n_x_sample = self.params.get('interp_n_x_sample',None)  #Input data points are designated with sample subscript
                 self.interp_grad_n_x_sample = self.params.get('interp_grad_n_x_sample',None) 
 
-                #Check inputs
-                if (len(self.interp_x_sample.shape) <= 2) or (len(self.interp_n_x_sample) <= 2):
-                    raise Exception('Imported "interp_x_sample" and "interp_n_x_sample" should be 3D (even in 2D the thrid dim should have size 1).')
-                if (self.interp_x_sample.shape) != (self.interp_n_x_sample):
-                    raise Exception('Size mismatch between "interp_x_sample" and "interp_n_x_sample".')
+                #Check imported index field
+                if (len(self.interp_n_x_sample.shape) <= 2):
+                    raise Exception('Imported "interp_n_x_sample" should be 3D (even in 2D the thrid dim should have size 1).')
+                if (self.Xg.shape) != (self.interp_n_x_sample.shape):
+                    raise Exception(f'Size mismatch between the constructed coordinate grid ({self.Xg.shape}) and imported "interp_n_x_sample" ({self.interp_n_x_sample.shape}).')
 
+                #Check imported index gradient (vector) field
                 if self.interp_grad_n_x_sample is None:
                     #If not provided, use finite difference to approximate the gradient
-                    pass
+                    self.logger.info('Index gradient is not explicitly provided. Approximating index gradient with central finite difference')
+                    self.interp_grad_n_x_sample = self.centralFiniteDifference(self.interp_n_x_sample, self.voxel_size)
                 else:
-                    #check input and store input gradient field
-                    #Gradient field should have 1 more dimension (for spatial derviatives)
-                    if not (len(self.interp_grad_n_x_sample.shape) == len(self.interp_n_x_sample.shape) + 1):
-                        raise Exception('Index gradient field should have extactly one more dimension than index field.')
-
+                    #If provided, check input. Gradient field should have 1 more dimension (for spatial derviatives)
+                    if not (self.interp_grad_n_x_sample.shape == (self.interp_n_x_sample.shape[0], self.interp_n_x_sample.shape[1], self.interp_n_x_sample.shape[2], 3)):
+                        raise Exception('Index gradient field should have extactly one more dimension (of size 3) than index field.')
             else:
                 raise Exception('Other interpolation functions are not supported yet.')                
             
@@ -195,11 +198,6 @@ class IndexModel:
             #Note that the query points[0],[1],[2] are still arranged in x,y,z order
             self.logger.debug(f"interp_n_x_5D has shape of {self.interp_n_x_5D.shape}")
             
-            self.grid_span = self.xv_yv_zv_max - self.xv_yv_zv_min
-            self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
-            if torch.isnan(self.position_normalization_factor[2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0
-                self.position_normalization_factor[2] = 0.0
-
             #For index gradient
             self.interp_grad_n_x_5D = torch.permute(self.interp_grad_n_x_sample, (3, 2, 1, 0)) #shape = [Ch, Z, Y, X] where Ch is the components of the gradient in x,y,z
             self.interp_grad_n_x_5D = self.interp_grad_n_x_5D[None, :, :, :, :] #Insert N axis
@@ -209,7 +207,29 @@ class IndexModel:
             raise Exception('"type" should be either "analytical" or "interpolation".')
 
     #=================================Init functions================================================
+    @staticmethod
+    @torch.inference_mode()
+    def centralFiniteDifference(interp_n_x_sample, voxel_size):
+        #This function evaluate the first derivative of a scalar field with central finite difference.
+        #The boundary elements of gradient are set to zero because the scalar field is assumed constant outside the domain.
+        
+        dn_dx = torch.zeros_like(interp_n_x_sample)
+        dn_dx[1:-2,:,:] = torch.narrow(interp_n_x_sample, 0, 2, interp_n_x_sample.shape[0]-2) - torch.narrow(interp_n_x_sample, 0, 0, interp_n_x_sample.shape[0]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+        dn_dx = dn_dx/(2*voxel_size[0]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
 
+        dn_dy = torch.zeros_like(interp_n_x_sample)
+        dn_dy[:,1:-2,:] = torch.narrow(interp_n_x_sample, 1, 2, interp_n_x_sample.shape[1]-2) - torch.narrow(interp_n_x_sample, 1, 0, interp_n_x_sample.shape[1]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+        dn_dy = dn_dy/(2*voxel_size[1]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
+
+        dn_dz = torch.zeros_like(interp_n_x_sample)
+        if (interp_n_x_sample.shape[2] == 1) or torch.isnan(voxel_size[2]): #2D problem.
+            pass 
+        else: #3D problem
+            dn_dz[:,:,1:-2] = torch.narrow(interp_n_x_sample, 2, 2, interp_n_x_sample.shape[2]-2) - torch.narrow(interp_n_x_sample, 2, 0, interp_n_x_sample.shape[2]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+            dn_dz = dn_dz/(2*voxel_size[2]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
+
+        return torch.cat((dn_dx[:,:,:,None], dn_dy[:,:,:,None], dn_dz[:,:,:,None]), dim = 3) #add new axis at the end and concatenate along that new axis
+        
 
     #=================================Analytic: Homogeneous medium================================================
     @torch.inference_mode()

@@ -147,7 +147,7 @@ class RayTraceSolver():
     def solveUntilExit(self, ray_state, step_size, callback = None, tracker_on = False, track_every = 5):
         #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
         if tracker_on:
-            ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_n[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+            ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
         else:
             ray_tracker = None
 
@@ -164,13 +164,13 @@ class RayTraceSolver():
                 exit_ray_count = torch.sum(ray_state.exited, dim = 0) #.int()
                 all_ray_exited = (exit_ray_count == ray_state.num_rays)
 
-            ray_state = self.step(ray_state, step_size) #step forward. Where x_n and v_n will be replaced by x_np1 and v_np1 respectively
+            ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
 
             if self.surface_intersection_check:
                 self.discreteSurfaceIntersectionCheck(ray_state)
 
             if tracker_on:
-                ray_tracker[:,:,self.step_counter] = ray_state.x_n[::track_every, :]
+                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
 
             if self.step_counter%self.num_step_per_exit_check == 0:
                 self.logger.debug(f'completed {self.step_counter}th-step. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
@@ -187,30 +187,30 @@ class RayTraceSolver():
     @torch.inference_mode()
     def _forwardSymplecticEuler(self, ray_state, step_size): #step forward the RayState
         #push np1 to be n
-        ray_state.x_n = ray_state.x_np1
-        ray_state.v_n = ray_state.v_np1
+        ray_state.x_i = ray_state.x_ip1
+        ray_state.v_i = ray_state.v_ip1
 
         #Compute new np1 based on n (the old np1)
-        #Compute v_np1 using x_n
-        ray_state.v_np1 = ray_state.v_n + self.dv_dstep(ray_state.x_n)*step_size
+        #Compute v_ip1 using x_i
+        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i)*step_size
 
-        #Then compute x_np1 using v_np1
-        ray_state.x_np1 = ray_state.x_n + self.dx_dstep(ray_state.v_np1)*step_size
+        #Then compute x_ip1 using v_ip1
+        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.v_ip1)*step_size
 
         return ray_state
 
     @torch.inference_mode()
     def _forwardEuler(self, ray_state, step_size): #step forward the RayState
         #push np1 to be n
-        ray_state.x_n = ray_state.x_np1
-        ray_state.v_n = ray_state.v_np1
+        ray_state.x_i = ray_state.x_ip1
+        ray_state.v_i = ray_state.v_ip1
 
         #Compute new np1 based on n (the old np1)
-        #Compute v_np1 using x_n
-        ray_state.v_np1 = ray_state.v_n + self.dv_dstep(ray_state.x_n)*step_size
+        #Compute v_ip1 using x_i
+        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i)*step_size
 
-        #Then compute x_np1 using v_n
-        ray_state.x_np1 = ray_state.x_n + self.dx_dstep(ray_state.v_n)*step_size
+        #Then compute x_ip1 using v_i
+        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.v_i)*step_size
 
         return ray_state
     
@@ -224,17 +224,17 @@ class RayTraceSolver():
         #That would result a verlet method (essentially a leapfrog) with same computational cost as symplectic euler, but with higher order accuracy.
 
         #push np1 to be n
-        ray_state.x_n = ray_state.x_np1
-        ray_state.v_n = ray_state.v_np1
+        ray_state.x_i = ray_state.x_ip1
+        ray_state.v_i = ray_state.v_ip1
 
         #Compute new np1 based on n (the old np1)
-        #Compute v_np1 using x_n (half step forward)
-        ray_state.v_np1 = ray_state.v_n + self.dv_dstep(ray_state.x_n)*step_size/2
+        #Compute v_ip1 using x_i (half step forward)
+        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i)*step_size/2
 
-        #Then compute x_np1 using v_np1 (full step forward)
-        ray_state.x_np1 = ray_state.x_n + self.dx_dstep(ray_state.v_np1)*step_size
+        #Then compute x_ip1 using v_ip1 (full step forward)
+        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.v_ip1)*step_size
 
-        ray_state.v_np1 += self.dv_dstep(ray_state.x_np1)*step_size/2 #Another half step for v, using updated x
+        ray_state.v_ip1 += self.dv_dstep(ray_state.x_ip1)*step_size/2 #Another half step for v, using updated x
         return ray_state
        
         return self._forwardSymplecticEuler(ray_state, step_size)
@@ -242,8 +242,8 @@ class RayTraceSolver():
 
     @torch.inference_mode()
     def _leapfrog_init(self, ray_state, step_size):
-        #Step backward ray_state.v_np1 by half-step. After entering _forwardSymplecticEuler, v_np1 will be half-step forward relative to x, when x is updated with v.
-        ray_state.v_np1 = ray_state.v_np1 - self.dv_dstep(ray_state.x_n)*step_size/2.0
+        #Step backward ray_state.v_ip1 by half-step. After entering _forwardSymplecticEuler, v_ip1 will be half-step forward relative to x, when x is updated with v.
+        ray_state.v_ip1 = ray_state.v_ip1 - self.dv_dstep(ray_state.x_i)*step_size/2.0
         return ray_state
 
     @torch.inference_mode()
@@ -290,8 +290,8 @@ class RayTraceSolver():
         
         #Check for position if it is outside domain bounds (as defined by center of edge voxels). Check the coordinate PER DIMENSION, <min-tol or >max+tol
         #Distance tolerance is one voxel away from the bound (so the rest of the edge voxels are included, plus another half voxel in extra)
-        exited_in_positive_direction = (ray_state.x_np1 > self.index_model.xv_yv_zv_max + self.index_model.voxel_size) & (ray_state.v_np1 > 0.0)
-        exited_in_negative_direction = (ray_state.x_np1 < self.index_model.xv_yv_zv_min - self.index_model.voxel_size) & (ray_state.v_np1 < 0.0)
+        exited_in_positive_direction = (ray_state.x_ip1 > self.index_model.xv_yv_zv_max + self.index_model.voxel_size) & (ray_state.v_ip1 > 0.0) #In case of 2D problems, voxel size along z is inf so the ray is always within the z-bounds
+        exited_in_negative_direction = (ray_state.x_ip1 < self.index_model.xv_yv_zv_min - self.index_model.voxel_size) & (ray_state.v_ip1 < 0.0) #Therefore in 2D problems, the rays can only escape from x,y-bounds
         
         #Perform logical or in the spatial dimension axis
         exited_in_positive_direction = exited_in_positive_direction[:,0] | exited_in_positive_direction[:,1] | exited_in_positive_direction[:,2]
@@ -369,10 +369,10 @@ class RayState():
             raise Exception(f"Ray config: {str(self.ray_trace_ray_config)} is not one of the supported string: 'parallel', 'cone'.")
         
         #Initialize the iterate position and direction
-        self.x_n = self.x_0
-        self.x_np1 = self.x_0 #torch.zeros_like(self.x_0)
-        self.v_n = self.v_0
-        self.v_np1 = self.v_0 #torch.zeros_like(self.v_0)
+        self.x_i = self.x_0
+        self.x_ip1 = self.x_0 #torch.zeros_like(self.x_0)
+        self.v_i = self.v_0
+        self.v_ip1 = self.v_0 #torch.zeros_like(self.v_0)
 
         #Initialize other properties of the rays
         self.s = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
@@ -522,3 +522,29 @@ class RayState():
         plt.show()
 
 
+    # class RayTracker():
+    #     def __init__(self, ray_state, angles_rad, ) -> None:
+    #         ray_state.sino_coord
+
+    #         #Find the closest match ray
+
+    #         #Determine their indices in vector x
+
+    #         #Store the indices
+
+    #     def plotRays(self):
+
+    #         #Color each rays from each angle.
+    #         fig = plt.figure()
+    #         ax = plt.axes(projection='3d')
+
+    #         for ind in [ind for ind in range(x_np_record.shape[0]) if (ind)%1==0]:
+    #             xline = x_np_record[ind,0,:]
+    #             yline = x_np_record[ind,1,:]
+    #             zline = x_np_record[ind,2,:]
+    #             ax.plot3D(xline, yline, zline, 'blue', linewidth=0.2)
+
+    #         ax.set_xlabel('x')
+    #         ax.set_ylabel('y')
+    #         ax.set_zlabel('z')
+    #         ax.set_aspect('equal', 'box')
