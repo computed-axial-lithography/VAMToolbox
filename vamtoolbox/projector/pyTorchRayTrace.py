@@ -400,19 +400,22 @@ class RayState():
         '''
         #Preprocess inputs
         self.ray_trace_ray_config = ray_trace_ray_config #'parallel', 'cone' 
+        self.azimuthal_angles_deg = azimuthal_angles_deg
+        self.inclination_angle_deg = inclination_angle_deg
+        self.ray_density = ray_density
 
         #Convert all angles to radian
-        azimuthal_angles_rad = azimuthal_angles_deg*np.pi/180.0
-        if (inclination_angle_deg is None):
-            inclination_angle_deg = 0 #In case none is passed down
-        inclination_angle_rad = inclination_angle_deg * np.pi/180.0
+        self.azimuthal_angles_rad = self.azimuthal_angles_deg*np.pi/180.0
+        if (self.inclination_angle_deg is None):
+            self.inclination_angle_deg = 0 #In case none is passed down
+        self.inclination_angle_rad = self.inclination_angle_deg * np.pi/180.0
 
-        if ray_density is None:
-            ray_density = 1
+        if self.ray_density is None:
+            self.ray_density = 1
 
         #Generate initial ray position and direction according to their configuration
         if self.ray_trace_ray_config == 'parallel':
-            self.setupRaysParallel(target_coord_vec_list, azimuthal_angles_rad, inclination_angle_rad, ray_density)
+            self.setupRaysParallel(target_coord_vec_list)
         elif self.ray_trace_ray_config == 'cone':
             raise Exception('Ray setup for cone beam is not yet implemented')
         else:
@@ -423,19 +426,19 @@ class RayState():
 
         #Initialize other properties of the rays
         self.s = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
-        self.int_factor = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #current intensity relative to the intensity at x_0
+        self.int_factor = torch.ones((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #current intensity relative to the intensity at x_0
         self.width = torch.ones((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #constant if FOV is in depth of focus. Converging or Diverging if not. Function of s.
         self.integral = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #accumulating integral along the path
         self.exited = torch.zeros((self.num_rays, 1), device = self.device, dtype = torch.bool) #boolean value. Tracing of corresponding ray stops when its exited flag is true.
 
     @torch.inference_mode()
-    def setupRaysParallel(self, target_coord_vec_list, azimuthal_angles_rad, inclination_angle_rad, ray_density):
+    def setupRaysParallel(self, target_coord_vec_list):
         #The number of rays is assumed to be proportional to the size of real space grid/array
         real_nX = target_coord_vec_list[0].size 
         real_nY = target_coord_vec_list[1].size 
         real_nZ = target_coord_vec_list[2].size
         
-        self.sino_shape = (round(max(real_nX,real_nY) * ray_density), azimuthal_angles_rad.size, max(round(real_nZ * ray_density),1)) #At least compute 1 z layer
+        self.sino_shape = (round(max(real_nX,real_nY) * self.ray_density), self.azimuthal_angles_rad.size, max(round(real_nZ * self.ray_density),1)) #At least compute 1 z layer
         self.num_rays = self.sino_shape[0]*self.sino_shape[1]*self.sino_shape[2]
 
         #The following assumes the patterning volume is inscribed inside the simulation cube
@@ -446,7 +449,7 @@ class RayState():
         sino_n0 = np.linspace(sino_n0_min, sino_n0_max, self.sino_shape[0])
         
         #Determine second coordinate of sinogram
-        sino_n1_rad = azimuthal_angles_rad
+        sino_n1_rad = self.azimuthal_angles_rad
 
         #Determine third coordinate of sinogram.
         #Currently physical size of the projection is assumed to be equal to z height.
@@ -481,26 +484,26 @@ class RayState():
             
             self.x_0 = np.ndarray((G0.size,3))
             #Center of projection plane relative to grid center. Refers to documentations for derivation.
-            self.x_0[:,0] = proj_plane_radial_offset*np.cos(G1)*np.cos(inclination_angle_rad)
-            self.x_0[:,1] = proj_plane_radial_offset*np.sin(G1)*np.cos(inclination_angle_rad)
-            self.x_0[:,2] = proj_plane_radial_offset*np.sin(inclination_angle_rad)
+            self.x_0[:,0] = proj_plane_radial_offset*np.cos(G1)*np.cos(self.inclination_angle_rad)
+            self.x_0[:,1] = proj_plane_radial_offset*np.sin(G1)*np.cos(self.inclination_angle_rad)
+            self.x_0[:,2] = proj_plane_radial_offset*np.sin(self.inclination_angle_rad)
 
             #Adding vectors from center of projection plane to pixel. Refers to documentations for derivation.
-            self.x_0[:,0]+= -G0*np.sin(G1) - G2*np.cos(G1)*np.sin(inclination_angle_rad)
-            self.x_0[:,1]+= G0*np.cos(G1) - G2*np.sin(G1)*np.sin(inclination_angle_rad)
-            self.x_0[:,2]+= G2*np.cos(inclination_angle_rad)
+            self.x_0[:,0]+= -G0*np.sin(G1) - G2*np.cos(G1)*np.sin(self.inclination_angle_rad)
+            self.x_0[:,1]+= G0*np.cos(G1) - G2*np.sin(G1)*np.sin(self.inclination_angle_rad)
+            self.x_0[:,2]+= G2*np.cos(self.inclination_angle_rad)
 
             self.v_0 = np.ndarray((G0.size,3))
-            self.v_0[:,0] = -np.cos(G1)*np.cos(inclination_angle_rad)
-            self.v_0[:,1] = -np.sin(G1)*np.cos(inclination_angle_rad)
-            self.v_0[:,2] = -np.sin(inclination_angle_rad)
+            self.v_0[:,0] = -np.cos(G1)*np.cos(self.inclination_angle_rad)
+            self.v_0[:,1] = -np.sin(G1)*np.cos(self.inclination_angle_rad)
+            self.v_0[:,2] = -np.sin(self.inclination_angle_rad)
 
             self.x_0 = torch.as_tensor(self.x_0, device = self.device)
             self.v_0 = torch.as_tensor(self.v_0, device = self.device)
 
         else: 
             #Create with GPU (which is faster if GPU memory is sufficient)
-            inclination_angle_rad = torch.as_tensor(inclination_angle_rad, device = self.device, dtype = self.tensor_dtype)
+            inclination_angle_rad_tensor = torch.as_tensor(self.inclination_angle_rad, device = self.device, dtype = self.tensor_dtype)
 
             sino_n0 = torch.as_tensor(sino_n0, device = self.device, dtype = self.tensor_dtype)
             sino_n1_rad = torch.as_tensor(sino_n1_rad, device = self.device, dtype = self.tensor_dtype)
@@ -513,19 +516,19 @@ class RayState():
 
             self.x_0 = torch.empty((self.num_rays,3), device = self.device, dtype = self.tensor_dtype) #using same date type as sino_n0, which is inferred from its numpy version
             #Center of projection plane relative to grid center. Refers to documentations for derivation.
-            self.x_0[:,0] = proj_plane_radial_offset*torch.cos(G1)*torch.cos(inclination_angle_rad)
-            self.x_0[:,1] = proj_plane_radial_offset*torch.sin(G1)*torch.cos(inclination_angle_rad)
-            self.x_0[:,2] = proj_plane_radial_offset*torch.sin(inclination_angle_rad)
+            self.x_0[:,0] = proj_plane_radial_offset*torch.cos(G1)*torch.cos(inclination_angle_rad_tensor)
+            self.x_0[:,1] = proj_plane_radial_offset*torch.sin(G1)*torch.cos(inclination_angle_rad_tensor)
+            self.x_0[:,2] = proj_plane_radial_offset*torch.sin(inclination_angle_rad_tensor)
 
             #Adding vectors from center of projection plane to pixel. Refers to documentations for derivation.
-            self.x_0[:,0]+= -G0*torch.sin(G1) - G2*torch.cos(G1)*torch.sin(inclination_angle_rad)
-            self.x_0[:,1]+= G0*torch.cos(G1) - G2*torch.sin(G1)*torch.sin(inclination_angle_rad)
-            self.x_0[:,2]+= G2*torch.cos(inclination_angle_rad)
+            self.x_0[:,0]+= -G0*torch.sin(G1) - G2*torch.cos(G1)*torch.sin(inclination_angle_rad_tensor)
+            self.x_0[:,1]+= G0*torch.cos(G1) - G2*torch.sin(G1)*torch.sin(inclination_angle_rad_tensor)
+            self.x_0[:,2]+= G2*torch.cos(inclination_angle_rad_tensor)
 
             self.v_0 = torch.empty((self.num_rays,3), device = self.device, dtype = self.tensor_dtype)
-            self.v_0[:,0] = -torch.cos(G1)*torch.cos(inclination_angle_rad)
-            self.v_0[:,1] = -torch.sin(G1)*torch.cos(inclination_angle_rad)
-            self.v_0[:,2] = -torch.sin(inclination_angle_rad)
+            self.v_0[:,0] = -torch.cos(G1)*torch.cos(inclination_angle_rad_tensor)
+            self.v_0[:,1] = -torch.sin(G1)*torch.cos(inclination_angle_rad_tensor)
+            self.v_0[:,2] = -torch.sin(inclination_angle_rad_tensor)
     
     
     def resetRaysIterateToInitial(self):

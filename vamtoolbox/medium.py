@@ -18,6 +18,16 @@ class IndexModel:
         Naming: n(x) and grad_n(x) is the index and spatial gradient of index as a function of position x.
         The functions returns the values as a tensor with the same shape as the first 3 dimension of the input.
 
+        Although the attenuation coefficient (alpha) is directly related to the imaginary part (kappa) of complex refractive index (n_comp = n_real + i*kappa),
+        index in this module refers to the real part of the complex index. Ref:https://en.wikipedia.org/wiki/Refractive_index#Complex_refractive_index
+        The attenuation part is described with attenuation coefficient (alpha), which equals 4*pi*kappa/wavelength.
+        
+        The attenuation part is handled separately from n_real for performance and integration reasons. 
+        Performance reasons: In all cases, computation of gradient of kappa is not required (so it is not included in computation/sampling of grad_n).
+                             In many cases, the attenuation is homogeneous and spatial sampling is not required (even when spatial sampling of n_real is required).
+        Integration reasons: Furthermore, attenuation field (np.ndarray) is already present in vamtoolbox as of the development time of the ray tracing propagator (Winter 2022).
+                             Eventually, a class AttenuationModel should be built to better package relevant information.
+
         Parameters
         ----------
         type : str ('analytical', 'interpolation')
@@ -84,7 +94,7 @@ class IndexModel:
         self.xv = torch.as_tensor(coord_vec[0], device = self.device)
         self.yv = torch.as_tensor(coord_vec[1], device = self.device)
         self.zv = torch.as_tensor(coord_vec[2], device = self.device)
-        self.Xg, self.Yg, self.Zg = torch.meshgrid(self.xv, self.yv, self.zv, indexing = 'ij') #This grid is to be used for interpolation, simulation
+        self.xg, self.yg, self.zg = torch.meshgrid(self.xv, self.yv, self.zv, indexing = 'ij') #This grid is to be used for interpolation, simulation
         
         #Max min of grid coordinate
         self.xv_yv_zv_max = torch.tensor([torch.amax(self.xv), torch.amax(self.yv), torch.amax(self.zv)], device = self.device)
@@ -101,7 +111,7 @@ class IndexModel:
 
         #==========================Setup index query functions according to type and form================================
         if self.type == 'analytical':
-            # self.Xg, self.Yg, self.Zg = None, None, None
+            # self.xg, self.yg, self.zg = None, None, None
             # self.params = self._default_analytical.copy() #Shallow copy avoid editing dict '_default_lenses' in place 
             # self.params.update(kwargs) #up-to-date parameters. Default dict is not updated
 
@@ -132,35 +142,35 @@ class IndexModel:
             #function alias
             self.n = self._n_interp
             self.grad_n = self._grad_n_interp
-            self.interp_x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            self.interp_x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_homo(self.interp_x_sample).reshape(self.Xg.shape)
-                grad_n_shape = list(self.Xg.shape)
+                self.interp_n_x_sample = self._n_homo(self.interp_x_sample).reshape(self.xg.shape)
+                grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
                 self.interp_grad_n_x_sample = torch.reshape(self._grad_n_homo(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
 
 
             elif self.form == 'luneburg_lens':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_lune(self.interp_x_sample).reshape(self.Xg.shape) #Save as a 3D tensor
-                grad_n_shape = list(self.Xg.shape)
+                self.interp_n_x_sample = self._n_lune(self.interp_x_sample).reshape(self.xg.shape) #Save as a 3D tensor
+                grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
                 self.interp_grad_n_x_sample = torch.reshape(self._grad_n_lune(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
 
             elif self.form == 'maxwell_lens':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_maxwell(self.interp_x_sample).reshape(self.Xg.shape)
-                grad_n_shape = list(self.Xg.shape)
+                self.interp_n_x_sample = self._n_maxwell(self.interp_x_sample).reshape(self.xg.shape)
+                grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
                 self.interp_grad_n_x_sample = torch.reshape(self._grad_n_maxwell(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
 
             elif self.form == 'eaton_lens':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_eaton(self.interp_x_sample).reshape(self.Xg.shape)
-                grad_n_shape = list(self.Xg.shape)
+                self.interp_n_x_sample = self._n_eaton(self.interp_x_sample).reshape(self.xg.shape)
+                grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
                 self.interp_grad_n_x_sample = torch.reshape(self._grad_n_eaton(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
 
@@ -172,8 +182,8 @@ class IndexModel:
                 #Check imported index field
                 if (len(self.interp_n_x_sample.shape) <= 2):
                     raise Exception('Imported "interp_n_x_sample" should be 3D (even in 2D the thrid dim should have size 1).')
-                if (self.Xg.shape) != (self.interp_n_x_sample.shape):
-                    raise Exception(f'Size mismatch between the constructed coordinate grid ({self.Xg.shape}) and imported "interp_n_x_sample" ({self.interp_n_x_sample.shape}).')
+                if (self.xg.shape) != (self.interp_n_x_sample.shape):
+                    raise Exception(f'Size mismatch between the constructed coordinate grid ({self.xg.shape}) and imported "interp_n_x_sample" ({self.interp_n_x_sample.shape}).')
 
                 #Check imported index gradient (vector) field
                 if self.interp_grad_n_x_sample is None:
@@ -356,11 +366,11 @@ class IndexModel:
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
         if 'interp_x_sample' not in self.__dict__:
-            x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
         else:
             x_sample = self.interp_x_sample
 
-        n = self.n(x_sample).reshape(self.Xg.shape)
+        n = self.n(x_sample).reshape(self.xg.shape)
         # n_slice = self.interp_n_x_sample[:,:,self.interp_n_x_sample.shape[2]//2].cpu().numpy()
         n_slice = n[:,:,n.shape[2]//2].cpu().numpy()
 
@@ -388,12 +398,12 @@ class IndexModel:
         Plot a 2D slice of index gradient. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
         if 'interp_x_sample' not in self.__dict__:
-            x_sample = torch.vstack((torch.ravel(self.Xg), torch.ravel(self.Yg), torch.ravel(self.Zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
         else:
             x_sample = self.interp_x_sample
 
         grad_n = self.grad_n(x_sample)
-        grad_n = grad_n.reshape((self.Xg.shape[0],self.Xg.shape[1],self.Xg.shape[2],3))
+        grad_n = grad_n.reshape((self.xg.shape[0],self.xg.shape[1],self.xg.shape[2],3))
         grad_n_slice = grad_n[:,:,grad_n.shape[2]//2,:].cpu().numpy()
 
         grad_n_slice_mag = np.sqrt(grad_n_slice[:,:,0]**2 + grad_n_slice[:,:,1]**2 + grad_n_slice[:,:,2]**2)

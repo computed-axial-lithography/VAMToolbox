@@ -243,27 +243,27 @@ class Volume:
         if self.n_dim == 2:
             xv = coord_vec_list[0]
             yv = coord_vec_list[1]
-            Xg, Yg = np.meshgrid(xv, yv, indexing = 'ij')
-            self.coord_grid_list = [Xg, Yg]
+            xg, yg = np.meshgrid(xv, yv, indexing = 'ij')
+            self.coord_grid_list = [xg, yg]
 
         elif self.n_dim == 3:
             xv = coord_vec_list[0]
             yv = coord_vec_list[1]
             zv = coord_vec_list[2]
-            Xg, Yg, Zg = np.meshgrid(xv, yv, zv, indexing = 'ij')
-            self.coord_grid_list = [Xg, Yg, Zg]
+            xg, yg, zg = np.meshgrid(xv, yv, zv, indexing = 'ij')
+            self.coord_grid_list = [xg, yg, zg]
         '''
         #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
-        Xg, Yg, Zg = np.meshgrid(coord_vec_list[0], coord_vec_list[1], coord_vec_list[2], indexing = 'ij')
+        xg, yg, zg = np.meshgrid(coord_vec_list[0], coord_vec_list[1], coord_vec_list[2], indexing = 'ij')
 
         #If device is specified, the vectors are provided as tensor. Otherwise, numpy array are provided.
         #Providing tensor directly at this level facilitate data sharing and avoid storing duplicates unnecessarily.
         # if device is not None:
-        #     Xg = torch.as_tensor(Xg, device=device)
-        #     Yg = torch.as_tensor(Yg, device=device)
-        #     Zg = torch.as_tensor(Zg, device=device)
+        #     xg = torch.as_tensor(xg, device=device)
+        #     yg = torch.as_tensor(yg, device=device)
+        #     zg = torch.as_tensor(zg, device=device)
 
-        self.coord_grid_list = [Xg, Yg, Zg]
+        self.coord_grid_list = [xg, yg, zg]
         return self.coord_grid_list
 
 
