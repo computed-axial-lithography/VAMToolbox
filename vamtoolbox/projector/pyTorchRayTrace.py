@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
+import time
 
 class PyTorchRayTracingPropagator():
     """
@@ -198,6 +199,105 @@ class RayTraceSolver():
 
         return ray_state, ray_tracker
 
+    @torch.inference_mode()
+    def depositEnergyUntilExit(self, ray_state, step_size, callback = None, tracker_on = False, track_every = 5):
+        #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
+        if tracker_on:
+            ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+        else:
+            ray_tracker = None
+
+        #Initialize stepping (only applies to certain methods, e.g. leapfrog)
+        ray_state = self.step_init(ray_state, step_size)
+        ray_state.active = ~ray_state.exited #only non exited rays are considered
+
+        #Initialize varaibles
+        self.step_counter = 0  #remember how many step taken after solving
+        start_time = time.perf_counter()
+        exit_ray_count = torch.sum(ray_state.exited, dim = 0)
+        all_ray_exited = (exit_ray_count == ray_state.num_rays)
+        desposition_grid = torch.zeros_like(self.index_model.xg) #This grid is where the energy accumulates
+
+        while (self.step_counter < self.max_num_step) and not all_ray_exited:
+            
+
+            ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
+
+            # if self.surface_intersection_check: #Placeholder: Exception handling for discrete surfaces (This feature is to be implemented)
+            #     self.discreteSurfaceIntersectionCheck(ray_state)
+            desposition_grid = self.deposit(ray_state, step_size, desposition_grid)
+
+            if tracker_on:
+                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
+
+            if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
+                ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
+                exit_ray_count = torch.sum(ray_state.exited, dim = 0) #number of exited rays
+                all_ray_exited = (exit_ray_count == ray_state.num_rays)
+                ray_state.active = ray_state.active & ~ray_state.exited #Exclude the exited rays from the active set
+                # ray_state.active[ray_state.active] = ray_state.active[ray_state.active] & ~ray_state.exited[ray_state.active] #Exclude the exited rays from the active set
+
+            if self.step_counter%self.num_step_per_exit_check == 0:
+                self.logger.debug(f'completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                
+            self.step_counter += 1
+
+        
+        if not all_ray_exited:
+            self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
+
+        return desposition_grid, ray_state, ray_tracker
+
+    @torch.inference_mode()
+    def integrateEnergyUntilExit(self, ray_state, step_size, real_space_distribution, callback = None, tracker_on = False, track_every = 5):
+        #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
+        if tracker_on:
+            ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+        else:
+            ray_tracker = None
+
+        #Initialize stepping (only applies to certain methods, e.g. leapfrog)
+        ray_state = self.step_init(ray_state, step_size)
+        ray_state.active = ~ray_state.exited #only non exited rays are considered
+
+        #Initialize varaibles
+        self.step_counter = 0  #remember how many step taken after solving
+        start_time = time.perf_counter()
+        exit_ray_count = torch.sum(ray_state.exited, dim = 0)
+        all_ray_exited = (exit_ray_count == ray_state.num_rays)
+        ray_state.integral = torch.zeros_like(ray_state.integral) #Reset the integral values before integrating+++++++++++++++++++++
+        real_space_distribution = torch.as_tensor(np.atleast_3d(real_space_distribution), device = self.device) #+++++++++++++++++++++
+
+
+        while (self.step_counter < self.max_num_step) and not all_ray_exited:
+            
+            ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
+
+            # if self.surface_intersection_check: #Placeholder: Exception handling for discrete surfaces (This feature is to be implemented)
+            #     self.discreteSurfaceIntersectionCheck(ray_state)
+            ray_state = self.integrate(ray_state, step_size, real_space_distribution) #++++++++++++++++++++++++++++++++
+
+            if tracker_on:
+                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
+
+            if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
+                ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
+                exit_ray_count = torch.sum(ray_state.exited, dim = 0) #number of exited rays
+                all_ray_exited = (exit_ray_count == ray_state.num_rays)
+                ray_state.active = ray_state.active & ~ray_state.exited #Exclude the exited rays from the active set
+                # ray_state.active[ray_state.active] = ray_state.active[ray_state.active] & ~ray_state.exited[ray_state.active] #Exclude the exited rays from the active set
+
+            if self.step_counter%self.num_step_per_exit_check == 0:
+                self.logger.debug(f'completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                
+            self.step_counter += 1
+
+
+        if not all_ray_exited:
+            self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
+
+        return ray_state, ray_tracker
+
     #=======================Eikonal equation parametrizations======================
     #Canonical parameter, as sigma in "Adjoint Nonlinear Ray Tracing, Teh, et al. 2022"
     @torch.inference_mode()
@@ -313,16 +413,147 @@ class RayTraceSolver():
 
     #=======================Ray-voxel interactions======================
     @torch.inference_mode()
-    def deposit(self): #deposit projected values along the ray
-        #Check python line integral, ray-box intersection
-        
-        pass
+    def deposit(self, ray_state, step_size, desposition_grid): #deposit projected values along the ray
+        #Preprocess inputs for deposition, which is computed in a normalized and recentered unit of length, in terms of array indices
+        step_size_idx_unit = step_size/self.index_model.voxel_size[0] #step size in index units, used to determine deposition weights of each ray segement
+        x_arr_idx = self.expressPositionInArrayIndices(ray_state.x_ip1[ray_state.active,:]) #Express position x in grid indices. This only contains the active set.
+        voxel_idx_x = self.getAdjacentVoxelIndicesAtLocation(x_arr_idx) #This also only contains the active set.
+
+
+        adj_voxel_count = 4 if (self.index_model.zv.numel() == 1) else 8 #for a 2D problem 4 adjacent voxels, for 3D problem 8 adjacent voxels.
+
+        for adjacent_voxel_number in range(adj_voxel_count):
+            #For performance, the accumulation happens in the innermost layer, only to relevant elements.
+            desposition_grid = self.depositEnergyOnAdjacentVoxel(ray_state.ray_energy[ray_state.active], step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number, desposition_grid)
+
+        return desposition_grid
 
     @torch.inference_mode()
-    def integrate(self): #integrate real space quantities along the ray
-        #Check python line integral, ray-box intersection
+    def integrate(self,ray_state, step_size, real_space_distribution): #integrate real space quantities along the ray
+        #Preprocess inputs for deposition, which is computed in a normalized and recentered unit of length, in terms of array indices
+        step_size_idx_unit = step_size/self.index_model.voxel_size[0] #step size in index units, used to determine deposition weights of each ray segement
+        x_arr_idx = self.expressPositionInArrayIndices(ray_state.x_ip1[ray_state.active,:]) #Express position x in grid indices. This only contains the active set.
+        voxel_idx_x = self.getAdjacentVoxelIndicesAtLocation(x_arr_idx) #This also only contains the active set.
+
+
+        adj_voxel_count = 4 if (self.index_model.zv.numel() == 1) else 8 #for a 2D problem 4 adjacent voxels, for 3D problem 8 adjacent voxels.
+
+        for adjacent_voxel_number in range(adj_voxel_count):
+            #For performance, the accumulation happens in the innermost layer, only to relevant elements.
+            ray_state.integral[ray_state.active] = self.integrateEnergyFromAdjacentVoxel(ray_state.ray_energy[ray_state.active], step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number, real_space_distribution, ray_state.integral[ray_state.active])
+
+        return ray_state
+
+    @torch.inference_mode()
+    def expressPositionInArrayIndices(self, x):
+        '''
+        Express position x in grid indices
+        '''
+        return (x-(-self.index_model.grid_span/2))*(1/self.index_model.voxel_size) #Normalize position with voxel size so that the position is indicative of the tensor index
+
+    @torch.inference_mode()
+    def getAdjacentVoxelIndicesAtLocation(self, x_arr_idx : torch.Tensor):
+        '''
+        Get adjacent voxel indices. Output indices are presented by binary permutation of lower and upper indices in every dimension
+        Note: Not all rays are required. Able to only process the activate ray segments.
+        '''
+        x_lower_voxel_idx = torch.floor(x_arr_idx).to(torch.long) #tensor index must be of type long
+        x_upper_voxel_idx = torch.ceil(x_arr_idx).to(torch.long) #tensor index must be of type long
+
+        #The dimensions of voxel_idx_x array is [num_active_rays, dim (length of 3), lower_or_upper (length of 2)]
+        voxel_idx_x = torch.cat((x_lower_voxel_idx[:,:,None], x_upper_voxel_idx[:,:,None]), dim = 2) #last dimension store lower idx first then upper idx
+
+        return voxel_idx_x
+
+    @torch.inference_mode()
+    def depositEnergyOnAdjacentVoxel(self, ray_energy, step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number : int, desposition_grid):
+        '''
+        In 3D problems, this function handles the dose deposition of one particular voxel (lower/upper corner) out of 8 voxels adjacent to positions at x.
+        (In 2D problems, this function handles one out of 4 adjacent voxels.)
         
-        pass
+        The adjacent_voxel_number is integer from 0-7 for 3D problem and 0-3 for 2D problem
+        
+        This function works for any number of rays, as long as the shape[0] of all ray-numbered inputs are consistent.
+        Internally, it only process rays that have a valid adjacent voxel position.
+        '''
+        
+        #Check if the number of active rays matches
+        assert x_arr_idx.shape[0] == ray_energy.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and ray_energy ({ray_energy.shape[0]}) must match.'
+        assert x_arr_idx.shape[0] == voxel_idx_x.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and voxel_idx_x ({voxel_idx_x.shape[0]}) must match.'
+
+        #These 3 binary indices index the last dimension of voxel_idx_x which contains the floor and ceiling voxel (idx) adjacent to position x
+        above_x = int(adjacent_voxel_number % 2) #first bit
+        above_y = int((adjacent_voxel_number//2) % 2) #second bit
+        above_z = int((adjacent_voxel_number//4) % 2) #third bit. For 2D case, this bit is constantly 0
+
+        voxel_idx_select = torch.cat((voxel_idx_x[:,0, above_x][:,None], voxel_idx_x[:,1, above_y][:,None], voxel_idx_x[:,2, above_z][:,None]), dim = 1)
+
+        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, igore it
+        valid_idx = (voxel_idx_select[:,0] >= 0) & (voxel_idx_select[:,0] < self.index_model.xv.numel()) #Check x index
+        valid_idx = valid_idx & (voxel_idx_select[:,1] >= 0) & (voxel_idx_select[:,1] < self.index_model.yv.numel()) #Check y index
+        valid_idx = valid_idx & (voxel_idx_select[:,2] >= 0) & (voxel_idx_select[:,2] < self.index_model.zv.numel()) #Check z index
+        
+        if torch.any(valid_idx): #if valid_idx has at least one non-zero element
+            #Interpolation coefficient is computed as Trilinear interpolation = Lagrange interpolation of order 1 = Linear shape function
+            interp_coef = torch.prod(1 - torch.abs(x_arr_idx[valid_idx,:] - voxel_idx_select[valid_idx,:]), dim= 1) 
+            
+            #Deposition values are comprise of step size (in voxel unit) * interp_coef * ray_energy
+            energy_interaction_at_valid_idx = step_size_idx_unit*interp_coef*ray_energy[valid_idx]
+
+            #Now we have deposition index and deposition values. Let's add to our deposition_grid
+            #Deposition has to be done on a per ray basis because multiple rays might access the same voxel and there is a racing conditions.
+            #Therefore we cannot just write desposition_grid[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] += despoition_values[valid_idx]
+            
+            if (permit_racing:=True):
+                desposition_grid[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] += energy_interaction_at_valid_idx
+            else:    
+                loop_idx = valid_idx.nonzero()[:,0]
+
+                for ray in loop_idx: #nonzero returns a 2D array by default
+                    # desposition_grid[tuple(valid_idx[ray,:])] += despoition_values[ray]
+                    desposition_grid[voxel_idx_select[ray,0], voxel_idx_select[ray,1], voxel_idx_select[ray,2]] += energy_interaction_at_valid_idx[ray]
+        return desposition_grid
+
+    @torch.inference_mode()
+    def integrateEnergyFromAdjacentVoxel(self, ray_energy, step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number : int, real_space_distribution, ray_integral):
+        '''
+        In 3D problems, this function handles the dose deposition of one particular voxel (lower/upper corner) out of 8 voxels adjacent to positions at x.
+        (In 2D problems, this function handles one out of 4 adjacent voxels.)
+        
+        The adjacent_voxel_number is integer from 0-7 for 3D problem and 0-3 for 2D problem
+        
+        This function works for any number of rays, as long as the shape[0] of all ray-numbered inputs are consistent.
+        Internally, it only process rays that have a valid adjacent voxel position.
+        '''
+        
+        #Check if the number of active rays matches
+        assert x_arr_idx.shape[0] == ray_energy.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and ray_energy ({ray_energy.shape[0]}) must match.'
+        assert x_arr_idx.shape[0] == voxel_idx_x.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and voxel_idx_x ({voxel_idx_x.shape[0]}) must match.'
+        assert x_arr_idx.shape[0] == ray_integral.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and ray_integral ({ray_integral.shape[0]}) must match.'
+
+        #These 3 binary indices index the last dimension of voxel_idx_x which contains the floor and ceiling voxel (idx) adjacent to position x
+        above_x = int(adjacent_voxel_number % 2) #first bit
+        above_y = int((adjacent_voxel_number//2) % 2) #second bit
+        above_z = int((adjacent_voxel_number//4) % 2) #third bit. For 2D case, this bit is constantly 0
+
+        voxel_idx_select = torch.cat((voxel_idx_x[:,0, above_x][:,None], voxel_idx_x[:,1, above_y][:,None], voxel_idx_x[:,2, above_z][:,None]), dim = 1)
+
+        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, igore it
+        valid_idx = (voxel_idx_select[:,0] >= 0) & (voxel_idx_select[:,0] < self.index_model.xv.numel()) #Check x index
+        valid_idx = valid_idx & (voxel_idx_select[:,1] >= 0) & (voxel_idx_select[:,1] < self.index_model.yv.numel()) #Check y index
+        valid_idx = valid_idx & (voxel_idx_select[:,2] >= 0) & (voxel_idx_select[:,2] < self.index_model.zv.numel()) #Check z index
+        
+        if torch.any(valid_idx): #if valid_idx has at least one non-zero element
+            #Interpolation coefficient is computed as Trilinear interpolation = Lagrange interpolation of order 1 = Linear shape function
+            interp_coef = torch.prod(1 - torch.abs(x_arr_idx[valid_idx,:] - voxel_idx_select[valid_idx,:]), dim= 1) 
+            
+            #Interaction strength are comprise of step size (in voxel unit) * interp_coef * ray_energy
+            energy_interaction_at_valid_idx = step_size_idx_unit*interp_coef*ray_energy[valid_idx]
+
+            #Now we have deposition index and deposition values. Let's collect the energy into ray_integral
+            ray_integral[valid_idx]  += real_space_distribution[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] * energy_interaction_at_valid_idx
+            
+        return ray_integral #Note this only contains the active set. And inside the active set, only those ray segments which has valid voxel correspondence have been updated.
 
     @torch.inference_mode()
     def discreteSurfaceIntersectionCheck(self):
@@ -423,13 +654,6 @@ class RayState():
         
         #Initialize the iterate position and direction
         self.resetRaysIterateToInitial() #Initialize x_i and x_ip1 to be x_0. Same for v.
-
-        #Initialize other properties of the rays
-        self.s = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
-        self.int_factor = torch.ones((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #current intensity relative to the intensity at x_0
-        self.width = torch.ones((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #constant if FOV is in depth of focus. Converging or Diverging if not. Function of s.
-        self.integral = torch.zeros((self.num_rays, 1), device = self.device, dtype = self.tensor_dtype) #accumulating integral along the path
-        self.exited = torch.zeros((self.num_rays, 1), device = self.device, dtype = torch.bool) #boolean value. Tracing of corresponding ray stops when its exited flag is true.
 
     @torch.inference_mode()
     def setupRaysParallel(self, target_coord_vec_list):
@@ -536,6 +760,22 @@ class RayState():
         self.x_ip1 = self.x_0 #torch.zeros_like(self.x_0)
         self.v_i = self.v_0
         self.v_ip1 = self.v_0 #torch.zeros_like(self.v_0)
+        
+        #Initialize other properties of the rays
+        self.s = torch.zeros((self.num_rays), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
+        self.ray_energy = torch.ones((self.num_rays), device = self.device, dtype = self.tensor_dtype) #energy carried by the ray. 
+        self.ray_energy *= (self.ray_density**(-1)) if self.sino_coord[2].size == 1 else self.ray_density**(-2) #With supersampling, there are more rays and each ray carry less energy.
+        self.width = torch.ones((self.num_rays), device = self.device, dtype = self.tensor_dtype) #constant if FOV is in depth of focus. Converging or Diverging if not. Function of s.
+        self.integral = torch.zeros((self.num_rays), device = self.device, dtype = self.tensor_dtype) #accumulating integral along the path
+        self.exited = torch.zeros((self.num_rays), device = self.device, dtype = torch.bool) #boolean value. Tracing of corresponding ray stops when its exited flag is true.
+        self.active = torch.ones((self.num_rays), device = self.device, dtype = torch.bool) #boolean value. Active set. This set is usually a subset of ~self.exited.
+
+
+    def allocateSinogramEnergyToRay(self, sinogram):
+        pass
+
+    def allocateRayEnergyToSinogram(self):
+        return #sinogram
 
 
     @torch.inference_mode()
@@ -589,28 +829,28 @@ class RayState():
 
             self.selected_idx = torch.zeros((self.num_rays, 1), device = self.device, dtype = torch.bool)
 
-        def selectCoord(self, angles, mode = 'and'):
-            #mode: 'and', 'or', 'xor'. This is the relationship BETWEEN the sinogram coordinates.
-            #AND will only select rays that simultaneously satisfy requirements for sino_n0, sino_n1, sino_n2
-            #OR will select rays that satisfy any requirements for sino_n0, sino_n1, sino_n2
-            #So is XOR and NOT
+    def selectCoord(self, angles, mode = 'and'):
+        #mode: 'and', 'or', 'xor'. This is the relationship BETWEEN the sinogram coordinates.
+        #AND will only select rays that simultaneously satisfy requirements for sino_n0, sino_n1, sino_n2
+        #OR will select rays that satisfy any requirements for sino_n0, sino_n1, sino_n2
+        #So is XOR and NOT
 
 
-            
-            return self.selected_idx
+        
+        return self.selected_idx
 
-        def selectInverse(self):
-            #invert current selection
-            pass
+    def selectInverse(self):
+        #invert current selection
+        pass
 
-        def _selectSino0(self, sino0_coord):
-            return #idx
+    def _selectSino0(self, sino0_coord):
+        return #idx
 
-        def _selectSino1(self, sino0_coord):
-            return #idx
+    def _selectSino1(self, sino0_coord):
+        return #idx
 
-        def _selectSino2(self, sino0_coord):
-            return #idx
+    def _selectSino2(self, sino0_coord):
+        return #idx
 
     # class RayTracker(RaySelector):
     #     def __init__(self, ray_state, angles_rad, ) -> None:
