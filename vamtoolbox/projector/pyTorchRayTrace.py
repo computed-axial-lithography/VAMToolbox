@@ -57,6 +57,7 @@ class PyTorchRayTracingPropagator():
         #Convert the input to a torch tensor if it is not
         if ~isinstance(f, torch.Tensor): #attempt to convert input to tensor
             f = torch.as_tensor(f, device = self.device)
+            #if sparse, use ray selector to filter out rays corresponding to zero intensity pixels
 
         #Execution loop
         #Check ray exit condition, update exit flags
@@ -169,27 +170,30 @@ class RayTraceSolver():
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
 
         self.step_counter = 0
-        exit_ray_count = 0
-        all_ray_exited = False
+        start_time = time.perf_counter()
+        exit_ray_count = torch.sum(ray_state.exited, dim = 0)
+        all_ray_exited = (exit_ray_count == ray_state.num_rays)
+
         while (self.step_counter < self.max_num_step) and not all_ray_exited:
             
+            ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
+
+            # if self.surface_intersection_check: #Placeholder: Exception handling for discrete surfaces (This feature is to be implemented)
+            #     self.discreteSurfaceIntersectionCheck(ray_state)
+
+            if tracker_on:
+                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
+
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
                 exit_ray_count = torch.sum(ray_state.exited, dim = 0) #.int()
                 all_ray_exited = (exit_ray_count == ray_state.num_rays)
 
-            ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
-
-            if self.surface_intersection_check:
-                self.discreteSurfaceIntersectionCheck(ray_state)
-
-            if tracker_on:
-                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
-
             if self.step_counter%self.num_step_per_exit_check == 0:
-                self.logger.debug(f'completed {self.step_counter}th-step. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                self.logger.debug(f'completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
                 
             self.step_counter += 1
 
@@ -209,7 +213,7 @@ class RayTraceSolver():
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
-        ray_state.active = ~ray_state.exited #only non exited rays are considered
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
 
         #Initialize varaibles
         self.step_counter = 0  #remember how many step taken after solving
@@ -220,7 +224,6 @@ class RayTraceSolver():
 
         while (self.step_counter < self.max_num_step) and not all_ray_exited:
             
-
             ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
 
             # if self.surface_intersection_check: #Placeholder: Exception handling for discrete surfaces (This feature is to be implemented)
@@ -258,7 +261,7 @@ class RayTraceSolver():
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
-        ray_state.active = ~ray_state.exited #only non exited rays are considered
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
 
         #Initialize varaibles
         self.step_counter = 0  #remember how many step taken after solving
@@ -445,27 +448,6 @@ class RayTraceSolver():
         return ray_state
 
     @torch.inference_mode()
-    def expressPositionInArrayIndices(self, x):
-        '''
-        Express position x in grid indices
-        '''
-        return (x-(-self.index_model.grid_span/2))*(1/self.index_model.voxel_size) #Normalize position with voxel size so that the position is indicative of the tensor index
-
-    @torch.inference_mode()
-    def getAdjacentVoxelIndicesAtLocation(self, x_arr_idx : torch.Tensor):
-        '''
-        Get adjacent voxel indices. Output indices are presented by binary permutation of lower and upper indices in every dimension
-        Note: Not all rays are required. Able to only process the activate ray segments.
-        '''
-        x_lower_voxel_idx = torch.floor(x_arr_idx).to(torch.long) #tensor index must be of type long
-        x_upper_voxel_idx = torch.ceil(x_arr_idx).to(torch.long) #tensor index must be of type long
-
-        #The dimensions of voxel_idx_x array is [num_active_rays, dim (length of 3), lower_or_upper (length of 2)]
-        voxel_idx_x = torch.cat((x_lower_voxel_idx[:,:,None], x_upper_voxel_idx[:,:,None]), dim = 2) #last dimension store lower idx first then upper idx
-
-        return voxel_idx_x
-
-    @torch.inference_mode()
     def depositEnergyOnAdjacentVoxel(self, ray_energy, step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number : int, desposition_grid):
         '''
         In 3D problems, this function handles the dose deposition of one particular voxel (lower/upper corner) out of 8 voxels adjacent to positions at x.
@@ -501,16 +483,32 @@ class RayTraceSolver():
             energy_interaction_at_valid_idx = step_size_idx_unit*interp_coef*ray_energy[valid_idx]
 
             #Now we have deposition index and deposition values. Let's add to our deposition_grid
-            #Deposition has to be done on a per ray basis because multiple rays might access the same voxel and there is a racing conditions.
-            #Therefore we cannot just write desposition_grid[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] += despoition_values[valid_idx]
-            
-            if (permit_racing:=True):
-                desposition_grid[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] += energy_interaction_at_valid_idx
-            else:    
-                loop_idx = valid_idx.nonzero()[:,0]
+            #Deposition is more complicated than integration because multiple rays might deposite energy into the same element, causing racing condition in assignment.
+            #Therefore we cannot simply assign/add to the deposition_grid via advance indexing (option 1 below).
+            #Option 3 is the fastest and correct method. The experimented methods are displayed here for reference.
 
+            if (direct_assignment := False):
+                #(1) Direct assignement
+                #This is the operation that would results in racing condition in the assignment process due to duplicates of insertion indices.
+                #Although this advance indexing does not raise exceptions, the numerical results are WRONG.
+                #This is because the multi-accessed voxels will only take values from one particular ray segment instead of from all segments that contribution to them.
+                desposition_grid[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] += energy_interaction_at_valid_idx
+            elif(as_linear_operator := False):    
+                #(2) Duplicate-summation done by sparse tensor multiplication. (Each step takes ~10 times long as (1))
+                #In this method, the assignment operation is written as a sparse linear operator.
+                #Summation is done naturally through the matrix vector multiplication process.
+                desposition_grid += self.linearCombinationRayEnergyToGrid(desposition_grid.shape, voxel_idx_select[valid_idx,:], energy_interaction_at_valid_idx)
+            elif(as_uncoalesced_sparse_tensor := True):
+                #(3) Duplicate-summation done by coalescence of sparse tensor. (Each step takes similar time as (1))
+                #In this method, the deposition grid itself is represented by a uncoalesced sparse tensor.
+                #Uncoalesced sparse tensor permits multiple elements to coexist with the same index
+                #Summation is done implicitly in the pyTorch implementation of uncoalesced sparse COO tensor.
+                desposition_grid += self.coalesceRayEnergyToGrid(desposition_grid.shape, voxel_idx_select[valid_idx,:], energy_interaction_at_valid_idx)
+            else:
+                #(4) Sequential python for loop to assign value one by one. (Each step takes 300x time as (1))
+                #Because the loop operate at the interpreter level, this is the slowest and makes common problem size infeasible to solve.
+                loop_idx = valid_idx.nonzero()[:,0]
                 for ray in loop_idx: #nonzero returns a 2D array by default
-                    # desposition_grid[tuple(valid_idx[ray,:])] += despoition_values[ray]
                     desposition_grid[voxel_idx_select[ray,0], voxel_idx_select[ray,1], voxel_idx_select[ray,2]] += energy_interaction_at_valid_idx[ray]
         return desposition_grid
 
@@ -554,6 +552,53 @@ class RayTraceSolver():
             ray_integral[valid_idx]  += real_space_distribution[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] * energy_interaction_at_valid_idx
             
         return ray_integral #Note this only contains the active set. And inside the active set, only those ray segments which has valid voxel correspondence have been updated.
+
+    @torch.inference_mode()
+    def expressPositionInArrayIndices(self, x):
+        '''
+        Express position x in grid indices
+        '''
+        return (x-(-self.index_model.grid_span/2))*(1/self.index_model.voxel_size) #Normalize position with voxel size so that the position is indicative of the tensor index
+
+    @torch.inference_mode()
+    def getAdjacentVoxelIndicesAtLocation(self, x_arr_idx : torch.Tensor):
+        '''
+        Get adjacent voxel indices. Output indices are presented by binary permutation of lower and upper indices in every dimension
+        Note: Not all rays are required. Able to only process the activate ray segments.
+        '''
+        x_lower_voxel_idx = torch.floor(x_arr_idx).to(torch.long) #tensor index must be of type long
+        x_upper_voxel_idx = torch.ceil(x_arr_idx).to(torch.long) #tensor index must be of type long
+
+        #The dimensions of voxel_idx_x array is [num_active_rays, dim (length of 3), lower_or_upper (length of 2)]
+        voxel_idx_x = torch.cat((x_lower_voxel_idx[:,:,None], x_upper_voxel_idx[:,:,None]), dim = 2) #last dimension store lower idx first then upper idx
+
+        return voxel_idx_x
+
+    @torch.inference_mode()
+    def linearCombinationRayEnergyToGrid(self, desposition_grid_shape, voxel_idx_select_at_valid_idx, energy_interaction_at_valid_idx):
+        '''
+        This function builds a sparse tensor for depositing ray energy onto the grid.
+        The tensor adds up the contribution of multiple rays towards the same elements.
+        This avoid the racing condition of grid elements in direct insertion.
+        The first dimension matches the numel() of the deposition grid and the second dimension matches the number of rays that have a valid adjacent voxel index.
+        '''
+        num_row = torch.prod(torch.tensor(desposition_grid_shape))
+        num_col = energy_interaction_at_valid_idx.numel()
+        row_index_sparse = voxel_idx_select_at_valid_idx[:,0]*(desposition_grid_shape[1]*desposition_grid_shape[2]) + voxel_idx_select_at_valid_idx[:,1]*(desposition_grid_shape[2]) + voxel_idx_select_at_valid_idx[:,2]
+        col_index_sparse = torch.arange(energy_interaction_at_valid_idx.numel(), device = self.device)
+        #index.shape[0] should equal the number of dimension of the sparse tensor.
+        #index.shape[1] should equal the number of elements to be inserted into the COO sparse tensor
+        index_sparse = torch.cat((row_index_sparse[None,:], col_index_sparse[None, :]), dim = 0) 
+        insertion_tensor = torch.sparse_coo_tensor(indices = index_sparse, values = torch.ones_like(energy_interaction_at_valid_idx), size = (num_row, num_col))
+        insertion_tensor = insertion_tensor.to_sparse_csr()
+        # return (insertion_tensor@energy_interaction_at_valid_idx).reshape(desposition_grid_shape)
+        return torch.mv(insertion_tensor,energy_interaction_at_valid_idx).reshape(desposition_grid_shape) #torch.mv marginally faster than @
+    
+    @torch.inference_mode()
+    def coalesceRayEnergyToGrid(self, desposition_grid_shape, voxel_idx_select_at_valid_idx, energy_interaction_at_valid_idx):
+        delta_desposition_grid = torch.sparse_coo_tensor(indices = voxel_idx_select_at_valid_idx.T, values = energy_interaction_at_valid_idx, size = desposition_grid_shape)
+        return delta_desposition_grid
+    #==============================================
 
     @torch.inference_mode()
     def discreteSurfaceIntersectionCheck(self):
