@@ -165,6 +165,8 @@ class RayTraceSolver():
         #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
         if tracker_on:
             ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+            tracker_ind = torch.zeros_like(ray_state.active)
+            tracker_ind[::track_every] = True
         else:
             ray_tracker = None
 
@@ -185,7 +187,9 @@ class RayTraceSolver():
             #     self.discreteSurfaceIntersectionCheck(ray_state)
 
             if tracker_on:
-                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
+                tracker_active = ray_state.active[::track_every] #tracker_active.numel = ray_tracker.shape[0]
+                active_and_tracked = ray_state.active & tracker_ind #active_and_tracked.numel = x_i.shape[0]
+                ray_tracker[tracker_active,:,self.step_counter] = ray_state.x_i[active_and_tracked, :]
 
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
@@ -208,6 +212,8 @@ class RayTraceSolver():
         #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
         if tracker_on:
             ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+            tracker_ind = torch.zeros_like(ray_state.active)
+            tracker_ind[::track_every] = True
         else:
             ray_tracker = None
 
@@ -231,7 +237,9 @@ class RayTraceSolver():
             desposition_grid = self.deposit(ray_state, step_size, desposition_grid)
 
             if tracker_on:
-                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
+                tracker_active = ray_state.active[::track_every] #tracker_active.numel = ray_tracker.shape[0]
+                active_and_tracked = ray_state.active & tracker_ind #active_and_tracked.numel = x_i.shape[0]
+                ray_tracker[tracker_active,:,self.step_counter] = ray_state.x_i[active_and_tracked, :]
 
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
@@ -256,6 +264,8 @@ class RayTraceSolver():
         #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
         if tracker_on:
             ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+            tracker_ind = torch.zeros_like(ray_state.active)
+            tracker_ind[::track_every] = True
         else:
             ray_tracker = None
 
@@ -281,7 +291,9 @@ class RayTraceSolver():
             ray_state = self.integrate(ray_state, step_size, real_space_distribution) #++++++++++++++++++++++++++++++++
 
             if tracker_on:
-                ray_tracker[:,:,self.step_counter] = ray_state.x_i[::track_every, :]
+                tracker_active = ray_state.active[::track_every] #tracker_active.numel = ray_tracker.shape[0]
+                active_and_tracked = ray_state.active & tracker_ind #active_and_tracked.numel = x_i.shape[0]
+                ray_tracker[tracker_active,:,self.step_counter] = ray_state.x_i[active_and_tracked, :]
 
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
@@ -350,64 +362,39 @@ class RayTraceSolver():
     @torch.inference_mode()
     def _forwardSymplecticEuler(self, ray_state, step_size): #step forward the RayState
         #push np1 to be n
-        ray_state.x_i = ray_state.x_ip1
-        ray_state.v_i = ray_state.v_ip1
+        ray_state.x_i[ray_state.active] = ray_state.x_ip1[ray_state.active]
+        ray_state.v_i[ray_state.active] = ray_state.v_ip1[ray_state.active]
 
         #Compute new np1 based on n (the old np1)
         #Compute v_ip1 using x_i
-        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i, ray_state.v_i)*step_size
+        ray_state.v_ip1[ray_state.active] = ray_state.v_i[ray_state.active] + self.dv_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.v_i.dtype)*step_size
 
         #Then compute x_ip1 using v_ip1
-        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.x_i, ray_state.v_ip1)*step_size
+        ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_ip1[ray_state.active]).to(ray_state.x_i.dtype)*step_size
 
         return ray_state
 
     @torch.inference_mode()
     def _forwardEuler(self, ray_state, step_size): #step forward the RayState
         #push np1 to be n
-        ray_state.x_i = ray_state.x_ip1
-        ray_state.v_i = ray_state.v_ip1
+        ray_state.x_i[ray_state.active] = ray_state.x_ip1[ray_state.active]
+        ray_state.v_i[ray_state.active] = ray_state.v_ip1[ray_state.active]
 
         #Compute new np1 based on n (the old np1)
         #Compute v_ip1 using x_i
-        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i, ray_state.v_i)*step_size
+        ray_state.v_ip1[ray_state.active] = ray_state.v_i[ray_state.active] + self.dv_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.v_i.dtype)*step_size
 
         #Then compute x_ip1 using v_i
-        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.x_i, ray_state.v_i)*step_size
+        ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.x_i.dtype)*step_size
 
         return ray_state
     
-    '''
-    @torch.inference_mode()
-    def _velocityVerlet(self, ray_state, step_size):  #Same as leapfrog
-        
-        #(Deprecated)
-        #As written below, this form takes one more dv_dstep calculation than symplectic euler.
-        #However, it doesn't have to be the case if there is a half step shift in v prior to the regular stepping.
-        #That would result a verlet method (essentially a leapfrog) with same computational cost as symplectic euler, but with higher order accuracy.
-
-        #push np1 to be n
-        ray_state.x_i = ray_state.x_ip1
-        ray_state.v_i = ray_state.v_ip1
-
-        #Compute new np1 based on n (the old np1)
-        #Compute v_ip1 using x_i (half step forward)
-        ray_state.v_ip1 = ray_state.v_i + self.dv_dstep(ray_state.x_i)*step_size/2
-
-        #Then compute x_ip1 using v_ip1 (full step forward)
-        ray_state.x_ip1 = ray_state.x_i + self.dx_dstep(ray_state.v_ip1)*step_size
-
-        ray_state.v_ip1 += self.dv_dstep(ray_state.x_ip1)*step_size/2 #Another half step for v, using updated x
-        return ray_state
-       
-        return self._forwardSymplecticEuler(ray_state, step_size)
-    '''
 
     @torch.inference_mode()
     def _leapfrog_init(self, ray_state, step_size):
         #Step backward ray_state.v_ip1 by half-step. After entering _forwardSymplecticEuler, v_ip1 will be half-step forward relative to x, when x is updated with v.
         #Initially x_0 = x_i = x_ip1, and v_0 = v_i = v_ip1, so it doesn't matter which input we use.
-        ray_state.v_ip1 = ray_state.v_ip1 - self.dv_dstep(ray_state.x_ip1, ray_state.v_ip1)*step_size/2.0
+        ray_state.v_ip1[ray_state.active] = ray_state.v_ip1[ray_state.active] - self.dv_dstep(ray_state.x_ip1[ray_state.active], ray_state.v_ip1[ray_state.active])*step_size/2.0
         return ray_state
 
     @torch.inference_mode()
@@ -647,12 +634,12 @@ class RayState():
     _dtype_to_tensor_type = {torch.float16 : torch.HalfTensor, torch.float32: torch.FloatTensor, torch.float64: torch.DoubleTensor} #Class attribute: mapping dtype to tensor type.
     
     @torch.inference_mode()
-    def __init__(self, device, tensor_dtype = torch.float16, x_0 : torch.Tensor = None, v_0: torch.Tensor = None, sino_shape : tuple = None, sino_coord : list = None) -> None:
+    def __init__(self, device, tensor_dtype = torch.float32, x_0 : torch.Tensor = None, v_0: torch.Tensor = None, sino_shape : tuple = None, sino_coord : list = None) -> None:
         self.device = device
         if tensor_dtype is not None:
             self.tensor_dtype = tensor_dtype
         else:
-            self.tensor_dtype = torch.float16
+            self.tensor_dtype = torch.float32
         torch.set_default_tensor_type(self._dtype_to_tensor_type[self.tensor_dtype]) #A conversion between dtype and tensor type is needed since they are different objects and 'set_default_tensor_type' only accepts the latter.
 
         #Option to directly prescribe contents when ray positions and directions are generated externally (not using the provided methods)
