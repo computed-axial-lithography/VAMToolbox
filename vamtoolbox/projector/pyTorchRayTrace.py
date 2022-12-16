@@ -201,6 +201,7 @@ class RayTraceSolver():
                 
             self.step_counter += 1
 
+        self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
         
         if not all_ray_exited:
             self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
@@ -253,6 +254,7 @@ class RayTraceSolver():
                 
             self.step_counter += 1
 
+        self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
         
         if not all_ray_exited:
             self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
@@ -307,7 +309,8 @@ class RayTraceSolver():
                 
             self.step_counter += 1
 
-
+        self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
+        
         if not all_ray_exited:
             self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
 
@@ -370,8 +373,10 @@ class RayTraceSolver():
         ray_state.v_ip1[ray_state.active] = ray_state.v_i[ray_state.active] + self.dv_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.v_i.dtype)*step_size
 
         #Then compute x_ip1 using v_ip1
-        ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_ip1[ray_state.active]).to(ray_state.x_i.dtype)*step_size
+        dx_active = self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_ip1[ray_state.active]).to(ray_state.x_i.dtype)*step_size
+        ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + dx_active
 
+        ray_state.s[ray_state.active] += torch.linalg.norm(dx_active, dim = 1) #update total physical distance travelled
         return ray_state
 
     @torch.inference_mode()
@@ -385,8 +390,10 @@ class RayTraceSolver():
         ray_state.v_ip1[ray_state.active] = ray_state.v_i[ray_state.active] + self.dv_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.v_i.dtype)*step_size
 
         #Then compute x_ip1 using v_i
-        ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.x_i.dtype)*step_size
+        dx_active = self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.x_i.dtype)*step_size
+        ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + dx_active
 
+        ray_state.s[ray_state.active] += torch.linalg.norm(dx_active, dim = 1) #update total physical distance travelled
         return ray_state
     
 
@@ -571,6 +578,7 @@ class RayTraceSolver():
         '''
         num_row = torch.prod(torch.tensor(desposition_grid_shape))
         num_col = energy_interaction_at_valid_idx.numel()
+        #The following statement express the raveled multi-index into single index, following 'C' order where the last element varies the fastest.
         row_index_sparse = voxel_idx_select_at_valid_idx[:,0]*(desposition_grid_shape[1]*desposition_grid_shape[2]) + voxel_idx_select_at_valid_idx[:,1]*(desposition_grid_shape[2]) + voxel_idx_select_at_valid_idx[:,2]
         col_index_sparse = torch.arange(energy_interaction_at_valid_idx.numel(), device = self.device)
         #index.shape[0] should equal the number of dimension of the sparse tensor.
@@ -694,7 +702,12 @@ class RayState():
         real_nY = target_coord_vec_list[1].size 
         real_nZ = target_coord_vec_list[2].size
         
-        self.sino_shape = (round(max(real_nX,real_nY) * self.ray_density), self.azimuthal_angles_rad.size, max(round(real_nZ * self.ray_density),1)) #At least compute 1 z layer
+        self.sino_shape_rd1 = (max(real_nX,real_nY), self.azimuthal_angles_rad.size, real_nZ) #This is the desired shape when ray density = 1. Saved for binning purpose.
+        
+        if real_nZ == 1: #2D case
+            self.sino_shape = (round(max(real_nX,real_nY) * self.ray_density), self.azimuthal_angles_rad.size, real_nZ) #no need to supersample or undersample in z
+        else: #3D case
+            self.sino_shape = (round(max(real_nX,real_nY) * self.ray_density), self.azimuthal_angles_rad.size, max(round(real_nZ * self.ray_density),1)) #At least compute 1 z layer
         self.num_rays = self.sino_shape[0]*self.sino_shape[1]*self.sino_shape[2]
 
         #The following assumes the patterning volume is inscribed inside the simulation cube
@@ -807,8 +820,11 @@ class RayState():
         pass
 
     def allocateRayEnergyToSinogram(self):
+        #Binning process
         return #sinogram
 
+    def reshape(self, ray_quantity):
+        return ray_quantity.reshape(self.sino_shape)
 
     @torch.inference_mode()
     def plot_ray_init_position(self, angles_deg, color = 'black'):

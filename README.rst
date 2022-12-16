@@ -12,7 +12,7 @@
    :target: https://zenodo.org/badge/latestdoi/500715593
 
 +----------------------+-----------+
-| Deployment           | |conda|   | 
+| Deployment           | |conda|   |
 +----------------------+-----------+
 | Documentation        | |rtd|     |
 +----------------------+-----------+
@@ -44,3 +44,8 @@ Resources
 ---------
 
 View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.
+
+
+License
+------------
+This repository is under GNU General Public License v3. Please see LICENSE.txt for details.

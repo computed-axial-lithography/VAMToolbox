@@ -224,18 +224,18 @@ class IndexModel:
         #The boundary elements of gradient are set to zero because the scalar field is assumed constant outside the domain.
         
         dn_dx = torch.zeros_like(interp_n_x_sample)
-        dn_dx[1:-2,:,:] = torch.narrow(interp_n_x_sample, 0, 2, interp_n_x_sample.shape[0]-2) - torch.narrow(interp_n_x_sample, 0, 0, interp_n_x_sample.shape[0]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+        dn_dx[1:-1,:,:] = torch.narrow(interp_n_x_sample, 0, 2, interp_n_x_sample.shape[0]-2) - torch.narrow(interp_n_x_sample, 0, 0, interp_n_x_sample.shape[0]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
         dn_dx = dn_dx/(2*voxel_size[0]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
 
         dn_dy = torch.zeros_like(interp_n_x_sample)
-        dn_dy[:,1:-2,:] = torch.narrow(interp_n_x_sample, 1, 2, interp_n_x_sample.shape[1]-2) - torch.narrow(interp_n_x_sample, 1, 0, interp_n_x_sample.shape[1]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+        dn_dy[:,1:-1,:] = torch.narrow(interp_n_x_sample, 1, 2, interp_n_x_sample.shape[1]-2) - torch.narrow(interp_n_x_sample, 1, 0, interp_n_x_sample.shape[1]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
         dn_dy = dn_dy/(2*voxel_size[1]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
 
         dn_dz = torch.zeros_like(interp_n_x_sample)
         if (interp_n_x_sample.shape[2] == 1) or torch.isnan(voxel_size[2]): #2D problem.
             pass 
         else: #3D problem
-            dn_dz[:,:,1:-2] = torch.narrow(interp_n_x_sample, 2, 2, interp_n_x_sample.shape[2]-2) - torch.narrow(interp_n_x_sample, 2, 0, interp_n_x_sample.shape[2]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+            dn_dz[:,:,1:-1] = torch.narrow(interp_n_x_sample, 2, 2, interp_n_x_sample.shape[2]-2) - torch.narrow(interp_n_x_sample, 2, 0, interp_n_x_sample.shape[2]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
             dn_dz = dn_dz/(2*voxel_size[2]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
 
         return torch.cat((dn_dx[:,:,:,None], dn_dy[:,:,:,None], dn_dz[:,:,:,None]), dim = 3) #add new axis at the end and concatenate along that new axis
