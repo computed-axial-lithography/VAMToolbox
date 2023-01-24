@@ -221,7 +221,7 @@ class Volume:
     def constructCoordGrid(self, spatial_sampling_rate = None, device = None):
         '''
         Get coordinate grid centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
-        Unit of spatial_samplign_rate is voxel/mm
+        Unit of spatial_samplign_rate is voxel/cm
         '''
         if self.vol_type == 'sino':
             print('Coordinate system of sinogram is defined by propagator, using both target_geo and proj_geo.')
@@ -232,7 +232,7 @@ class Volume:
             self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
         
         if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
-            self.spatial_sampling_rate = 50 #the assumed 50 voxel/mm correspond to 20 micron per voxel
+            self.spatial_sampling_rate = 500 #the assumed 500 voxel/cm correspond to 20 micron per voxel
         ###===============
         
         #get the coordinate vectors as numpy arrays
@@ -270,7 +270,7 @@ class Volume:
     def constructCoordVec(self, spatial_sampling_rate = None, device = None):
         '''
         Get coordinate vectors centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
-        Unit of spatial_samplign_rate is voxel/mm
+        Unit of spatial_samplign_rate is voxel/cm
         '''
         if self.vol_type == 'sino':
             print('Coordinate system of sinogram is defined by propagator, using both target_geo and proj_geo.')
@@ -281,7 +281,7 @@ class Volume:
             self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
         
         if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
-            self.spatial_sampling_rate = 50 #the assumed 50 voxel/mm correspond to 20 micron per voxel
+            self.spatial_sampling_rate = 500 #the assumed 500 voxel/cm correspond to 20 micron per voxel
         ###===============
         ''' Old implementation. The length of the output list varies.
         #Construct vectors
