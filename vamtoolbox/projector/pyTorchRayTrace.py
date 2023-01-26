@@ -11,15 +11,16 @@ class PyTorchRayTracingPropagator():
     Here naming convention Pf = g is used to avoid collision with x which commonly denote position of ray in ray tracing literature.
 
     Since storing all curved ray path is prohibitively memory-intensive, this tracing operation is designed to have as low memory requirement as possible.
-    Supposing a GPU option but fallback to CPU computation if GPU is not found.
+    Compute on GPU by default but fallback to CPU computation if GPU is not found.
     Currently occulsion is not supported yet.
 
     Internally, 2D and 3D problem is handled identically. Conditional handling only happens in I/O.
     #Implement ray_setup, coordinate systems
     """
     
-    # pyTorch is used in inference mode with @torch.inference_mode().
+    # pyTorch is used in inference mode with @torch.inference_mode() decorator.
     # Alternatively, @torch.no_grad() and torch.autograd.set_grad_enabled(False) can be used.
+    # Currently @torch.inference_mode() decorator is applied to most functions but it is only strictly required on the outermost functions.
 
     @torch.inference_mode()
     def __init__(self, target_geo, proj_geo, output_torch_tensor = False) -> None:
@@ -172,14 +173,15 @@ class RayTraceSolver():
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
-        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
 
         self.step_counter = 0
         start_time = time.perf_counter()
-        exit_ray_count = torch.sum(ray_state.exited, dim = 0)
-        all_ray_exited = (exit_ray_count == ray_state.num_rays)
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
+        initial_active_ray_count =  torch.sum(ray_state.active, dim = 0) #initially active
+        active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+        active_ray_exist = (active_ray_count > 0)
 
-        while (self.step_counter < self.max_num_step) and not all_ray_exited:
+        while (self.step_counter < self.max_num_step) and active_ray_exist:
             
             ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
 
@@ -193,18 +195,17 @@ class RayTraceSolver():
 
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
-                exit_ray_count = torch.sum(ray_state.exited, dim = 0) #.int()
-                all_ray_exited = (exit_ray_count == ray_state.num_rays)
-
-            if self.step_counter%self.num_step_per_exit_check == 0:
-                self.logger.debug(f'completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                ray_state.active = ray_state.active & ~ray_state.exited #deactivate exited rays
+                active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+                active_ray_exist = (active_ray_count > 0)
+                self.logger.debug(f'Completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray active/init active/all: {active_ray_count}/{initial_active_ray_count}/{ray_state.num_rays}')
                 
             self.step_counter += 1
 
         self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
         
-        if not all_ray_exited:
-            self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
+        if active_ray_exist:
+            self.logger.error(f'Some rays are still active when max_num_step ({self.max_num_step}) is reached. Rays active: {active_ray_count}/{initial_active_ray_count}.')
 
         return ray_state, ray_tracker
 
@@ -220,16 +221,17 @@ class RayTraceSolver():
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
-        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
 
         #Initialize varaibles
         self.step_counter = 0  #remember how many step taken after solving
         start_time = time.perf_counter()
-        exit_ray_count = torch.sum(ray_state.exited, dim = 0)
-        all_ray_exited = (exit_ray_count == ray_state.num_rays)
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
+        initial_active_ray_count =  torch.sum(ray_state.active, dim = 0) #initially active
+        active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+        active_ray_exist = (active_ray_count > 0)
         desposition_grid = torch.zeros_like(self.index_model.xg) #This grid is where the energy accumulates
 
-        while (self.step_counter < self.max_num_step) and not all_ray_exited:
+        while (self.step_counter < self.max_num_step) and active_ray_exist:
             
             ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
 
@@ -244,20 +246,17 @@ class RayTraceSolver():
 
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
-                exit_ray_count = torch.sum(ray_state.exited, dim = 0) #number of exited rays
-                all_ray_exited = (exit_ray_count == ray_state.num_rays)
-                ray_state.active = ray_state.active & ~ray_state.exited #Exclude the exited rays from the active set
-                # ray_state.active[ray_state.active] = ray_state.active[ray_state.active] & ~ray_state.exited[ray_state.active] #Exclude the exited rays from the active set
-
-            if self.step_counter%self.num_step_per_exit_check == 0:
-                self.logger.debug(f'completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                ray_state.active = ray_state.active & ~ray_state.exited #deactivate exited rays
+                active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+                active_ray_exist = (active_ray_count > 0)
+                self.logger.debug(f'Completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray active/init active/all: {active_ray_count}/{initial_active_ray_count}/{ray_state.num_rays}')
                 
             self.step_counter += 1
 
         self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
         
-        if not all_ray_exited:
-            self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
+        if active_ray_exist:
+            self.logger.error(f'Some rays are still active when max_num_step ({self.max_num_step}) is reached. Rays active: {active_ray_count}/{initial_active_ray_count}.')
 
         return desposition_grid, ray_state, ray_tracker
 
@@ -273,18 +272,19 @@ class RayTraceSolver():
 
         #Initialize stepping (only applies to certain methods, e.g. leapfrog)
         ray_state = self.step_init(ray_state, step_size)
-        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
 
         #Initialize varaibles
         self.step_counter = 0  #remember how many step taken after solving
         start_time = time.perf_counter()
-        exit_ray_count = torch.sum(ray_state.exited, dim = 0)
-        all_ray_exited = (exit_ray_count == ray_state.num_rays)
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
+        initial_active_ray_count =  torch.sum(ray_state.active, dim = 0) #initially active
+        active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+        active_ray_exist = (active_ray_count > 0)
         ray_state.integral = torch.zeros_like(ray_state.integral) #Reset the integral values before integrating+++++++++++++++++++++
         real_space_distribution = torch.as_tensor(np.atleast_3d(real_space_distribution), device = self.device) #+++++++++++++++++++++
 
 
-        while (self.step_counter < self.max_num_step) and not all_ray_exited:
+        while (self.step_counter < self.max_num_step) and active_ray_exist:
             
             ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
 
@@ -299,20 +299,17 @@ class RayTraceSolver():
 
             if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
                 ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
-                exit_ray_count = torch.sum(ray_state.exited, dim = 0) #number of exited rays
-                all_ray_exited = (exit_ray_count == ray_state.num_rays)
-                ray_state.active = ray_state.active & ~ray_state.exited #Exclude the exited rays from the active set
-                # ray_state.active[ray_state.active] = ray_state.active[ray_state.active] & ~ray_state.exited[ray_state.active] #Exclude the exited rays from the active set
-
-            if self.step_counter%self.num_step_per_exit_check == 0:
-                self.logger.debug(f'completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray exited: {exit_ray_count}/{ray_state.num_rays}')
+                ray_state.active = ray_state.active & ~ray_state.exited #deactivate exited rays
+                active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+                active_ray_exist = (active_ray_count > 0)
+                self.logger.debug(f'Completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray active/init active/all: {active_ray_count}/{initial_active_ray_count}/{ray_state.num_rays}')
                 
             self.step_counter += 1
 
         self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
         
-        if not all_ray_exited:
-            self.logger.error(f'Some rays have not exited before max_num_step ({self.max_num_step}) is reached. Rays exited: {exit_ray_count}/{ray_state.num_rays}.')
+        if active_ray_exist:
+            self.logger.error(f'Some rays are still active when max_num_step ({self.max_num_step}) is reached. Rays active: {active_ray_count}/{initial_active_ray_count}.')
 
         return ray_state, ray_tracker
 
@@ -422,7 +419,7 @@ class RayTraceSolver():
         for adjacent_voxel_number in range(adj_voxel_count):
             #For performance, the accumulation happens in the innermost layer, only to relevant elements.
             desposition_grid = self.depositEnergyOnAdjacentVoxel(ray_state.ray_energy[ray_state.active], step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number, desposition_grid)
-
+            #All arguments of depositEnergyOnAdjacentVoxel are now downselected by ray_state.active. It will not act on inactive set of rays.
         return desposition_grid
 
     @torch.inference_mode()
@@ -438,7 +435,7 @@ class RayTraceSolver():
         for adjacent_voxel_number in range(adj_voxel_count):
             #For performance, the accumulation happens in the innermost layer, only to relevant elements.
             ray_state.integral[ray_state.active] = self.integrateEnergyFromAdjacentVoxel(ray_state.ray_energy[ray_state.active], step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number, real_space_distribution, ray_state.integral[ray_state.active])
-
+            #All arguments of integrateEnergyFromAdjacentVoxel are now downselected by ray_state.active. It will not act on inactive set of rays.
         return ray_state
 
     @torch.inference_mode()
@@ -608,20 +605,37 @@ class RayTraceSolver():
         
         #exit = exit_x | exit_y | exit_z
         '''
-        
-        #Check for position if it is outside domain bounds (as defined by center of edge voxels). Check the coordinate PER DIMENSION, <min-tol or >max+tol
-        #Distance tolerance is one voxel away from the bound (so the rest of the edge voxels are included, plus another half voxel in extra)
-        exited_in_positive_direction = (ray_state.x_ip1 > self.index_model.xv_yv_zv_max + self.index_model.voxel_size) & (ray_state.v_ip1 > 0.0) #In case of 2D problems, voxel size along z is inf so the ray is always within the z-bounds
-        exited_in_negative_direction = (ray_state.x_ip1 < self.index_model.xv_yv_zv_min - self.index_model.voxel_size) & (ray_state.v_ip1 < 0.0) #Therefore in 2D problems, the rays can only escape from x,y-bounds
-        
-        #Perform logical or in the spatial dimension axis
-        exited_in_positive_direction = exited_in_positive_direction[:,0] | exited_in_positive_direction[:,1] | exited_in_positive_direction[:,2]
-        exited_in_negative_direction = exited_in_negative_direction[:,0] | exited_in_negative_direction[:,1] | exited_in_negative_direction[:,2]
-        # #Alternatively check logical OR with sum
-        # exited_in_positive_direction = torch.sum(exited_in_positive_direction, dim = 1, keepdim = False).bool()
-        # exited_in_negative_direction = torch.sum(exited_in_negative_direction, dim = 1, keepdim = False).bool()
+        #When most rays are active most of the time, checking exit for only the active rays turns out to be empricically slower than checking all rays.
+        #The logical comparison of the entire array is much faster than indexing the array which may require creating a copy.
+        #When the active rays are sparse (e.g. only tracing 1 ray at a time to build algebraic representation of propagator), there might be performance benefit.
+        if (only_check_active_rays := False): 
+            
+            #Check for position if it is outside domain bounds (as defined by center of edge voxels). Check the coordinate PER DIMENSION, <min-tol or >max+tol
+            #Distance tolerance is one voxel away from the bound (so the rest of the edge voxels are included, plus another half voxel in extra)
+            exited_in_positive_direction = (ray_state.x_ip1[ray_state.active,:] > self.index_model.xv_yv_zv_max + self.index_model.voxel_size) & (ray_state.v_ip1[ray_state.active,:] > 0.0) #In case of 2D problems, voxel size along z is inf so the ray is always within the z-bounds
+            exited_in_negative_direction = (ray_state.x_ip1[ray_state.active,:] < self.index_model.xv_yv_zv_min - self.index_model.voxel_size) & (ray_state.v_ip1[ray_state.active,:] < 0.0) #Therefore in 2D problems, the rays can only escape from x,y-bounds
+            
+            #Perform logical or in the spatial dimension axis
+            exited_in_positive_direction = exited_in_positive_direction[:,0] | exited_in_positive_direction[:,1] | exited_in_positive_direction[:,2]
+            exited_in_negative_direction = exited_in_negative_direction[:,0] | exited_in_negative_direction[:,1] | exited_in_negative_direction[:,2]
 
-        ray_state.exited =  exited_in_positive_direction | exited_in_negative_direction
+            ray_state.exited[ray_state.active] =  exited_in_positive_direction | exited_in_negative_direction 
+
+        else: 
+
+            #Check for position if it is outside domain bounds (as defined by center of edge voxels). Check the coordinate PER DIMENSION, <min-tol or >max+tol
+            #Distance tolerance is one voxel away from the bound (so the rest of the edge voxels are included, plus another half voxel in extra)
+            exited_in_positive_direction = (ray_state.x_ip1 > self.index_model.xv_yv_zv_max + self.index_model.voxel_size) & (ray_state.v_ip1 > 0.0) #In case of 2D problems, voxel size along z is inf so the ray is always within the z-bounds
+            exited_in_negative_direction = (ray_state.x_ip1 < self.index_model.xv_yv_zv_min - self.index_model.voxel_size) & (ray_state.v_ip1 < 0.0) #Therefore in 2D problems, the rays can only escape from x,y-bounds
+            
+            #Perform logical or in the spatial dimension axis
+            exited_in_positive_direction = exited_in_positive_direction[:,0] | exited_in_positive_direction[:,1] | exited_in_positive_direction[:,2]
+            exited_in_negative_direction = exited_in_negative_direction[:,0] | exited_in_negative_direction[:,1] | exited_in_negative_direction[:,2]
+            # #Alternatively check logical OR with sum
+            # exited_in_positive_direction = torch.sum(exited_in_positive_direction, dim = 1, keepdim = False).bool()
+            # exited_in_negative_direction = torch.sum(exited_in_negative_direction, dim = 1, keepdim = False).bool()
+
+            ray_state.exited =  exited_in_positive_direction | exited_in_negative_direction
 
         #Optionally check if intensity close to zero (e.g. due to occulsion)
 
@@ -801,10 +815,11 @@ class RayState():
     
     
     def resetRaysIterateToInitial(self):
-        self.x_i = self.x_0
-        self.x_ip1 = self.x_0 #torch.zeros_like(self.x_0)
-        self.v_i = self.v_0
-        self.v_ip1 = self.v_0 #torch.zeros_like(self.v_0)
+        #Setting current ray state back to original.
+        self.x_i = self.x_0.detach().clone() #.detach() removes computation path, detach tensor from autograd graph. .clone() creates a copy.
+        self.x_ip1 = self.x_0.detach().clone() #This is the proper way to copy tensor without sharing storage: https://stackoverflow.com/questions/55266154/pytorch-preferred-way-to-copy-a-tensor/62496418 
+        self.v_i = self.v_0.detach().clone() #Without .detach().clone(), subsequent in-place updates to x_i and x_ip1 would also update x_0. Similarly, v_i, v_ip1 would affect v_0.
+        self.v_ip1 = self.v_0.detach().clone() 
         
         #Initialize other properties of the rays
         self.s = torch.zeros((self.num_rays), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
