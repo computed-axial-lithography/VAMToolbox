@@ -4,29 +4,199 @@ import time
 import logging
 import torch
 
-class IndexModel:
-    _default_analytical = {'R': 1.0, 'length_unit': 'fractional_domain_radius', 'p': 2.0, 'n_sur' : 1.0} #default arguments for **kwargs
-    _default_interpolation = {}
+class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationModel
+
+    @torch.inference_mode()
+    def __init__(self, coord_vec : np.ndarray):
+        '''
+        This superclass implement the coordinate grid and interpolation functions that are common to both IndexModel and AttenuationModel.
+        The subclasses of Medium Model, namely IndexModel and AttenuationModel, decribe the refractive index and attenuation coefficients of the propagation medium.
+        
+        Internally implemented with pyTorch tensor for GPU computation and compatibility with pyTorchRayTrace.
+        Input/output compatibility with numpy array is to be added.
+    
+        Parameters
+        ----------
+        coord_vec : list of coordinate vectors [xv, yv, zv]
+        '''
+
+        #Construct meshgrid in tensor
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device('cpu')
+
+        #==========================Setup coordinate grid according ======================================================
+        #Set up grid as tensor
+        self.xv = torch.as_tensor(coord_vec[0], device = self.device)
+        self.yv = torch.as_tensor(coord_vec[1], device = self.device)
+        self.zv = torch.as_tensor(coord_vec[2], device = self.device)
+        self.xg, self.yg, self.zg = torch.meshgrid(self.xv, self.yv, self.zv, indexing = 'ij') #This grid is to be used for interpolation, simulation
+        
+        #Max min of grid coordinate
+        self.xv_yv_zv_max = torch.tensor([torch.amax(self.xv), torch.amax(self.yv), torch.amax(self.zv)], device = self.device)
+        self.xv_yv_zv_min = torch.tensor([torch.amin(self.xv), torch.amin(self.yv), torch.amin(self.zv)], device = self.device)
+        if self.zv.numel() == 1:
+            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], torch.inf], device = self.device) #Sampling rate [voxel/cm] along z is 0, therefore voxel size is inf to stay consistent
+        else:
+            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], self.zv[1]-self.zv[0]], device = self.device) #Only valid when self.zv.size > 1
+
+        self.grid_span = self.xv_yv_zv_max - self.xv_yv_zv_min
+        self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
+        if torch.isinf(self.position_normalization_factor[2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0 which yields inf
+            self.position_normalization_factor[2] = 0.0 #If inf, clamp the z position down back to 0
+
+        self.presampled_scalar_field_3D = None #Define this attribute in MediumModel. To be populated in subclasses.
+        self.presampled_vector_field_4D = None #Define this attribute in MediumModel. To be populated in subclasses.
+        self.interpolation_padding_mode = 'border' #Default extrapolation settings. Can be overriden in subclass.
+
+    #=================================Interpolation functions==========================================================================
+    @torch.inference_mode()
+    def _formatPresampledScalarField(self):
+        '''
+        Format presampled_scalar_field_3D into presampled_scalar_field_5D and store the latter as object attribute.
+        '''
+        #Check imported index field
+        if (len(self.presampled_scalar_field_3D.shape) <= 2):
+            raise Exception('Imported scalar field ("n_x" or "alpha_x") should be 3D (even in 2D the thrid dim should have size 1).')
+        if (self.xg.shape) != (self.presampled_scalar_field_3D.shape):
+            raise Exception(f'Size mismatch between the constructed coordinate grid ({self.xg.shape}) and imported scalar field ("n_x" or "alpha_x") ({self.presampled_scalar_field_3D.shape}).')
+
+        #Setup pyTorch interpolation grid_sample inputs
+        #Two requirements of grid_sample function: https://pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample
+        #(1)Volumetric data stored in a 5D grid
+        #(2)Sampled position normalized to be within [-1, +1] in all dimensions of the grid
+
+        self.presampled_scalar_field_5D = torch.permute(self.presampled_scalar_field_3D, (2,1,0)) #Swapping the x and z axis because grid_sample takes input tensor in (N,Ch,Z,Y,X) order
+        self.presampled_scalar_field_5D = self.presampled_scalar_field_5D[None, None, :,:,:] #Inser N and Ch axis
+        #Note that the query points[0],[1],[2] are still arranged in x,y,z order
+        self.logger.debug(f"presampled_scalar_field_5D has shape of {self.presampled_scalar_field_5D.shape}")
+
+    @torch.inference_mode()
+    def _formatPresampledVectorField(self):
+        '''
+        Format presampled_vector_field_4D into presampled_vector_field_5D and store the latter as object attribute.
+        '''
+        #Check imported index gradient (vector) field
+        if self.presampled_vector_field_4D is None:
+            #If not provided, use finite difference to approximate the gradient
+            self.logger.info('Index gradient is not explicitly provided. Approximating index gradient with central finite difference')
+            self.presampled_vector_field_4D = self.centralFiniteDifference(self.presampled_scalar_field_3D, self.voxel_size)
+        else:
+            #If provided, check input. Gradient field should have 1 more dimension (for spatial derviatives)
+            if not (self.presampled_vector_field_4D.shape == (self.presampled_scalar_field_3D.shape[0], self.presampled_scalar_field_3D.shape[1], self.presampled_scalar_field_3D.shape[2], 3)):
+                raise Exception('Index gradient field should have extactly one more dimension (of size 3) than index field.')
+
+        #Setup pyTorch interpolation grid_sample inputs
+        #Two requirements of grid_sample function: https://pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample
+        #(1)Volumetric data stored in a 5D grid
+        #(2)Sampled position normalized to be within [-1, +1] in all dimensions of the grid
+
+        self.presampled_vector_field_5D = torch.permute(self.presampled_vector_field_4D, (3, 2, 1, 0)) #shape = [Ch, Z, Y, X] where Ch is the components of the gradient in x,y,z
+        self.presampled_vector_field_5D = self.presampled_vector_field_5D[None, :, :, :, :] #Insert N axis
+        self.logger.debug(f"presampled_vector_field_5D has shape of {self.presampled_vector_field_5D.shape}")
+    
+    
+    @torch.inference_mode()
+    def _scalar_field_interp(self, x : torch.Tensor):
+        '''
+        Obtain scalar field value (e.g. refractive index, attenuation coefficient) via interpolating on provided or pre-sampled data points
+        '''
+        x = self.normalizePosition(x) #Normalize x such that the computation domain is between [-1,+1] in all dimensions
+
+        #self.presampled_scalar_field_5D has already its axes permuted such that the last 3 dimensions are Z,Y,X in the class __init__
+        #The query points x should still have x,y,z components in its [:,0], [:,1], [:,2] respectively
+
+        scalar_val = torch.nn.functional.grid_sample(input = self.presampled_scalar_field_5D, #shape = [N, Ch, D_in, H_in, W_in], where D_in, H_in, W_in are ZYX dimension respectively
+                                        grid = x[None, None, None, :,:], #shape = [N,D_out, H_out, W_out,3], where N = D_out = H_out = 1, and W_out = number of samples
+                                        mode ='bilinear',
+                                        padding_mode = self.interpolation_padding_mode,
+                                        align_corners = True # True: extrema refers to center of corner voxels. False: extrema refers to corner of corner voxels
+                                        )
+
+        return scalar_val[0,0,0,0,:] #scalar_val originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
+
+    @torch.inference_mode()
+    def _vector_field_interp(self, x : torch.Tensor):
+        '''
+        Obtain vector field value (e.g. gradient of refractive index) via interpolating on provided or pre-sampled data points
+        '''
+        x = self.normalizePosition(x) #Normalize x such that the computation domain is between [-1,+1] in all dimensions
+
+        #self.presampled_vector_field_5D has already its axes permuted such that the last 4 dimensions are Ch,Z,Y,X in the class __init__
+        #The query points x should still have x,y,z components in its [:,0], [:,1], [:,2] respectively
+
+        vector_val = torch.nn.functional.grid_sample(input = self.presampled_vector_field_5D, #shape = [N, Ch, D_in, H_in, W_in], where Ch is channel, and D_in, H_in, W_in are ZYX dimension respectively
+                                        grid = x[None, None, None, :,:], #shape = [N,D_out, H_out, W_out,3], where N = D_out = H_out = 1, and W_out = number of samples
+                                        mode ='bilinear',
+                                        padding_mode = self.interpolation_padding_mode,
+                                        align_corners = True # True: extrema refers to center of corner voxels. False: extrema refers to corner of corner voxels
+                                        )
+        #vector_val originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
+        return torch.squeeze(vector_val[0,:,0,0,:]).T #remove singleton dimension and transpose. Resultant shape should be [number of samples, Ch], where Ch = {0,1,2} < 3
+
+    @torch.inference_mode()
+    def normalizePosition(self, x):
+        #Need to check if the meshgrid has index increasing from the negative physical location to positive physical location
+        return x*self.position_normalization_factor
+
+    @torch.inference_mode()
+    def getScalarFieldAtGridPoints(self):
+        return self.presampled_scalar_field_3D
+
+    @torch.inference_mode()
+    def getVectorFieldAtGridPoints(self):
+        return self.presampled_vector_field_4D
+
+    @staticmethod
+    @torch.inference_mode()
+    def centralFiniteDifference(presampled_scalar_field_5D, voxel_size):
+        #This function evaluate the first derivative of a scalar field with central finite difference.
+        #The boundary elements of gradient are set to zero because the scalar field is assumed constant outside the domain.
+        
+        dn_dx = torch.zeros_like(presampled_scalar_field_5D)
+        dn_dx[1:-1,:,:] = torch.narrow(presampled_scalar_field_5D, 0, 2, presampled_scalar_field_5D.shape[0]-2) - torch.narrow(presampled_scalar_field_5D, 0, 0, presampled_scalar_field_5D.shape[0]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+        dn_dx = dn_dx/(2*voxel_size[0]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
+
+        dn_dy = torch.zeros_like(presampled_scalar_field_5D)
+        dn_dy[:,1:-1,:] = torch.narrow(presampled_scalar_field_5D, 1, 2, presampled_scalar_field_5D.shape[1]-2) - torch.narrow(presampled_scalar_field_5D, 1, 0, presampled_scalar_field_5D.shape[1]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+        dn_dy = dn_dy/(2*voxel_size[1]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
+
+        dn_dz = torch.zeros_like(presampled_scalar_field_5D)
+        if (presampled_scalar_field_5D.shape[2] == 1) or torch.isnan(voxel_size[2]): #2D problem.
+            pass 
+        else: #3D problem
+            dn_dz[:,:,1:-1] = torch.narrow(presampled_scalar_field_5D, 2, 2, presampled_scalar_field_5D.shape[2]-2) - torch.narrow(presampled_scalar_field_5D, 2, 0, presampled_scalar_field_5D.shape[2]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
+            dn_dz = dn_dz/(2*voxel_size[2]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
+
+        return torch.cat((dn_dx[:,:,:,None], dn_dy[:,:,:,None], dn_dz[:,:,:,None]), dim = 3) #add new axis at the end and concatenate along that new axis
+        
+
+class IndexModel(MediumModel):
+    _default_analytical = {'R': 1.0, 'length_unit_of_R': 'fractional_domain_radius', 'p': 2.0, 'n_sur' : 1.0} #default arguments for **kwargs
+    _default_interpolation = {'interpolation_padding_mode': 'border'}
 
     @torch.inference_mode()
     def __init__(self, coord_vec : np.ndarray, type : str = 'analytical', form :str = 'luneburg_lens', **kwargs):
         '''
         Analytical and interpolated decription of index distribution of the simulation domain.
-        Internally implemented with pyTorch tensor for GPU computation in ray tracing.
+        Internally implemented with pyTorch tensor for GPU computation and compatibility with pyTorchRayTrace.
         Input/output compatibility with numpy array is to be added.
 
         Naming: n(x) and grad_n(x) is the index and spatial gradient of index as a function of position x.
-        The functions returns the values as a tensor with the same shape as the first 3 dimension of the input.
+        Input x should have shape [num_of_sample, 3]. And the output of n and grad_n would have shape [num_of_sample] and [num_of_sample, 3] respectively.
 
-        Although the attenuation coefficient (alpha) is directly related to the imaginary part (kappa) of complex refractive index (n_comp = n_real + i*kappa),
-        index in this module refers to the real part of the complex index. Ref:https://en.wikipedia.org/wiki/Refractive_index#Complex_refractive_index
-        The attenuation part is described with attenuation coefficient (alpha), which equals 4*pi*kappa/wavelength.
-        
-        The attenuation part is handled separately from n_real for performance and integration reasons. 
-        Performance reasons: In all cases, computation of gradient of kappa is not required (so it is not included in computation/sampling of grad_n).
-                             In many cases, the attenuation is homogeneous and spatial sampling is not required (even when spatial sampling of n_real is required).
-        Integration reasons: Furthermore, attenuation field (np.ndarray) is already present in vamtoolbox as of the development time of the ray tracing propagator (Winter 2022).
-                             Eventually, a class AttenuationModel should be built to better package relevant information.
+        Although in particular total attenuation coefficient is directly related to the imaginary part (kappa) of complex refractive index (n_comp = n_real + i*kappa),
+        index in this module refers only to the real part of the complex index. Reference:https://en.wikipedia.org/wiki/Refractive_index#Complex_refractive_index
+        The total attenuation coefficient (alpha in AttenuationModel) equals 4*pi*kappa/wavelength.
+
+        The attenuation part is handled separately from n_real for performance and organizational reasons. 
+        Performance:
+            In all cases, computation of gradient of kappa is not required (so it is not included in computation/sampling of grad_n).
+            In many cases, the attenuation is homogeneous within certain boundary and interpolation gives trivial results (even when interpolation of n_real is required).
+        Organization:
+            Generally attenuation effects can have their own description which is almost independent of n_real.
+            The sampling of a scalar field quantity in general (atteunation, absorption or scattering coefficient) is described in AttenuationModel class.
 
         Parameters
         ----------
@@ -40,11 +210,10 @@ class IndexModel:
             Radius of the luneburg/maxwell/eaton lens
             Default equals to the radius of the grid (lens occupy almost all of simulation volume), regardless of length_unit parameter.
             
-        length_unit: str, optional
-            unit used in specification of R only. The grid size is always assumed to be the same as target_geo.target/
-            'fractional_domain_radius', 'physical_coordinate'
+        length_unit_of_R: str, optional, ('fractional_domain_radius', 'physical_coordinate')
+            This unit is only used in specification of R (radius of analytical lens). The size of computational grid is always assumed to be the same as input coordinate vectors.
             Default: 'fractional_domain_radius', where 1 represent a lens filling the domain with boundaries touching
-            'physical_coordinate' uses the same unit as 
+            'physical_coordinate' uses the same unit as the input coordinate vectors (coord_vec, the first argument).
 
         p : float, power of luneburg lens
             Default 2, which is used in classical definition of luneburg lens.
@@ -53,8 +222,11 @@ class IndexModel:
             The absolute index of the lenses or other analytical index distribution will be adjusted accordingly to achieve equivalent refraction.
             Also, this sets the extrapolation value when index is queried outside the grid
         '''
-        self.logger = logging.getLogger(__name__)
         
+        super().__init__(coord_vec)
+        self.logger = logging.getLogger(__name__)
+        self.logger.info(f'Medium computation is performed on: {repr(self.device)}')
+
         #Save inputs as attributes
         self.type = type
         self.form = form
@@ -65,7 +237,7 @@ class IndexModel:
         self.params.update(kwargs) #up-to-date parameters. Default dict is not updated
 
         # Compute derived attributes R_physical
-        if self.params['length_unit'] == 'fractional_domain_radius':
+        if self.params['length_unit_of_R'] == 'fractional_domain_radius':
             R_domain_0 = (np.amax(coord_vec[0]) - np.amin(coord_vec[0]))/2
             R_domain_1 = (np.amax(coord_vec[1]) - np.amin(coord_vec[1]))/2
             R_domain_2 = (np.amax(coord_vec[2]) - np.amin(coord_vec[2]))/2
@@ -75,46 +247,14 @@ class IndexModel:
                 R_domain_min = min(R_domain_0, R_domain_1, R_domain_2)
             self.params['R_physical'] = self.params['R']*R_domain_min
 
-        elif self.params['length_unit'] == 'physical':
+        elif self.params['length_unit_of_R'] == 'physical':
             self.params['R_physical'] = self.params['R']
 
         else:
             raise Exception('"length_unit" should be either "fractional_domain_radius" or "physical"')
-
-
-        #Construct meshgrid in tensor
-        if torch.cuda.is_available():
-            self.device = torch.device('cuda')
-        else:
-            self.device = torch.device('cpu')
-        self.logger.info(f'Medium computation is performed on: {repr(self.device)}')
-
-        #==========================Setup coordinate grid according ======================================================
-        #Set up grid as tensor
-        self.xv = torch.as_tensor(coord_vec[0], device = self.device)
-        self.yv = torch.as_tensor(coord_vec[1], device = self.device)
-        self.zv = torch.as_tensor(coord_vec[2], device = self.device)
-        self.xg, self.yg, self.zg = torch.meshgrid(self.xv, self.yv, self.zv, indexing = 'ij') #This grid is to be used for interpolation, simulation
-        
-        #Max min of grid coordinate
-        self.xv_yv_zv_max = torch.tensor([torch.amax(self.xv), torch.amax(self.yv), torch.amax(self.zv)], device = self.device)
-        self.xv_yv_zv_min = torch.tensor([torch.amin(self.xv), torch.amin(self.yv), torch.amin(self.zv)], device = self.device)
-        if self.zv.numel() == 1:
-            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], torch.inf], device = self.device) #Sampling rate [voxel/mm] along z is 0, therefore voxel size is inf to stay consistent
-        else:
-            self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], self.zv[1]-self.zv[0]], device = self.device) #Only valid when self.zv.size > 1
-
-        self.grid_span = self.xv_yv_zv_max - self.xv_yv_zv_min
-        self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
-        if torch.isinf(self.position_normalization_factor[2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0 which yields inf
-            self.position_normalization_factor[2] = 0.0 #If inf, clamp the z position down back to 0
-
+            
         #==========================Setup index query functions according to type and form================================
         if self.type == 'analytical':
-            # self.xg, self.yg, self.zg = None, None, None
-            # self.params = self._default_analytical.copy() #Shallow copy avoid editing dict '_default_lenses' in place 
-            # self.params.update(kwargs) #up-to-date parameters. Default dict is not updated
-
             if self.form == 'homogeneous':
                 self.n = self._n_homo
                 self.grad_n = self._grad_n_homo
@@ -135,121 +275,67 @@ class IndexModel:
                 raise Exception('Form: Other analytical functions are not supported yet.')
 
         elif self.type == 'interpolation':
-            #Interpolation method stores three 3D arrays as interpolant and query them upon each mapping call.
-            #Stored arrays : (1) index 'n_x' and (2)gradient of n 'grad_n_x'.
-            #They are sampled at the grid defined by coord_vec.
+            #Interpolation method stores two 3D arrays as interpolant and query them upon each mapping call.
+            #Stored arrays : (1) index (a scalar field) and (2)gradient of n (a vector field).
+            #They are sampled at the grid defined by coord_vec (presampled_x, which is also stored).
     
             #function alias
-            self.n = self._n_interp
-            self.grad_n = self._grad_n_interp
-            self.interp_x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            self.n = self._scalar_field_interp
+            self.grad_n = self._vector_field_interp
+            self.interpolation_padding_mode = self.params['interpolation_padding_mode'] #This setting is used in _scalar_field_interp and _vector_field_interp.
+            self.presampled_x = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_homo(self.interp_x_sample).reshape(self.xg.shape)
+                self.presampled_scalar_field_3D = self._n_homo(self.presampled_x).reshape(self.xg.shape)
                 grad_n_shape = list(self.xg.shape)
-                grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
-                self.interp_grad_n_x_sample = torch.reshape(self._grad_n_homo(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
-
+                grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
+                self.presampled_vector_field_4D = torch.reshape(self._grad_n_homo(self.presampled_x), tuple(grad_n_shape)) #Save as a 4D tensor
 
             elif self.form == 'luneburg_lens':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_lune(self.interp_x_sample).reshape(self.xg.shape) #Save as a 3D tensor
+                self.presampled_scalar_field_3D = self._n_lune(self.presampled_x).reshape(self.xg.shape) #Save as a 3D tensor
                 grad_n_shape = list(self.xg.shape)
-                grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
-                self.interp_grad_n_x_sample = torch.reshape(self._grad_n_lune(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
+                grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
+                self.presampled_vector_field_4D = torch.reshape(self._grad_n_lune(self.presampled_x), tuple(grad_n_shape)) #Save as a 4D tensor
 
             elif self.form == 'maxwell_lens':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_maxwell(self.interp_x_sample).reshape(self.xg.shape)
+                self.presampled_scalar_field_3D = self._n_maxwell(self.presampled_x).reshape(self.xg.shape)
                 grad_n_shape = list(self.xg.shape)
-                grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
-                self.interp_grad_n_x_sample = torch.reshape(self._grad_n_maxwell(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
+                grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
+                self.presampled_vector_field_4D = torch.reshape(self._grad_n_maxwell(self.presampled_x), tuple(grad_n_shape)) #Save as a 4D tensor
 
             elif self.form == 'eaton_lens':
                 #build interpolant arrays
-                self.interp_n_x_sample = self._n_eaton(self.interp_x_sample).reshape(self.xg.shape)
+                self.presampled_scalar_field_3D = self._n_eaton(self.presampled_x).reshape(self.xg.shape)
                 grad_n_shape = list(self.xg.shape)
-                grad_n_shape.append(3) #in-place modification. Gradient has additional dimension of 3 at each sampling position
-                self.interp_grad_n_x_sample = torch.reshape(self._grad_n_eaton(self.interp_x_sample), tuple(grad_n_shape)) #Save as a 4D tensor
-
+                grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
+                self.presampled_vector_field_4D = torch.reshape(self._grad_n_eaton(self.presampled_x), tuple(grad_n_shape)) #Save as a 4D tensor
 
             elif self.form == 'freeform': #Directly import data instead of generating.
-                self.interp_n_x_sample = self.params.get('interp_n_x_sample',None)  #Input data points are designated with sample subscript
-                self.interp_grad_n_x_sample = self.params.get('interp_grad_n_x_sample',None) 
+                self.presampled_scalar_field_3D = self.params.get('n_x',None)  #Input data points are designated with sample subscript
+                self.presampled_vector_field_4D = self.params.get('grad_n_x',None) 
 
-                #Check imported index field
-                if (len(self.interp_n_x_sample.shape) <= 2):
-                    raise Exception('Imported "interp_n_x_sample" should be 3D (even in 2D the thrid dim should have size 1).')
-                if (self.xg.shape) != (self.interp_n_x_sample.shape):
-                    raise Exception(f'Size mismatch between the constructed coordinate grid ({self.xg.shape}) and imported "interp_n_x_sample" ({self.interp_n_x_sample.shape}).')
-
-                #Check imported index gradient (vector) field
-                if self.interp_grad_n_x_sample is None:
-                    #If not provided, use finite difference to approximate the gradient
-                    self.logger.info('Index gradient is not explicitly provided. Approximating index gradient with central finite difference')
-                    self.interp_grad_n_x_sample = self.centralFiniteDifference(self.interp_n_x_sample, self.voxel_size)
-                else:
-                    #If provided, check input. Gradient field should have 1 more dimension (for spatial derviatives)
-                    if not (self.interp_grad_n_x_sample.shape == (self.interp_n_x_sample.shape[0], self.interp_n_x_sample.shape[1], self.interp_n_x_sample.shape[2], 3)):
-                        raise Exception('Index gradient field should have extactly one more dimension (of size 3) than index field.')
             else:
                 raise Exception('Other interpolation functions are not supported yet.')                
-            
-            #================Setup pyTorch interpolation grid_sample inputs
-            #Two requirements of grid_sample function: https://pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample
-            #(1)Volumetric data stored in a 5D grid
-            #(2)Sampled position normalized to be within [-1, +1] in all dimensions of the grid
 
-            #For index
-            self.interp_n_x_5D = torch.permute(self.interp_n_x_sample, (2,1,0)) #Swapping the x and z axis because grid_sample takes input tensor in (N,Ch,Z,Y,X) order
-            self.interp_n_x_5D = self.interp_n_x_5D[None, None, :,:,:] #Inser N and Ch axis
-            #Note that the query points[0],[1],[2] are still arranged in x,y,z order
-            self.logger.debug(f"interp_n_x_5D has shape of {self.interp_n_x_5D.shape}")
-            
-            #For index gradient
-            self.interp_grad_n_x_5D = torch.permute(self.interp_grad_n_x_sample, (3, 2, 1, 0)) #shape = [Ch, Z, Y, X] where Ch is the components of the gradient in x,y,z
-            self.interp_grad_n_x_5D = self.interp_grad_n_x_5D[None, :, :, :, :] #Insert N axis
-            self.logger.debug(f"interp_grad_n_x_5D has shape of {self.interp_grad_n_x_5D.shape}")
-            
+            self._formatPresampledScalarField() #Format presampled_scalar_field_3D into presampled_scalar_field_5D and store the latter as object attribute.
+            self._formatPresampledVectorField() #Format presampled_vector_field_4D into presampled_vector_field_5D and store the latter as object attribute.        
         else:
             raise Exception('"type" should be either "analytical" or "interpolation".')
 
-    #=================================Init functions================================================
-    @staticmethod
-    @torch.inference_mode()
-    def centralFiniteDifference(interp_n_x_sample, voxel_size):
-        #This function evaluate the first derivative of a scalar field with central finite difference.
-        #The boundary elements of gradient are set to zero because the scalar field is assumed constant outside the domain.
-        
-        dn_dx = torch.zeros_like(interp_n_x_sample)
-        dn_dx[1:-1,:,:] = torch.narrow(interp_n_x_sample, 0, 2, interp_n_x_sample.shape[0]-2) - torch.narrow(interp_n_x_sample, 0, 0, interp_n_x_sample.shape[0]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
-        dn_dx = dn_dx/(2*voxel_size[0]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
-
-        dn_dy = torch.zeros_like(interp_n_x_sample)
-        dn_dy[:,1:-1,:] = torch.narrow(interp_n_x_sample, 1, 2, interp_n_x_sample.shape[1]-2) - torch.narrow(interp_n_x_sample, 1, 0, interp_n_x_sample.shape[1]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
-        dn_dy = dn_dy/(2*voxel_size[1]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
-
-        dn_dz = torch.zeros_like(interp_n_x_sample)
-        if (interp_n_x_sample.shape[2] == 1) or torch.isnan(voxel_size[2]): #2D problem.
-            pass 
-        else: #3D problem
-            dn_dz[:,:,1:-1] = torch.narrow(interp_n_x_sample, 2, 2, interp_n_x_sample.shape[2]-2) - torch.narrow(interp_n_x_sample, 2, 0, interp_n_x_sample.shape[2]-2)  #Last argument of narrow dictates the size of output along that 'dim' dimension
-            dn_dz = dn_dz/(2*voxel_size[2]) #The trim-first version of the array minus the trim-last version, divided by 2*voxel size
-
-        return torch.cat((dn_dx[:,:,:,None], dn_dy[:,:,:,None], dn_dz[:,:,:,None]), dim = 3) #add new axis at the end and concatenate along that new axis
-        
 
     #=================================Analytic: Homogeneous medium================================================
     @torch.inference_mode()
     def _n_homo(self, x : torch.Tensor):
-        return torch.ones_like(x) #automatically create on same device
+        # return self.params['n_sur']*torch.ones(x.shape[0], device=x.device) #automatically create on same device
+        return self.params['n_sur']*torch.ones_like(x[:,0]) #automatically create on same device
 
     @torch.inference_mode()
     def _grad_n_homo(self, x : torch.Tensor):
-        shape = tuple(list(x.shape).append(3))
-        return torch.zeros(shape, device = x.device)
+        return torch.zeros_like(x)
 
     #=================================Analytic: Luneburg lens=====================================================
     @torch.inference_mode()
@@ -316,62 +402,18 @@ class IndexModel:
     @torch.inference_mode()
     def _grad_n_eaton(self):
         raise Exception('To be implemented.')
-    #=================================Interpolation==========================================================================
-    @torch.inference_mode()
-    def _n_interp(self, x : torch.Tensor):
-        '''
-        Obtain index value via interpolating on provided or pre-sampled data points
-        '''
-        x = self.normalizePosition(x) #Normalize x such that the computation domain is between [-1,+1] in all dimensions
-
-        #self.interp_n_x_5D has already its axes permuted such that the last 3 dimensions are Z,Y,X in the class __init__
-        #The query points x should still have x,y,z components in its [:,0], [:,1], [:,2] respectively
-
-        n = torch.nn.functional.grid_sample(input = self.interp_n_x_5D, #shape = [N, Ch, D_in, H_in, W_in], where D_in, H_in, W_in are ZYX dimension respectively
-                                        grid = x[None, None, None, :,:], #shape = [N,D_out, H_out, W_out,3], where N = D_out = H_out = 1, and W_out = number of samples
-                                        mode='bilinear',
-                                        padding_mode= 'border',
-                                        align_corners = True # True: extrema refers to center of corner voxels. False: extrema refers to corner of corner voxels
-                                        )
-
-        return n[0,0,0,0,:] #n originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
-
-    @torch.inference_mode()
-    def _grad_n_interp(self, x : torch.Tensor):
-        '''
-        Obtain value of index gradient via interpolating on provided or pre-sampled data points
-        '''
-        x = self.normalizePosition(x) #Normalize x such that the computation domain is between [-1,+1] in all dimensions
-
-        #self.interp_grad_n_x_5D has already its axes permuted such that the last 4 dimensions are Ch,Z,Y,X in the class __init__
-        #The query points x should still have x,y,z components in its [:,0], [:,1], [:,2] respectively
-
-        grad_n = torch.nn.functional.grid_sample(input = self.interp_grad_n_x_5D, #shape = [N, Ch, D_in, H_in, W_in], where Ch is channel, and D_in, H_in, W_in are ZYX dimension respectively
-                                        grid = x[None, None, None, :,:], #shape = [N,D_out, H_out, W_out,3], where N = D_out = H_out = 1, and W_out = number of samples
-                                        mode='bilinear',
-                                        padding_mode= 'border',
-                                        align_corners = True # True: extrema refers to center of corner voxels. False: extrema refers to corner of corner voxels
-                                        )
-        #grad_n originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
-        return torch.squeeze(grad_n[0,:,0,0,:]).T #remove singleton dimension and transpose. Resultant shape should be [number of samples, Ch], where Ch = 3
-
-    @torch.inference_mode()
-    def normalizePosition(self, x):
-        #Need to check if the meshgrid has index increasing from the negative physical location to positive physical location
-        return x*self.position_normalization_factor
-
     #=================================Utilities==========================================================================
     def plotIndex(self, fig = None, ax = None, block=False, show = True):
         '''
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
-        if 'interp_x_sample' not in self.__dict__:
+        if 'presampled_x' not in self.__dict__:
             x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
         else:
-            x_sample = self.interp_x_sample
+            x_sample = self.presampled_x
 
         n = self.n(x_sample).reshape(self.xg.shape)
-        # n_slice = self.interp_n_x_sample[:,:,self.interp_n_x_sample.shape[2]//2].cpu().numpy()
+        # n_slice = self.presampled_n_x[:,:,self.presampled_n_x.shape[2]//2].cpu().numpy()
         n_slice = n[:,:,n.shape[2]//2].cpu().numpy()
 
         vmin, vmax = np.amin(n_slice), np.amax(n_slice)
@@ -397,10 +439,10 @@ class IndexModel:
         '''
         Plot a 2D slice of index gradient. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
-        if 'interp_x_sample' not in self.__dict__:
+        if 'presampled_x' not in self.__dict__:
             x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
         else:
-            x_sample = self.interp_x_sample
+            x_sample = self.presampled_x
 
         grad_n = self.grad_n(x_sample)
         grad_n = grad_n.reshape((self.xg.shape[0],self.xg.shape[1],self.xg.shape[2],3))
@@ -447,7 +489,7 @@ class IndexModel:
         Plot a 2D slice of index gradient in sampled arrow plot. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
 
-        # grad_n_slice = self.interp_grad_n_x_sample[:,:,self.interp_grad_n_x_sample.shape[2]//2,:].cpu().numpy()
+        # grad_n_slice = self.presampled_vector_field_4D[:,:,self.presampled_vector_field_4D.shape[2]//2,:].cpu().numpy()
 
         # grad_n_slice_mag = np.sqrt(grad_n_slice[:,0]**2 + grad_n_slice[:,1]**2 + grad_n_slice[:,2]**2)
 
@@ -455,7 +497,7 @@ class IndexModel:
 
         # if ax == None:
         #     fig, ax =  plt.subplots()
-        # # ax.quiver(self.interp_x_sample[relevant_points,0],
+        # # ax.quiver(self.presampled_x[relevant_points,0],
         # # x0[relevant_points,1],
         # # x0[relevant_points,2],
         # # v0[relevant_points,0],
@@ -518,6 +560,223 @@ class IndexModel:
             plt.show()
 
 
+class AttenuationModel(MediumModel):
+    _default_analytical = {'R': 1.0, 'length_unit_of_R': 'fractional_domain_radius', 'alpha_internal' : 1e-3} #default arguments for **kwargs
+    _default_interpolation = {'interpolation_padding_mode': 'zeros'}
+
+    @torch.inference_mode()
+    def __init__(self, coord_vec : np.ndarray, type : str = 'analytical', form :str = 'homogeneous_cylinder', **kwargs):
+        '''
+        Analytical and interpolated decription of attenuation coefficient (and similar quantities) of the simulation domain.
+        The class can describe any one of the following:
+        1. (total/component) attenuation coefficient,
+        2. (total/component) absorption coefficient, or
+        3. (total/component) scattering coefficient.
+
+        Typical use of this class: Users can describe the total attenuation of the medium with one class instance and the absorption of the active component with another instance.
+
+        The generic scalar quantity (a function of position x) is referred to as 'alpha' in function name and function arguments.
+        Alpha has unit of [1/(length unit)], where length units is the unit used in coord_vec.
+        
+        Input x should have shape [num_of_sample, 3]. And the output of alpha would have shape [num_of_sample].
+        Outside to the simulation bounding box, alpha is always assumed zero because the external geometry is not defined.
+
+        Internally implemented with pyTorch tensor for GPU computation and compatibility with pyTorchRayTrace.
+        Input/output compatibility with numpy array is to be added.
+
+        Parameters
+        ----------
+        type : str ('analytical', 'interpolation')
+            Select analytical function evaluation or interpolate on pre-built interpolant arrays. 
+            Interpolation method handles edge cases of input explicitly and hence is more robust.
+
+        form : str ('homogeneous_cylinder', 'homogeneous_ball', 'freeform')
+
+        R : float, optional
+            Radius of the cylinder or ball
+            Default equals to the radius of the grid (cylinder/ball occupy almost all of simulation volume), regardless of length_unit parameter.
+            
+        length_unit: str, optional, ('fractional_domain_radius', 'physical_coordinate')
+            This unit is only used in specification of R (radius of cylinder/ball). The size of computational grid is always assumed to be the same as input coordinate vectors.
+            Default: 'fractional_domain_radius', where 1 represent a cylinder/ball filling the domain with boundaries touching
+            'physical_coordinate' uses the same unit as the input coordinate vectors (coord_vec, the first argument).
+
+        alpha_internal : float, [1/(grid length unit)], which is commonly [1/cm]. 
+            Value of alpha inside the homogeneous cylinder or ball (at the wavelength of interest)
+
+        '''
+        
+        super().__init__(coord_vec)
+        self.logger = logging.getLogger(__name__)
+        self.logger.info(f'Medium computation is performed on: {repr(self.device)}')
+
+        #Save inputs as attributes
+        self.type = type
+        self.form = form
+
+        #Merge all kwargs into params
+        self.params = self._default_analytical.copy() #Shallow copy avoid editing dict '_default_lenses' in place 
+        self.params.update(self._default_interpolation) #Add relevant parameters
+        self.params.update(kwargs) #up-to-date parameters. Default dict is not updated
+
+        # Compute derived attributes R_physical
+        if self.params['length_unit_of_R'] == 'fractional_domain_radius':
+            R_domain_0 = (np.amax(coord_vec[0]) - np.amin(coord_vec[0]))/2
+            R_domain_1 = (np.amax(coord_vec[1]) - np.amin(coord_vec[1]))/2
+            R_domain_2 = (np.amax(coord_vec[2]) - np.amin(coord_vec[2]))/2
+            if coord_vec[2].size == 1: #only fit in xy box in 2D case
+                R_domain_min = min(R_domain_0, R_domain_1)
+            else: #fit in xyz box in 3D case
+                R_domain_min = min(R_domain_0, R_domain_1, R_domain_2)
+            self.params['R_physical'] = self.params['R']*R_domain_min
+
+        elif self.params['length_unit_of_R'] == 'physical':
+            self.params['R_physical'] = self.params['R']
+
+        else:
+            raise Exception('"length_unit" should be either "fractional_domain_radius" or "physical"')
+            
+        #==========================Setup index query functions according to type and form================================
+        if self.type == 'analytical':
+            if self.form == 'homogeneous_cylinder':
+                self.alpha = self._alpha_homo_cylinder
+                
+            elif self.form == 'homogeneous_ball':  
+                self.alpha = self._alpha_homo_ball
+
+            else:
+                raise Exception('Form: Other analytical functions are not supported yet.')
+
+        elif self.type == 'interpolation':
+            #Interpolation method stores a 3D array as interpolant and query them upon each mapping call.
+            #Stored arrays : alpha (a scalar field).
+            #It is sampled at the grid defined by coord_vec (presampled_x, which is also stored).
+    
+            #function alias
+            self.alpha = self._scalar_field_interp
+            self.interpolation_padding_mode = self.params['interpolation_padding_mode'] #This setting is used in _scalar_field_interp and _vector_field_interp.
+            self.presampled_x = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+
+            #build or import interpolant dataset 
+            if self.form == 'homogeneous_cylinder':
+                #build interpolant arrays
+                self.presampled_scalar_field_3D = self._alpha_homo_cylinder(self.presampled_x).reshape(self.xg.shape)
+
+            elif self.form == 'homogeneous_ball':
+                #build interpolant arrays
+                self.presampled_scalar_field_3D = self._alpha_homo_ball(self.presampled_x).reshape(self.xg.shape) #Save as a 3D tensor
+
+            elif self.form == 'freeform': #Directly import data instead of generating.
+                self.presampled_scalar_field_3D = self.params.get('alpha_x',None)  #Input data points are designated with sample subscript
+
+            else:
+                raise Exception('Other interpolation functions are not supported yet.')                
+
+            self._formatPresampledScalarField() #Format presampled_scalar_field_3D into presampled_scalar_field_5D and store the latter as object attribute.
+        else:
+            raise Exception('"type" should be either "analytical" or "interpolation".')
+
+
+    #=================================Analytic: Homogeneous cylinder================================================
+    @torch.inference_mode()
+    def _alpha_homo_cylinder(self, x : torch.Tensor):
+        r = torch.sqrt(x[:,0]**2 + x[:,1]**2) #radial position on xy plane, r of vector x, 1D tensor, numel = x.size[0]
+        alpha = torch.zeros_like(r) #1D tensor, numel = x.size[0]
+        alpha[r < self.params['R_physical']] = self.params['alpha_internal']  #Inside the cylinder
+        return alpha
+
+
+    #=================================Analytic: Homogeneous ball================================================
+    @torch.inference_mode()
+    def _alpha_homo_ball(self, x : torch.Tensor):
+        r = torch.sqrt(x[:,0]**2 + x[:,1]**2 + x[:,2]**2) #radial position, r of vector x, 1D tensor, numel = x.size[0]
+        alpha = torch.zeros_like(r) #1D tensor, numel = x.size[0]
+        alpha[r < self.params['R_physical']] = self.params['alpha_internal']  #Inside the cylinder
+        return alpha
+
+    #=================================Utilities==========================================================================
+    def plotAlpha(self, fig = None, ax = None, block=False, show = True):
+        '''
+        Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
+        '''
+        if 'presampled_x' not in self.__dict__:
+            x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+        else:
+            x_sample = self.presampled_x
+
+        alpha = self.alpha(x_sample).reshape(self.xg.shape)
+        # n_slice = self.presampled_n_x[:,:,self.presampled_n_x.shape[2]//2].cpu().numpy()
+        alpha_slice = alpha[:,:,alpha.shape[2]//2].cpu().numpy()
+
+        vmin, vmax = np.amin(alpha_slice), np.amax(alpha_slice)
+
+        if ax == None:
+            fig, ax =  plt.subplots()
+
+        mappable = ax.imshow(alpha_slice, cmap='gray', vmin=vmin, vmax=vmax)
+        ax.set_title('Alpha distribution')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        plt.colorbar(mappable)
+
+        if block == False:
+            plt.ion()
+        if show == True:
+            plt.show()
+
+        return fig, ax
+
+
+    def plotRandomlySampledAlpha(self, pts = 500, fig = None, ax = None, block=False, show = True):
+        '''
+        Create a scatter plot of index at random positions. Color value is proportional to alpha.
+        '''
+        random_position = torch.rand(pts,3, device = self.device)
+
+        random_position[:,0] = (random_position[:,0]-0.5)*2*torch.amax(self.xv)
+        random_position[:,1] = (random_position[:,1]-0.5)*2*torch.amax(self.yv)
+        random_position[:,2] = (random_position[:,2]-0.5)*2*torch.amax(self.zv)
+
+        self.plotAlphaAtPosition(x = random_position, fig = fig, ax = ax, block = block, show = show)
+
+
+    def plotAlphaAtPosition(self, x, fig = None, ax = None, block=False, show = True, cmap = 'viridis', marker = 'o'):
+        '''
+        Create a scatter plot of index at specified positions x. Color value is proportional to index.
+        '''
+        if isinstance(x, np.ndarray):
+            x = torch.as_tensor(x)
+        
+        alpha = self.alpha(x)
+        alpha = alpha.cpu().numpy()
+        x = x.cpu().numpy()
+
+        if ax == None:
+            # fig, ax =  plt.subplots()
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+        mappable = ax.scatter(x[:,0], x[:,1], x[:,2], c = alpha, cmap = cmap, marker = marker)
+        ax.set_title('Alpha distribution')
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_zlabel('Z-axis')
+        plt.colorbar(mappable)
+
+        if block == False:
+            plt.ion()
+        if show == True:
+            plt.show()
+
+class AbsorptionModel(AttenuationModel):
+    def __init__(self, *args, **kwargs):
+        '''Class alias. Identical to AttenuationModel.'''
+        super().__init__(*args, **kwargs)
+
+class ScatteringModel(AttenuationModel):
+    def __init__(self, *args, **kwargs):
+        '''Subclass of AttenuationModel. Reserved for future development.'''
+        super().__init__(*args, **kwargs)
 
 ## Test
 

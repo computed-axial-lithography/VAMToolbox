@@ -4,11 +4,11 @@ import vedo
 import vedo.applications
 
 #2D targets
-target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\boss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\boss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
 # target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\grayscale bars.png",pixels=501, binarize_image=False)
 # target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\meme_cat.png",pixels=512, binarize_image=False)
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\doge_sq.jpg",pixels=512, binarize_image=False)
-# target_geo.show()
+target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\doge_sq.jpg",pixels=512, binarize_image=False)
+target_geo.show()
 
 #3D targets
 # target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("trifurcatedvasculature.stl"),resolution=300)
@@ -18,16 +18,19 @@ target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads
 
 # vedo.applications.RayCastPlotter(vol,bg='black').show(viewup="x")
 
-num_angles = 180
+num_angles = 360
 angles = np.linspace(0, 180 - 180 / num_angles, num_angles)
 proj_geo = vam.geometry.ProjectionGeometry(angles,ray_type='parallel',CUDA=True)
 
 #Identity response model
 # response_model = vam.response.ResponseModel(form = "identity")
 #Linear response with negative offset
-# response_model = vam.response.ResponseModel(form = "linear", M = 2, C = -1)
+# response_model = vam.response.ResponseModel(form = "linear", M = 1, C = 0)
+# response_model = vam.response.ResponseModel(B=10)
+response_model = vam.response.ResponseModel(B=25)
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50,filter='ram-lak_freq',verbose='plot', learning_rate = 0.02, response_model = response_model, eps=0.05)
-optimizer_params = vam.optimize.Options(method='BCLP',n_iter=10, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.02, response_model = "default", eps=0.1) #Working
+# optimizer_params = vam.optimize.Options(method='BCLP',n_iter=10, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.02, response_model = "default", eps=0.1) #Working
+optimizer_params = vam.optimize.Options(method='BCLP',n_iter=100, filter='ram-lak_freq',verbose='plot_demo', p=2, learning_rate = 0.02, response_model = response_model, eps=0.1) #Working
 
 # ========================================= q = 1 ==============================================================================
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.01, response_model = "default", eps=0.0) #Working
