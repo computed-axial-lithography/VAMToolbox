@@ -31,7 +31,9 @@ class PyTorchRayTracingPropagator():
         self.output_torch_tensor = output_torch_tensor #Select if the output should be torch tensor or numpy array
         
         self.domain_n_dim = len(np.squeeze(self.target_geo.array).shape) #Dimensionality of the domain is set to be same as target 
-        
+        self.tracing_step_size = self.proj_geo.index_model.voxel_size[0].cpu().numpy()/2 #Assuming the step size (in case of physical step distance) is about half the voxel.
+        self.max_num_step = self.target_geo.array.shape[0]*(2*1.5) #2 is the assumed (voxel size/step size) ratio, 1.5 is safety margin
+
         #Check if GPU is detected. Fallback to CPU if GPU is not found.
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
@@ -51,36 +53,65 @@ class PyTorchRayTracingPropagator():
                                     ray_width_fun = None
                                     )
         
-        self.solver = RayTraceSolver(self.device, self.proj_geo.index_model, self.proj_geo.ray_trace_method, self.proj_geo.eikonal_parametrization, self.proj_geo.ray_trace_ode_solver)
+        #Assume a model if index_model, attenuation_model, absorption_model is None. Need to import vamtoolbox.medium
+        #self.target_geo.constructCoordVec() should be used as the master coordinate system
+
+        self.solver = RayTraceSolver(self.device,
+                                    self.proj_geo.index_model,
+                                    self.proj_geo.attenuation_model,
+                                    self.proj_geo.absorption_model,
+                                    self.proj_geo.ray_trace_method,
+                                    self.proj_geo.eikonal_parametrization,
+                                    self.proj_geo.ray_trace_ode_solver,
+                                    max_num_step = self.max_num_step)
 
     @torch.inference_mode()
     def forward(self, f):
         #Convert the input to a torch tensor if it is not
         if ~isinstance(f, torch.Tensor): #attempt to convert input to tensor
             f = torch.as_tensor(f, device = self.device)
-            #if sparse, use ray selector to filter out rays corresponding to zero intensity pixels
 
-        #Execution loop
-        #Check ray exit condition, update exit flags
-        all_rays_exited = False
-        while (not all_rays_exited):
-            #Compute v
+        self.ray_state.resetRaysIterateToInitial()
 
-            #Step forward
-            self.solver.step
+        self.ray_state, _ = self.solver.integrateEnergyUntilExit(ray_state = self.ray_state,
+                                                            step_size = self.tracing_step_size,
+                                                            real_space_distribution= f,
+                                                            tracker_on = False,
+                                                            track_every = 1
+                                                            )
 
-            #Check intersection here
-            #Step back in case of intersection
-            #Handle intersection events 
-            #Deposition 
-            
-            #Update ray exit condition
-            pass
-        
+        #Convert output to nparray if needed
+        if self.output_torch_tensor == True:
+            return self.ray_state.integral
+        else:
+            return self.ray_state.integral.cpu().numpy()
+
+
     @torch.inference_mode()
-    def backward(self):
+    def backward(self, ray_energy_0):
         #Check if input is tensor
+        if ~isinstance(ray_energy_0, torch.Tensor): #attempt to convert input to tensor
+            ray_energy_0 = torch.as_tensor(ray_energy_0, device = self.device)
+        #Optional: if input is sparse, use ray selector to filter out rays corresponding to zero intensity pixels
+
+        self.ray_state.resetRaysIterateToInitial()
+        self.ray_energy_0 = ray_energy_0
+        
+        deposition_grid, self.ray_state, _ = self.solver.depositEnergyUntilExit(
+                                                                ray_state = self.ray_state,
+                                                                step_size = self.tracing_step_size,
+                                                                tracker_on = False,
+                                                                track_every = 1
+                                                                )
+        
+        #Convert output to nparray if needed
+        if self.output_torch_tensor == True:
+            return deposition_grid
+        else:
+            #maintain backward compatibility with optimizers written in numpy, which assumes 2D real space quantities to have no third dimension
+            return np.squeeze(deposition_grid.cpu().numpy()) 
         pass
+
 
     @torch.inference_mode()
     def perAngleTrace(self):
@@ -105,17 +136,19 @@ class RayTraceSolver():
 
     """
     @torch.inference_mode()
-    def __init__(self, device, index_model, ray_trace_method, eikonal_parametrization, ode_solver, max_num_step = 750, num_step_per_exit_check = 10) -> None:
+    def __init__(self, device, index_model, attenuation_model, absorption_model, ray_trace_method, eikonal_parametrization, ode_solver, max_num_step = 750, num_step_per_exit_check = 10) -> None:
         self.logger = logging.getLogger(__name__) #Inputting the same name just output the same logger. No need to pass logger around.
         self.device = device
         self.index_model = index_model
+        self.attenuation_model = attenuation_model
+        self.absorption_model = absorption_model
         self.ray_trace_method = ray_trace_method
         self.eikonal_parametrization = eikonal_parametrization
         self.ode_solver = ode_solver
 
         self.max_num_step = max_num_step
         self.num_step_per_exit_check = num_step_per_exit_check
-        
+
         #Parse ray_trace_method
         if self.ray_trace_method == 'snells' or self.ray_trace_method == 'hybrid':
             self.surface_intersection_check = True
@@ -125,6 +158,7 @@ class RayTraceSolver():
         if self.ray_trace_method == 'eikonal' or self.ray_trace_method == 'hybrid':
             #Eikonal equation parametrization 
             if self.eikonal_parametrization == 'canonical':
+                #Canaonical variable in Hamiltonian equation. Reference: Adjoint Nonlinear Ray Tracing, Arjun Teh, Matthew O'Toole, Ioannis Gkioulekas ACM Trans. Graph., Vol. 41, No. 4, Article 126. Publication date: July 2022.
                 self.dx_dstep = self._dx_dsigma
                 self.dv_dstep = self._dv_dsigma
             elif self.eikonal_parametrization == 'physical_path_length':
@@ -155,7 +189,7 @@ class RayTraceSolver():
             self.step_init = self._leapfrog_init
             self.step = self._forwardSymplecticEuler
 
-        elif self.ode_solver == 'rk4':
+        elif self.ode_solver == 'rk4': #Placeholder for future implementation of Fourth Order Runge-Kutta.
             pass #self.step = self._rk4
         else:
             raise Exception(f'ode_solver = {self.ode_solver} and is not one of the available options.')
@@ -254,6 +288,10 @@ class RayTraceSolver():
             self.step_counter += 1
 
         self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
+
+        #Take into account spatial varying absorption coefficient. The resulted quantity has an additional (length unit^-1). (e.g. It can convert sum of intensities into volumetric dose.) 
+        #Although this step can be done in the innermost level, it is performed at this higher level for performance.
+        desposition_grid *= self.absorption_model.alpha(self.index_model.getPositionVectorsAtGridPoints()).reshape(desposition_grid.shape) #Multiply with the alpha values exactly at the grid points.
         
         if active_ray_exist:
             self.logger.error(f'Some rays are still active when max_num_step ({self.max_num_step}) is reached. Rays active: {active_ray_count}/{initial_active_ray_count}.')
@@ -280,9 +318,12 @@ class RayTraceSolver():
         initial_active_ray_count =  torch.sum(ray_state.active, dim = 0) #initially active
         active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
         active_ray_exist = (active_ray_count > 0)
-        ray_state.integral = torch.zeros_like(ray_state.integral) #Reset the integral values before integrating+++++++++++++++++++++
-        real_space_distribution = torch.as_tensor(np.atleast_3d(real_space_distribution), device = self.device) #+++++++++++++++++++++
-
+        ray_state.integral = torch.zeros_like(ray_state.integral) #Reset the integral values before integrating. This step is redundent when used when integrateEnergyUntilExit() is called by PyTorchRayTracingPropagator.forward() since it is resetted outside. 
+        real_space_distribution = torch.atleast_3d(real_space_distribution) 
+        
+        #Take into account spatial varying absorption coefficient. The resulted quantity has an additional (length unit^-1). (e.g. It can convert sum of intensities into volumetric dose.) 
+        #Although this step can be done in the innermost level, it is performed at this higher level for performance.
+        real_space_distribution *= self.absorption_model.alpha(self.index_model.getPositionVectorsAtGridPoints()).reshape(real_space_distribution.shape) #Multiply with the alpha values exactly at the grid points.
 
         while (self.step_counter < self.max_num_step) and active_ray_exist:
             
@@ -373,7 +414,10 @@ class RayTraceSolver():
         dx_active = self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_ip1[ray_state.active]).to(ray_state.x_i.dtype)*step_size
         ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + dx_active
 
-        ray_state.s[ray_state.active] += torch.linalg.norm(dx_active, dim = 1) #update total physical distance travelled
+        ds_active = torch.linalg.norm(dx_active, dim = 1) #physical distance travelled
+        ray_state.s[ray_state.active] += ds_active #update total physical distance travelled
+        ray_state.attenuance[ray_state.active] += self.attenuation_model.alpha(ray_state.x_i[ray_state.active])*ds_active #attenuance is integrated along the path. Explicit integral of attenuance avoid errors from repeated multiplication.
+        ray_state.ray_energy[ray_state.active] = ray_state.ray_energy_0[ray_state.active]*torch.exp(-ray_state.attenuance[ray_state.active]) #current energy is the initial energy exponentially decayed by attenuance
         return ray_state
 
     @torch.inference_mode()
@@ -390,7 +434,10 @@ class RayTraceSolver():
         dx_active = self.dx_dstep(ray_state.x_i[ray_state.active], ray_state.v_i[ray_state.active]).to(ray_state.x_i.dtype)*step_size
         ray_state.x_ip1[ray_state.active] = ray_state.x_i[ray_state.active] + dx_active
 
-        ray_state.s[ray_state.active] += torch.linalg.norm(dx_active, dim = 1) #update total physical distance travelled
+        ds_active = torch.linalg.norm(dx_active, dim = 1) #physical distance travelled
+        ray_state.s[ray_state.active] += ds_active #update total physical distance travelled
+        ray_state.attenuance[ray_state.active] += self.attenuation_model.alpha(ray_state.x_i[ray_state.active])*ds_active #attenuance is integrated along the path. Explicit integral of attenuance avoid errors from repeated multiplication.
+        ray_state.ray_energy[ray_state.active] = ray_state.ray_energy_0[ray_state.active]*torch.exp(-ray_state.attenuance[ray_state.active]) #current energy is the initial energy exponentially decayed by attenuance
         return ray_state
     
 
@@ -820,12 +867,14 @@ class RayState():
         self.x_ip1 = self.x_0.detach().clone() #This is the proper way to copy tensor without sharing storage: https://stackoverflow.com/questions/55266154/pytorch-preferred-way-to-copy-a-tensor/62496418 
         self.v_i = self.v_0.detach().clone() #Without .detach().clone(), subsequent in-place updates to x_i and x_ip1 would also update x_0. Similarly, v_i, v_ip1 would affect v_0.
         self.v_ip1 = self.v_0.detach().clone() 
-        
+
         #Initialize other properties of the rays
         self.s = torch.zeros((self.num_rays), device = self.device, dtype = self.tensor_dtype) #distance travelled by the ray from initial position
-        self.ray_energy = torch.ones((self.num_rays), device = self.device, dtype = self.tensor_dtype) #energy carried by the ray. 
-        self.ray_energy *= (self.ray_density**(-1)) if self.sino_coord[2].size == 1 else self.ray_density**(-2) #With supersampling, there are more rays and each ray carry less energy.
-        self.width = torch.ones((self.num_rays), device = self.device, dtype = self.tensor_dtype) #constant if FOV is in depth of focus. Converging or Diverging if not. Function of s.
+        self.ray_energy_0 = torch.ones((self.num_rays), device = self.device, dtype = self.tensor_dtype) #energy carried by the ray. 
+        self.ray_energy_0 *= (self.ray_density**(-1)) if self.sino_coord[2].size == 1 else self.ray_density**(-2) #With supersampling, there are more rays and each ray carry less energy.
+        self.ray_energy = self.ray_energy_0.detach().clone()
+        self.attenuance = torch.zeros((self.num_rays), device = self.device, dtype = self.tensor_dtype) #exponent on e to model attenuation or gain. This "e^-attenuatance" factor is NOT subsumed in ray_energy due to potential loss of accuracy when it is multipled repeatably.
+        # self.width = torch.ones((self.num_rays), device = self.device, dtype = self.tensor_dtype) #constant if FOV is in depth of focus. Converging or Diverging if not. Function of s.
         self.integral = torch.zeros((self.num_rays), device = self.device, dtype = self.tensor_dtype) #accumulating integral along the path
         self.exited = torch.zeros((self.num_rays), device = self.device, dtype = torch.bool) #boolean value. Tracing of corresponding ray stops when its exited flag is true.
         self.active = torch.ones((self.num_rays), device = self.device, dtype = torch.bool) #boolean value. Active set. This set is usually a subset of ~self.exited.
