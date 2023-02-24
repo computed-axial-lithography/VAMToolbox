@@ -49,7 +49,16 @@ class ProjectionGeometry:
             laminography configuration angle above the plane of normal tomography configuration
 
         index_model : class IndexModel, optional, only used when ray tracing is enabled
+            This object provide analytical or interpolational description of real part of refractive index of the simulation volume in ray tracing.
             index_model is configured prior to initialization of proj_geo, using class vamtoolbox.medium.IndexModel.
+
+        attenuation_model : class AttenuationModel, optional, only used when ray tracing is enabled
+            This object provide analytical or interpolational description of total attenuation coefficient of the simulation volume in ray tracing.
+            attenuation_model is confifgured prior to initialization of proj_geo, using class vamtoolbox.medium.AttenuationModel.
+
+        absorption_model : class AbsorptionModel, optional, only used when ray tracing is enabled.
+            This object provide analytical or interpolational description of the absorption coefficient of the photochemically active component (e.g. photointiatior) of simulation volume in ray tracing.
+            absorption_model is confifgured prior to initialization of proj_geo, using class vamtoolbox.medium.AbsorptionModel (alias of AttenuationModel).
 
         ray_trace_method : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
             'eikonal', 'snells', 'hybrid'. Default: 'eikonal' 
@@ -82,6 +91,8 @@ class ProjectionGeometry:
         self.inclination_angle = None if 'inclination_angle' not in kwargs else kwargs['inclination_angle']
         self.zero_dose_sino = None if 'zero_dose_sino' not in kwargs else kwargs['zero_dose_sino']
         self.index_model = None if 'index_model' not in kwargs else kwargs['index_model']
+        self.attenuation_model = None if 'attenuation_model' not in kwargs else kwargs['attenuation_model']
+        self.absorption_model = None if 'absorption_model' not in kwargs else kwargs['absorption_model']
         self.ray_trace_method = None if 'ray_trace_method' not in kwargs else kwargs['ray_trace_method']
         self.eikonal_parametrization = None if 'eikonal_parametrization' not in kwargs else kwargs['eikonal_parametrization']
         self.ray_trace_ode_solver = None if 'ray_trace_ode_solver' not in kwargs else kwargs['ray_trace_ode_solver']

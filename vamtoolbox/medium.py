@@ -140,13 +140,10 @@ class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationMo
         #Need to check if the meshgrid has index increasing from the negative physical location to positive physical location
         return x*self.position_normalization_factor
 
-    @torch.inference_mode()
-    def getScalarFieldAtGridPoints(self):
-        return self.presampled_scalar_field_3D
-
-    @torch.inference_mode()
-    def getVectorFieldAtGridPoints(self):
-        return self.presampled_vector_field_4D
+    def getPositionVectorsAtGridPoints(self): 
+        '''Get the position vectors (x) with shape [num_of_points,3] at the stored grid points.'''
+        return torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+        
 
     @staticmethod
     @torch.inference_mode()
@@ -283,7 +280,7 @@ class IndexModel(MediumModel):
             self.n = self._scalar_field_interp
             self.grad_n = self._vector_field_interp
             self.interpolation_padding_mode = self.params['interpolation_padding_mode'] #This setting is used in _scalar_field_interp and _vector_field_interp.
-            self.presampled_x = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            self.presampled_x = self.getPositionVectorsAtGridPoints()
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous':
@@ -408,7 +405,7 @@ class IndexModel(MediumModel):
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
         if 'presampled_x' not in self.__dict__:
-            x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            x_sample = self.getPositionVectorsAtGridPoints()
         else:
             x_sample = self.presampled_x
 
@@ -440,7 +437,7 @@ class IndexModel(MediumModel):
         Plot a 2D slice of index gradient. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
         if 'presampled_x' not in self.__dict__:
-            x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            x_sample = self.getPositionVectorsAtGridPoints()
         else:
             x_sample = self.presampled_x
 
@@ -655,7 +652,7 @@ class AttenuationModel(MediumModel):
             #function alias
             self.alpha = self._scalar_field_interp
             self.interpolation_padding_mode = self.params['interpolation_padding_mode'] #This setting is used in _scalar_field_interp and _vector_field_interp.
-            self.presampled_x = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            self.presampled_x = self.getPositionVectorsAtGridPoints()
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous_cylinder':
@@ -680,7 +677,8 @@ class AttenuationModel(MediumModel):
     #=================================Analytic: Homogeneous cylinder================================================
     @torch.inference_mode()
     def _alpha_homo_cylinder(self, x : torch.Tensor):
-        r = torch.sqrt(x[:,0]**2 + x[:,1]**2) #radial position on xy plane, r of vector x, 1D tensor, numel = x.size[0]
+        '''Constant absorption coefficient in a cylinder centered at origin. Radius determined by the class initialization variable R.'''
+        r = torch.linalg.norm(x[:,0:2], dim = 1)  #radial position on xy plane = torch.sqrt(x[:,0]**2 + x[:,1]**2), 1D tensor, numel = x.size[0], Note: x[:,0:2] exclude x[:,2]
         alpha = torch.zeros_like(r) #1D tensor, numel = x.size[0]
         alpha[r < self.params['R_physical']] = self.params['alpha_internal']  #Inside the cylinder
         return alpha
@@ -689,7 +687,8 @@ class AttenuationModel(MediumModel):
     #=================================Analytic: Homogeneous ball================================================
     @torch.inference_mode()
     def _alpha_homo_ball(self, x : torch.Tensor):
-        r = torch.sqrt(x[:,0]**2 + x[:,1]**2 + x[:,2]**2) #radial position, r of vector x, 1D tensor, numel = x.size[0]
+        '''Constant absorption coefficient in a ball centered at origin. Radius determined by the class initialization variable R.'''
+        r = torch.linalg.norm(x, dim = 1)  #radial position in xyz = torch.sqrt(x[:,0]**2 + x[:,1]**2 + x[:,2]**2), 1D tensor, numel = x.size[0]
         alpha = torch.zeros_like(r) #1D tensor, numel = x.size[0]
         alpha[r < self.params['R_physical']] = self.params['alpha_internal']  #Inside the cylinder
         return alpha
@@ -700,7 +699,7 @@ class AttenuationModel(MediumModel):
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
         if 'presampled_x' not in self.__dict__:
-            x_sample = torch.vstack((torch.ravel(self.xg), torch.ravel(self.yg), torch.ravel(self.zg))).T #1D tensor is row vector. Stack and then transpose yields shape (samples, 3)
+            x_sample = self.getPositionVectorsAtGridPoints()
         else:
             x_sample = self.presampled_x
 
