@@ -4,10 +4,10 @@ import vedo
 import vedo.applications
 
 #2D targets
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\boss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\grayscale bars.png",pixels=501, binarize_image=False)
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\meme_cat.png",pixels=512, binarize_image=False)
-target_geo = vam.geometry.TargetGeometry(imagefilename=r"C:\Users\ccli\Downloads\doge_sq.jpg",pixels=512, binarize_image=False)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputboss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputgrayscale bars.png",pixels=501, binarize_image=False)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputmeme_cat.png",pixels=512, binarize_image=False)
+target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputdoge_sq.jpg",pixels=512, binarize_image=False)
 target_geo.show()
 
 #3D targets

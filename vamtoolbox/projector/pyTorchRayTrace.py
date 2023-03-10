@@ -39,7 +39,7 @@ class PyTorchRayTracingPropagator():
             self.device = torch.device('cuda')
         else:
             self.device = torch.device('cpu')
-        logging.info(f'Ray tracing computation is performed on: {repr(self.device)}')
+        self.logger.info(f'Ray tracing computation is performed on: {repr(self.device)}')
 
         if isinstance(self.proj_geo.ray_trace_ray_config, RayState): #if state of a set of rays is already provided, use that as initial state.
             self.ray_state = self.proj_geo.ray_trace_ray_config

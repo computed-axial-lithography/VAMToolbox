@@ -1,7 +1,8 @@
 from distutils.log import warn
 import numpy as np
 import time
-from scipy import optimize
+import logging
+#from scipy import optimize
 import warnings
 import matplotlib.pyplot as plt
 import vamtoolbox
@@ -77,10 +78,22 @@ class BCLPNorm:
     
     Naming convention:
     Ax=b in algebraic reconstruction corresponds to Pf=g in this code and in the paper.
+
+    Developement notes: 
+    This optimization method is written to be as propagator-agnostic as possible.
+    (1) Sinogram ndarray returned by propagator is not limited to be in a particular shape.
+        The original shape is denoted 'cylindrical' in code. The array is flattened for some operations.
+    (2) Dose unit is controlled jointly by propagator and the material response model.
+        This code only assumes the propagtor generates output that can be directly feeds to the response model in order to predict response.
+        The areal dose or volumetric dose in real space computed by propagator is simply denoted as dose in code.
+        The material response is denoted as mapped dose.
     """
     
     def __init__(self, target_geo, proj_geo, options, g0 = None):
+        self.logger = logging.getLogger(__name__)
+
         self.target_geo = target_geo
+        # self.target_geo.array = np.atleast_3d(self.target_geo.array) #atleast_3d should be used here when all formulation accepts 2D array as 3D array with third dimension of 1.
         self.proj_geo = proj_geo
         self.tomogram_scale = 1/proj_geo.n_angles #This scale will be applied to reconstruction after P.backward()
 
@@ -170,7 +183,7 @@ class BCLPNorm:
             self.mapped_dose_iter = self.logs.curr_iter
 
         if self.mapped_dose_error_from_f_T_iter != self.logs.curr_iter:
-            self.mapped_dose_error_from_f_T = self.mapped_dose - self.target_geo.array
+            self.mapped_dose_error_from_f_T = self.mapped_dose - self.target_geo.array  #'''When the operands have size mismatch, numpy automatically broadcast the array.''' 
             self.mapped_dose_error_from_f_T_iter = self.logs.curr_iter
 
         if self.mapped_dose_error_from_band_iter != self.logs.curr_iter:
@@ -283,7 +296,7 @@ class BCLPNorm:
         #record iter time
         self.logs.recordIterTime()
         if self.verbose == 'time' or self.verbose == 'plot' or self.verbose == 'plot_demo':
-            print(f'Iteration {self.logs.curr_iter: 4.0f} at time: { self.logs.iter_times[self.logs.curr_iter]: 6.1f} s')
+            self.logger.info(f'Iteration {self.logs.curr_iter: 4.0f} at time: { self.logs.iter_times[self.logs.curr_iter]: 6.1f} s')
         
         if self.verbose == 'plot':
             self.dp.update(self.logs.loss, self.dose, self.mapped_dose, [self.logs.l0, self.logs.l1, self.logs.l2, self.logs.lf, self.logs.l0_eps0, self.logs.l1_eps0, self.logs.l2_eps0, self.logs.lf_eps0])
