@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 import time
+import scipy.sparse
+from vamtoolbox.util.data import filterSinogram #only required for inverse_backward
 
 class PyTorchRayTracingPropagator():
     """
@@ -91,11 +93,11 @@ class PyTorchRayTracingPropagator():
     def backward(self, ray_energy_0):
         #Check if input is tensor
         if ~isinstance(ray_energy_0, torch.Tensor): #attempt to convert input to tensor
-            ray_energy_0 = torch.as_tensor(ray_energy_0, device = self.device)
+            ray_energy_0 = torch.as_tensor(ray_energy_0, device=self.device, dtype=self.ray_state.tensor_dtype)
         #Optional: if input is sparse, use ray selector to filter out rays corresponding to zero intensity pixels
 
         self.ray_state.resetRaysIterateToInitial()
-        self.ray_energy_0 = ray_energy_0
+        self.ray_state.ray_energy_0 = ray_energy_0
         
         deposition_grid, self.ray_state, _ = self.solver.depositEnergyUntilExit(
                                                                 ray_state = self.ray_state,
@@ -110,7 +112,54 @@ class PyTorchRayTracingPropagator():
         else:
             #maintain backward compatibility with optimizers written in numpy, which assumes 2D real space quantities to have no third dimension
             return np.squeeze(deposition_grid.cpu().numpy()) 
-        pass
+
+    @torch.inference_mode()
+    def inverseBackward(self, f, filter_option):
+        '''This function compute the inverse of backpropagation. Similar to forward propagation, this function maps from a spatial quantity to a sinogram quantity.'''
+        #Convert the input to a torch tensor if it is not
+        if ~isinstance(f, torch.Tensor): #attempt to convert input to tensor
+            f = torch.as_tensor(f, device = self.device)
+
+        absorption_at_target_grid = self.proj_geo.absorption_model.alpha(self.proj_geo.index_model.getPositionVectorsAtGridPoints()).reshape(self.target_geo.array.shape) #Multiply with the alpha values exactly at the grid points.
+        f /= (absorption_at_target_grid**2.0)
+        f[torch.isnan(f) | torch.isinf(f)] = 0.0
+        
+
+        g0 = self.ray_state.reshape(self.forward(f)) #reshape into cylindrical grid for filtering operation
+        if isinstance(g0, torch.Tensor): #if forward returned a tensor, convert to numpy array
+            g0 = g0.cpu().numpy()
+
+        g0 = filterSinogram(g0,'ram-lak').ravel() #pyTorchRayTracingPropagator always return 1D vector
+        g0 *= np.pi/(2*self.proj_geo.n_angles)
+
+        if self.output_torch_tensor == True:
+            return torch.as_tensor(g0, self.device)
+        else:
+            return g0
+
+    @torch.inference_mode()
+    def buildPropagationMatrix(self):
+        '''
+        This function builds the forward propagation matrix that corresponds to the forward propagation operation in discrete form.
+        This operator is the A in Ax = b, or the P in Pf = g, where x or f is the real space object (flattened into 1D array) and b or g is the sinogram (flattened into 1D array).
+        This propagation matrix is returned as a pytorch COO tensor if "output_torch_tensor" attribute is True, and as a scipy sparse COO array otherwise.
+        '''
+        self.ray_state.resetRaysIterateToInitial()
+        propagation_matrix_coo, _, _ = self.solver.recordEnergyUntilExit(ray_state = self.ray_state,
+                                                            step_size = self.tracing_step_size,
+                                                            tracker_on = False,
+                                                            track_every = 1
+                                                            )
+
+        propagation_matrix_coo.coalesce()
+
+        #Output as a torch sparse tensor
+        if self.output_torch_tensor == True:
+            return propagation_matrix_coo
+        else: #Convert output to class scipy.sparse.coo_array if needed
+            indices = propagation_matrix_coo.indices().cpu().numpy() 
+            values = propagation_matrix_coo.values().cpu().numpy()
+            return scipy.sparse.coo_array((values, (indices[:,0], indices[:,1])), shape=(propagation_matrix_coo.size(dim=0), propagation_matrix_coo.size(dim=1)))
 
 
     @torch.inference_mode()
@@ -354,6 +403,77 @@ class RayTraceSolver():
 
         return ray_state, ray_tracker
 
+    @torch.inference_mode()
+    def recordEnergyUntilExit(self, ray_state, step_size, tracker_on = False, track_every = 5):
+        '''This function record the energy deposited to voxels by rays of unity energy. The result is recorded as a pyTorch sparse COO tensor. '''
+        #Initialize ray tracker, where consecutive ray positions are recorded. Default to track every 5 rays
+        if tracker_on:
+            ray_tracker = torch.nan*torch.zeros((((ray_state.num_rays-1)//track_every)+1,3,self.max_num_step) ,device = self.device, dtype= ray_state.x_0.dtype) #ray_state.x_i[::track_every, :] has number of rows equal (ray_state.num_rays-1)//track_every)+1
+            tracker_ind = torch.zeros_like(ray_state.active)
+            tracker_ind[::track_every] = True
+        else:
+            ray_tracker = None
+
+        #ray_state should be resetted in buildPropagationMatrix(). Repeated here as a failsafe when recordEnergyUntilExit() is called outside of buildPropagationMatrix().
+        ray_state.resetRaysIterateToInitial()
+
+        #Initialize stepping (only applies to certain methods, e.g. leapfrog)
+        ray_state = self.step_init(ray_state, step_size)
+
+        #Initialize varaibles
+        self.step_counter = 0  #remember how many step taken after solving
+        start_time = time.perf_counter()
+        ray_state.active = ray_state.active & ~ray_state.exited #only non exited rays are considered
+        initial_active_ray_count =  torch.sum(ray_state.active, dim = 0) #initially active
+        active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+        active_ray_exist = (active_ray_count > 0)
+        
+        #Get the sparse tensor size
+        n_rows = ray_state.num_rays #currently use number of rays as the number of sinogram elements. Supersampling (where num_rays > number of sinogram elements) is to be supported in the future.
+        n_cols = self.index_model.xg.numel() #number of voxel elements
+        propagation_matrix_shape = (n_rows,n_cols)
+        propagation_matrix = torch.sparse_coo_tensor(size = propagation_matrix_shape, device = self.device) #initialize empty propagation matrix
+
+        while (self.step_counter < self.max_num_step) and active_ray_exist:
+            
+            ray_state = self.step(ray_state, step_size) #step forward. Where x_i and v_i will be replaced by x_ip1 and v_ip1 respectively
+
+            # if self.surface_intersection_check: #Placeholder: Exception handling for discrete surfaces (This feature is to be implemented)
+            #     self.discreteSurfaceIntersectionCheck(ray_state)
+            propagation_matrix += self.record(ray_state, step_size, propagation_matrix_shape) #record function returns the ray contribution in current step only
+            if self.step_counter % 50 == 0:
+                propagation_matrix = propagation_matrix.coalesce() #coalesce to remove redundent indices and values
+
+            if tracker_on:
+                tracker_active = ray_state.active[::track_every] #tracker_active.numel = ray_tracker.shape[0]
+                active_and_tracked = ray_state.active & tracker_ind #active_and_tracked.numel = x_i.shape[0]
+                ray_tracker[tracker_active,:,self.step_counter] = ray_state.x_i[active_and_tracked, :]
+
+            if self.step_counter%self.num_step_per_exit_check == 0: #Check exit condition
+                ray_state = self.exitCheck(ray_state) #Note: The operating set is always inverted ray_state.exited
+                ray_state.active = ray_state.active & ~ray_state.exited #deactivate exited rays
+                active_ray_count = torch.sum(ray_state.active, dim = 0) #current active ray count
+                active_ray_exist = (active_ray_count > 0)
+                self.logger.debug(f'Completed {self.step_counter}th-step at time {time.perf_counter()-start_time}. Ray active/init active/all: {active_ray_count}/{initial_active_ray_count}/{ray_state.num_rays}')
+                
+            self.step_counter += 1
+
+        self.total_stepping = step_size*self.step_counter #Total stepped value in parametrization variable
+        
+        # propagation_matrix = propagation_matrix.coalesce() #coalesce to remove redundent indices and values
+
+        #Multiply the recorded energy values by absorption coefficient at each voxel location
+        absorption_vector = self.absorption_model.alpha(self.index_model.getPositionVectorsAtGridPoints()) #in vector form
+        #absorption_matrix = torch.diag(absorption_vector) #dense diagonal matrix. Each element represent local active species absorption value.
+        diagonal_indices = torch.arange(absorption_vector.numel(), device=self.device)
+        absorption_matrix = torch.sparse_coo_tensor(indices=torch.vstack((diagonal_indices,diagonal_indices)), values=absorption_vector, device=self.device, dtype=propagation_matrix.dtype) #sparse diagonal tensor. Each element represent local active species absorption value.
+
+        propagation_matrix = torch.mm(propagation_matrix, absorption_matrix) #matrix multiplication.
+
+        if active_ray_exist:
+            self.logger.error(f'Some rays are still active when max_num_step ({self.max_num_step}) is reached. Rays active: {active_ray_count}/{initial_active_ray_count}.')
+
+        return propagation_matrix, ray_state, ray_tracker
     #=======================Eikonal equation parametrizations======================
     #Canonical parameter, as sigma in "Adjoint Nonlinear Ray Tracing, Teh, et al. 2022"
     @torch.inference_mode()
@@ -460,7 +580,6 @@ class RayTraceSolver():
         x_arr_idx = self.expressPositionInArrayIndices(ray_state.x_ip1[ray_state.active,:]) #Express position x in grid indices. This only contains the active set.
         voxel_idx_x = self.getAdjacentVoxelIndicesAtLocation(x_arr_idx) #This also only contains the active set.
 
-
         adj_voxel_count = 4 if (self.index_model.zv.numel() == 1) else 8 #for a 2D problem 4 adjacent voxels, for 3D problem 8 adjacent voxels.
 
         for adjacent_voxel_number in range(adj_voxel_count):
@@ -471,11 +590,10 @@ class RayTraceSolver():
 
     @torch.inference_mode()
     def integrate(self,ray_state, step_size, real_space_distribution): #integrate real space quantities along the ray
-        #Preprocess inputs for deposition, which is computed in a normalized and recentered unit of length, in terms of array indices
+        #Preprocess inputs for integration, which is computed in a normalized and recentered unit of length, in terms of array indices
         step_size_idx_unit = step_size/self.index_model.voxel_size[0] #step size in index units, used to determine deposition weights of each ray segement
         x_arr_idx = self.expressPositionInArrayIndices(ray_state.x_ip1[ray_state.active,:]) #Express position x in grid indices. This only contains the active set.
         voxel_idx_x = self.getAdjacentVoxelIndicesAtLocation(x_arr_idx) #This also only contains the active set.
-
 
         adj_voxel_count = 4 if (self.index_model.zv.numel() == 1) else 8 #for a 2D problem 4 adjacent voxels, for 3D problem 8 adjacent voxels.
 
@@ -484,6 +602,23 @@ class RayTraceSolver():
             ray_state.integral[ray_state.active] = self.integrateEnergyFromAdjacentVoxel(ray_state.ray_energy[ray_state.active], step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number, real_space_distribution, ray_state.integral[ray_state.active])
             #All arguments of integrateEnergyFromAdjacentVoxel are now downselected by ray_state.active. It will not act on inactive set of rays.
         return ray_state
+    
+    @torch.inference_mode()
+    def record(self, ray_state, step_size, propagation_matrix_shape): #deposit projected values along the ray and record them as matrix entries
+        #Preprocess inputs for deposition and recording, which is computed in a normalized and recentered unit of length, in terms of array indices
+        step_size_idx_unit = step_size/self.index_model.voxel_size[0] #step size in index units, used to determine deposition weights of each ray segement
+        x_arr_idx = self.expressPositionInArrayIndices(ray_state.x_ip1[ray_state.active,:]) #Express position x in grid indices. This only contains the active set.
+        voxel_idx_x = self.getAdjacentVoxelIndicesAtLocation(x_arr_idx) #This also only contains the active set.
+
+        adj_voxel_count = 4 if (self.index_model.zv.numel() == 1) else 8 #for a 2D problem 4 adjacent voxels, for 3D problem 8 adjacent voxels.
+
+        delta_propagation_matrix = torch.sparse_coo_tensor(size=propagation_matrix_shape, device = self.device)
+        active_ray_idx = ray_state.active.argwhere()[:,0] #Pick the first index of all non-zero elements. This will be used to indicate row position in the propagation matrix.
+        for adjacent_voxel_number in range(adj_voxel_count):
+            delta_propagation_matrix += self.recordEnergyOnAdjacentVoxel(ray_state.ray_energy[ray_state.active], step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number, propagation_matrix_shape, active_ray_idx)
+            #All arguments of recordEnergyOnAdjacentVoxel are now downselected by ray_state.active. It will not act on inactive set of rays.
+        return delta_propagation_matrix
+        # return delta_propagation_matrix.coalesce() #coalesce to prevent redundent indices build up
 
     @torch.inference_mode()
     def depositEnergyOnAdjacentVoxel(self, ray_energy, step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number : int, desposition_grid):
@@ -545,7 +680,7 @@ class RayTraceSolver():
             else:
                 #(4) Sequential python for loop to assign value one by one. (Each step takes 300x time as (1))
                 #Because the loop operate at the interpreter level, this is the slowest and makes common problem size infeasible to solve.
-                loop_idx = valid_idx.nonzero()[:,0]
+                loop_idx = valid_idx.argwhere()[:,0] #Pick the first index of all non-zero elements
                 for ray in loop_idx: #nonzero returns a 2D array by default
                     desposition_grid[voxel_idx_select[ray,0], voxel_idx_select[ray,1], voxel_idx_select[ray,2]] += energy_interaction_at_valid_idx[ray]
         return desposition_grid
@@ -590,6 +725,62 @@ class RayTraceSolver():
             ray_integral[valid_idx]  += real_space_distribution[voxel_idx_select[valid_idx,0], voxel_idx_select[valid_idx,1], voxel_idx_select[valid_idx,2]] * energy_interaction_at_valid_idx
             
         return ray_integral #Note this only contains the active set. And inside the active set, only those ray segments which has valid voxel correspondence have been updated.
+
+    @torch.inference_mode()
+    def recordEnergyOnAdjacentVoxel(self, ray_energy, step_size_idx_unit, x_arr_idx, voxel_idx_x, adjacent_voxel_number : int, propagation_matrix_shape, active_ray_idx):
+        '''
+        In 3D problems, this function handles the dose deposition of one particular voxel (lower/upper corner) out of 8 voxels adjacent to positions at x.
+        (In 2D problems, this function handles one out of 4 adjacent voxels.)
+        
+        The adjacent_voxel_number is integer from 0-7 for 3D problem and 0-3 for 2D problem
+        
+        This function works for any number of rays, as long as the shape[0] of all ray-numbered inputs are consistent.
+        Internally, it only process rays that have a valid adjacent voxel position.
+
+        voxel_idx_x is multi-dimensional index in real space domain
+        active_ray_idx is 1-dimensional index of rays
+        '''
+        
+        #Check if the number of active rays matches
+        assert x_arr_idx.shape[0] == ray_energy.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and ray_energy ({ray_energy.shape[0]}) must match.'
+        assert x_arr_idx.shape[0] == voxel_idx_x.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and voxel_idx_x ({voxel_idx_x.shape[0]}) must match.'
+        assert x_arr_idx.shape[0] == active_ray_idx.shape[0], f'First dimension of x_arr_idx ({x_arr_idx.shape[0]}) and active_ray_idx ({active_ray_idx.shape[0]}) must match.'
+
+        #These 3 binary indices index the last dimension of voxel_idx_x which contains the floor and ceiling voxel (idx) adjacent to position x
+        above_x = int(adjacent_voxel_number % 2) #first bit
+        above_y = int((adjacent_voxel_number//2) % 2) #second bit
+        above_z = int((adjacent_voxel_number//4) % 2) #third bit. For 2D case, this bit is constantly 0
+
+        voxel_idx_select = torch.cat((voxel_idx_x[:,0, above_x][:,None], voxel_idx_x[:,1, above_y][:,None], voxel_idx_x[:,2, above_z][:,None]), dim = 1)
+
+        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, igore it
+        #valid_idx is index in the tensor of the active rays and associated quantities.
+        valid_idx = (voxel_idx_select[:,0] >= 0) & (voxel_idx_select[:,0] < self.index_model.xv.numel()) #Check x index
+        valid_idx = valid_idx & (voxel_idx_select[:,1] >= 0) & (voxel_idx_select[:,1] < self.index_model.yv.numel()) #Check y index
+        valid_idx = valid_idx & (voxel_idx_select[:,2] >= 0) & (voxel_idx_select[:,2] < self.index_model.zv.numel()) #Check z index
+        
+        if torch.any(valid_idx): #if valid_idx has at least one non-zero element
+            #Interpolation coefficient is computed as Trilinear interpolation = Lagrange interpolation of order 1 = Linear shape function
+            interp_coef = torch.prod(1 - torch.abs(x_arr_idx[valid_idx,:] - voxel_idx_select[valid_idx,:]), dim= 1) 
+            
+            #Deposition values are comprise of step size (in voxel unit) * interp_coef * ray_energy
+            energy_interaction_at_valid_idx = step_size_idx_unit*interp_coef*ray_energy[valid_idx]
+
+            #Matrix row indices corresponds to rays/sinogram voxels
+            matrix_row_idx = active_ray_idx[valid_idx] #Among all active rays, pick those with a valid adjacent voxel 
+
+            #Matrix column indices corresponds to real space voxel
+            #ravel index. In C order the last index cycle the fastest
+            x_ind_stride = (self.index_model.yv.numel()*self.index_model.zv.numel())
+            y_ind_stride = self.index_model.zv.numel()
+            matrix_col_idx = voxel_idx_select[valid_idx,0]*x_ind_stride + voxel_idx_select[valid_idx,1]*y_ind_stride + voxel_idx_select[valid_idx,2]
+
+            #Record values in a sparse COO tensor
+            delta_propagation_matrix = torch.sparse_coo_tensor(indices=torch.vstack((matrix_row_idx,matrix_col_idx)), values=energy_interaction_at_valid_idx, size=propagation_matrix_shape, device=self.device)            
+        else:
+            delta_propagation_matrix = torch.sparse_coo_tensor(size=propagation_matrix_shape, device=self.device) #Return empty sparse tensor if there is none of the rays access valid space voxel index.
+
+        return delta_propagation_matrix
 
     @torch.inference_mode()
     def expressPositionInArrayIndices(self, x):
