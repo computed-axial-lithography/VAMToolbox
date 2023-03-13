@@ -4,10 +4,10 @@ import vedo
 import vedo.applications
 
 #2D targets
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputboss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputgrayscale bars.png",pixels=501, binarize_image=False)
-# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputmeme_cat.png",pixels=512, binarize_image=False)
-target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_inputdoge_sq.jpg",pixels=512, binarize_image=False)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_input\boss.jpeg", pixels=501, binarize_image=False, clip_to_circle= True)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_input\grayscale bars.png",pixels=501, binarize_image=False)
+# target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_input\meme_cat.png",pixels=512, binarize_image=False)
+target_geo = vam.geometry.TargetGeometry(imagefilename=r"G:\Shared drives\taylorlab\CAL Projects\LDCT\optim_input\doge_sq.jpg",pixels=512, binarize_image=False)
 target_geo.show()
 
 #3D targets
@@ -30,7 +30,7 @@ proj_geo = vam.geometry.ProjectionGeometry(angles,ray_type='parallel',CUDA=True)
 response_model = vam.response.ResponseModel(B=25)
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50,filter='ram-lak_freq',verbose='plot', learning_rate = 0.02, response_model = response_model, eps=0.05)
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=10, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.02, response_model = "default", eps=0.1) #Working
-optimizer_params = vam.optimize.Options(method='BCLP',n_iter=100, filter='ram-lak_freq',verbose='plot_demo', p=2, learning_rate = 0.02, response_model = response_model, eps=0.1) #Working
+optimizer_params = vam.optimize.Options(method='BCLP',n_iter=30, filter='ram-lak',verbose='plot', p=2, learning_rate = 0.00001, response_model = response_model, eps=0.1) #Working
 
 # ========================================= q = 1 ==============================================================================
 # optimizer_params = vam.optimize.Options(method='BCLP',n_iter=50, filter='ram-lak_freq',verbose='plot', p=2, learning_rate = 0.01, response_model = "default", eps=0.0) #Working
