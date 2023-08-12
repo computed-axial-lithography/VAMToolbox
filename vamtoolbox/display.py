@@ -245,9 +245,9 @@ class VolumeSlicer():
 		self.slice_inds = [2,1]
 		
 		if self.vol_type == 'recon' or self.vol_type == 'target':
-			labels = [['Y','X'],['Y','Z']]
+			labels = [['Y [voxel]','X [voxel]'],['Y [voxel]','Z [voxel]']]
 		elif self.vol_type == 'sino':
-			labels = [[r'$\mathrm{\theta}$','R'],['R','Z']]
+			labels = [[r'$\mathrm{\theta}^\circ$','R [voxel]'],['R [voxel]','Z [voxel]']]
 
 		self.scroll_trackers = list()
 		for ax,slice_ind,label in zip(self.axs,self.slice_inds,labels):
@@ -308,11 +308,11 @@ class SlicePlot():
 
 
 		if vol_type == 'recon' or vol_type == 'target':
-			xlabel = 'Y'
-			ylabel = 'X'
+			xlabel = 'Y [voxel]'
+			ylabel = 'X [voxel]'
 		elif vol_type == 'sino':
-			xlabel = r'$\mathrm{\theta}$'
-			ylabel = 'R'
+			xlabel = r'$\mathrm{\theta}^\circ$'
+			ylabel = 'R [voxel]'
 		if show_bodies == True:
 			self.ax.format_coord = CursorFormatter(self.im)
 		self.ax.set_xlabel(xlabel)

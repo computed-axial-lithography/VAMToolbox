@@ -358,8 +358,10 @@ class TargetGeometry(Volume):
 
         """
         self.insert = None
+        self.zero_dose = None
         if target is not None:
             array = target
+
 
         # image as target
         elif imagefilename is not None and stlfilename is None:

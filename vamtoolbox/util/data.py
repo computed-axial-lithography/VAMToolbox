@@ -273,7 +273,7 @@ def filterSinogram(sinogram : np.ndarray,filter_name : str):
         # Apply filter in Fourier domain
         filt_img = fft(img, axis=0) * fourier_filter
         sinogram_filt = np.real(ifft(filt_img, axis=0)[:pX, :])
-    else:
+    elif sinogram.ndim == 3:
 
         pX, pY, nZ = sinogram.shape
         sinogram_filt = np.zeros([pX,pY,nZ],dtype=float)
@@ -290,7 +290,8 @@ def filterSinogram(sinogram : np.ndarray,filter_name : str):
             # Apply filter in Fourier domain
             filt_img = fft(img, axis=0) * fourier_filter
             sinogram_filt[:,:,z_i] = np.real(ifft(filt_img, axis=0)[:pX, :])
-
+    else:
+        raise Exception('The sinogram provided does not have compatible number of dimension (2 or 3).')
 
     return sinogram_filt
 
@@ -426,7 +427,7 @@ def discretize(x:np.ndarray,bit_depth:int,range:list,output_dtype:np.dtype=np.fl
     """ 
 
     assert len(range) == 2, "range argument should have 2 elements [min,max]"
-    bins = np.linspace(range[0],range[1],2**bit_depth)
+    bins = np.linspace(range[0],range[1],2**bit_depth,endpoint=True)
     
     discrete_x_inds = np.digitize(x,bins=bins) - 1
     discrete_x = bins[discrete_x_inds].astype(output_dtype)

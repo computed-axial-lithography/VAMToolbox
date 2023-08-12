@@ -9,7 +9,7 @@ class Options:
     __default_CAL = {"learning_rate":0.01,"momentum":0,"positivity":0,"sigmoid":0.01}
     __default_PM = {"rho_1":1,"rho_2":1,"p":1}
     __default_OSMO = {"inhibition":0}
-    __default_BCLP = {"response_model":"default", "eps":0.1, "weight":1, "p":2, "q":1,  "learning_rate":0.01, "optim_alg":"grad_des"}
+    __default_BCLP = {"response_model":"default", "eps":0.1, "weight":1, "p":2, "q":1,  "learning_rate":0.01, "optim_alg":"grad_des", "g0":None}
 
     def __init__(self,method : str ='CAL',n_iter : int = 50,d_h : float = 0.8,d_l : float = 0.7,filter : str ='ram-lak',units:str='normalized', blb = 0, bub = None, **kwargs):
         """
@@ -76,6 +76,9 @@ class Options:
 
         q : float, optional (BCLP)
             Cost function is a Lp norm (scalar) raised to q-th power. Changing q does not affect minimizer on solution landscape but affect convergence behavior.
+
+        g0 : sinogram, optional (BCLP)
+            Initial guess of sinogram solution. Can be obtained from saved result or 
         
         """
         self.method = method
@@ -130,6 +133,7 @@ class Options:
             self.q = self.__default_BCLP["q"]
             self.learning_rate = self.__default_BCLP["learning_rate"]
             self.optim_alg = self.__default_BCLP["optim_alg"]
+            self.g0 = self.__default_BCLP["g0"]
 
     def __str__(self):
         return str(self.__dict__)

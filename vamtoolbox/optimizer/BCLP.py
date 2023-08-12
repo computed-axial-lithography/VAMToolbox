@@ -28,6 +28,13 @@ class LogPerf:
 
         self.iter_times = np.zeros(options.n_iter+1)
         self.t0 = np.nan
+    def save(self,filename):
+        np.savetxt(filename,
+                   np.column_stack([range(self.options.n_iter+1),self.iter_times,self.loss,self.l0,self.l1,self.l2,self.lf,self.l0_eps0,self.l1_eps0,self.l2_eps0,self.lf_eps0]),
+                   delimiter=",",
+                   header="n,compute time,loss,L0 norm,L1 norm,L2 norm,Linf norm,L0 norm eps=0,L1 norm eps=0,L2 norm eps=0,Linf norm eps=0,",
+                   fmt=["%5.0i","%10.2f","%10.4f","%10.4f","%10.4f","%10.4f","%10.4f","%10.4f","%10.4f","%10.4f","%10.4f"],
+        )
 
     def startTiming(self):
         self.t0 = time.perf_counter()
@@ -89,7 +96,7 @@ class BCLPNorm:
         The material response is denoted as mapped dose.
     """
     
-    def __init__(self, target_geo, proj_geo, options, g0 = None):
+    def __init__(self, target_geo, proj_geo, options):
         self.logger = logging.getLogger(__name__)
 
         self.target_geo = target_geo
@@ -111,6 +118,7 @@ class BCLPNorm:
         self.q = options.q
         self.learning_rate = options.learning_rate
         self.optim_alg = options.optim_alg
+        self.g0 = options.g0
         self.glb = options.blb
         self.gub = options.bub
         self.bit_depth = options.bit_depth
@@ -151,7 +159,7 @@ class BCLPNorm:
             warnings.warn("Target is either out of range of response function over non-negative real dose input, or contains inf/nan.")
 
         #Obtain initial sinogram (first optimization iterate)
-        if g0 is None:
+        if self.g0 is None:
             #If it is not externally provided, generate initialization sinogram.
             if callable(getattr(self.P, 'inverseBackward', None)): #if the projector has inverseBackward() method defined, use that to generate initial guess
                 self.g0 = self.P.inverseBackward(self.response_model.map_inv(self.target_geo.array), options.filter)
@@ -163,8 +171,6 @@ class BCLPNorm:
                 self.g0 *= np.pi/(2*proj_geo.n_angles) #This scales the filtered backpropagation results correctly such that original target scale is maintained.
                 self.logger.info('Propagator has no inverseBackward() method. Initialize with forward propagation and filtering in sinogram space.')
  
-        else:
-            self.g0 = g0
 
         self.g0_shape = self.g0.shape
         self.g0 = self.imposeSinogramConstraints(self.g0)
