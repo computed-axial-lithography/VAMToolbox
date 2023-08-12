@@ -191,6 +191,8 @@ class BCLPNorm:
         if self.dose_iter != self.logs.curr_iter:
             g_iter = self.checkSinogramShape(g_iter, desired_shape = "cylindrical")
             self.dose  = self.P.backward(g_iter)
+            if self.dose.ndim <= 1: #if the tomogram recon is flattened
+                self.dose = self.dose.reshape(self.target_geo.array.shape) #all tomogram space computation happens in 2D/3D
             self.dose_iter = self.logs.curr_iter
 
         if self.mapped_dose_iter != self.logs.curr_iter:

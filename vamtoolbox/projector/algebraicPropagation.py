@@ -23,6 +23,9 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
     Continuing from above example, it reads b.size = A.shape[0]*256
     
     Backpropagation process will check for (b.size % A.shape[0]) == 0
+
+    #TODO: replace _rmatvec with _adjoint
+    # use ravel() to perform z-tiled multiplication instead of loops
     """
     def __init__(self, target_geo, proj_geo) -> None:
 
@@ -34,7 +37,7 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
             raise Exception(f'Sparse matrix file at "loading_path_for_matrix"={self.loading_path_for_matrix} does not exist or cannot be read.')
         print(f'Loading finished in {time.perf_counter()-start_time}')
 
-        self.propagation_matrix = sparse.csr_array(self.propagation_matrix, copy=False) #Converting to new csr_array format if it is either in other sparse format (matrix formats, or lil...etc)
+        self.propagation_matrix = sparse.csr_array(self.propagation_matrix, copy=False) #Converting to new csr_array format if it is either in other sparse formats
 
         self.internal_matrix_shape = self.propagation_matrix.shape #The internal matrix shape can be smaller (for 2D problems) than the effective operator shape (for 3D problems).
         self.n_row_internal, self.n_col_internal = self.internal_matrix_shape
@@ -48,7 +51,7 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         if (n_col_eff % self.n_col_internal) != 0: #The target_geo is not a z-extension of the col
             raise Exception(f'The imported sparse matrix has {self.n_col_internal} columns, and it can neither match or be tiled to match total number of voxel ({n_col_eff})of real space target.')
 
-        self.z_tiling = target_geo.array.size // self.n_col_internal
+        self.z_tiling = target_geo.array.size // self.n_col_internal # minimum 1
         n_row_eff = self.internal_matrix_shape[0] * self.z_tiling
 
         #Define the effective linear operator shape
@@ -60,7 +63,9 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
 
     def _matvec(self, x):
         #Forward propagation. return b = Ax or eqivalently g = Pf
-        
+        if x.ndim > 1:
+            x = x.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _matvec
+    
         for z_section in range(self.z_tiling): #handle each z-slice every loop
             #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
             self.forward_cache[z_section::self.z_tiling] = self.propagation_matrix.dot(x[z_section::self.z_tiling])
@@ -75,7 +80,9 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
 
     def _rmatvec(self, b):
         #Backpropagation. return x = (A^T)b or eqivalently f = (P^T)g
-        
+        if b.ndim > 1:
+            b = b.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _rmatvec
+    
         AT = self.propagation_matrix.transpose(copy=False)
         for z_section in range(self.z_tiling): #handle each z-slice every loop
             #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
@@ -88,14 +95,40 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         '''
         return self.backward_cache
 
-    def forward(self, x):
-        #Wrapper around matvec(x)
-        if x.ndim > 1:
-            x = x.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _matvec
+    def forward(self, x):  #Wrapper around matvec(x)
         return self.matvec(x)
 
-    def backward(self, b):
-        #Wrapper around rmatvec(b)
-        if b.ndim > 1:
-            b = b.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _rmatvec
+    def backward(self, b): #Wrapper around rmatvec(b)
         return self.rmatvec(b)
+    
+
+    def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=50, show=True, x0=None):
+        '''
+        #Currently only works for one 2D slice.
+
+        (Approximate) inverse of backpropagation operator
+        In x = (A^T)b, for a given x, find approximate solution b .
+        In f = (P^T)g, for a given f, find approximate solution g.
+
+        #Options
+        LSQR: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsqr.html
+        LSMR: https://docs.scipy.org/doc/scipy-1.9.1/reference/generated/scipy.sparse.linalg.lsmr.html#scipy.sparse.linalg.lsmr
+
+        #TODO: Get it working for multiple layers. Also test if optimization works for linear model and zero initialization.
+        '''
+        print('Computing inverse of backpropagation...')
+        if x.ndim > 1:
+            x = x.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _matvec
+        
+        AT = self.propagation_matrix.transpose(copy=False)
+        if method =='lsqr':
+            b, istop, itn = sparse.linalg.lsqr(AT, x, atol=atol, btol=btol, iter_lim=iter_lim, show=show, x0=x0)[:3]
+        elif method == 'lsmr':
+            b, istop, itn = sparse.linalg.lsmr(AT, x, atol=atol, btol=btol, maxiter=iter_lim, show=show, x0=x0)[:3]
+        elif method == 'zeros':
+            b = np.zeros(self.internal_matrix_shape[0] * self.z_tiling)
+        else:
+            raise Exception('Specificed method is not supported.')
+
+        return b
+

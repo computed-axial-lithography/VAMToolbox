@@ -114,7 +114,7 @@ class PyTorchRayTracingPropagator():
             return np.squeeze(deposition_grid.cpu().numpy()) 
 
     @torch.inference_mode()
-    def inverseBackward(self, f, filter_option):
+    def inverseBackward(self, f, filter_option = 'ram-lak'):
         '''This function compute the inverse of backpropagation. Similar to forward propagation, this function maps from a spatial quantity to a sinogram quantity.'''
         #Convert the input to a torch tensor if it is not
         if ~isinstance(f, torch.Tensor): #attempt to convert input to tensor
@@ -129,11 +129,11 @@ class PyTorchRayTracingPropagator():
         if isinstance(g0, torch.Tensor): #if forward returned a tensor, convert to numpy array
             g0 = g0.cpu().numpy()
 
-        g0 = filterSinogram(g0,'ram-lak').ravel() #pyTorchRayTracingPropagator always return 1D vector
+        g0 = filterSinogram(g0, filter_option).ravel() #pyTorchRayTracingPropagator always return 1D vector
         g0 *= np.pi/(2*self.proj_geo.n_angles)
 
         if self.output_torch_tensor == True:
-            return torch.as_tensor(g0, self.device)
+            return torch.as_tensor(g0, device=self.device)
         else:
             return g0
 
@@ -159,7 +159,7 @@ class PyTorchRayTracingPropagator():
         else: #Convert output to class scipy.sparse.coo_array if needed
             indices = propagation_matrix_coo.indices().cpu().numpy() 
             values = propagation_matrix_coo.values().cpu().numpy()
-            return scipy.sparse.coo_array((values, (indices[:,0], indices[:,1])), shape=(propagation_matrix_coo.size(dim=0), propagation_matrix_coo.size(dim=1)))
+            return scipy.sparse.coo_array((values, (indices[0,:], indices[1,:])), shape=(propagation_matrix_coo.size(dim=0), propagation_matrix_coo.size(dim=1)))
 
 
     @torch.inference_mode()
