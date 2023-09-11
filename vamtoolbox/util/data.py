@@ -24,7 +24,7 @@ else:
 
 def sigmoid(x,g):
     y = 1/(1+np.exp(-x*(1/g)))
-    return y.astype(np.float)
+    return y.astype(float)
 
 
     
@@ -319,7 +319,7 @@ def _get_fourier_filter(size : int, filter_name : str):
     .. [1] AC Kak, M Slaney, "Principles of Computerized Tomographic
            Imaging", IEEE Press 1988.
     """
-    n = np.concatenate((np.arange(1, size / 2 + 1, 2, dtype=np.int),np.arange(size / 2 - 1, 0, -2, dtype=np.int)))
+    n = np.concatenate((np.arange(1, size / 2 + 1, 2, dtype=int),np.arange(size / 2 - 1, 0, -2, dtype=int)))
     #n = fftmodule.fftfreq(size)[1::2]*size #equivalent way to write the odd spatial coordinate (this version is signed)
     f = np.zeros(size)
     f[0] = 0.25
@@ -356,7 +356,7 @@ def _get_fourier_filter(size : int, filter_name : str):
 
 
 
-# def histogramEqualization(x:np.ndarray, bit_depth:int,output_dtype:np.dtype = np.float):
+# def histogramEqualization(x:np.ndarray, bit_depth:int,output_dtype:np.dtype = np.float32):
 #     # from http://www.janeriksolem.net/histogram-equalization-with-python-and.html
 
 #     number_bins = 2**bit_depth
@@ -386,7 +386,7 @@ def _get_fourier_filter(size : int, filter_name : str):
 #     return x_equalized.reshape(x.shape)
 
 
-def histogramEqualization(x:np.ndarray, bit_depth:int,output_dtype:np.dtype = np.float):
+def histogramEqualization(x:np.ndarray, bit_depth:int,output_dtype:np.dtype = float):
     max_x = np.amax(x)
     min01 = np.percentile(x,1)
     # min01 = 0.01*np.amin(proj)
@@ -409,7 +409,7 @@ def histogramEqualization(x:np.ndarray, bit_depth:int,output_dtype:np.dtype = np
     return x_stretch
 
 
-def discretize(x:np.ndarray,bit_depth:int,range:list,output_dtype:np.dtype=np.float):
+def discretize(x:np.ndarray,bit_depth:int,range:list,output_dtype:np.dtype=float):
     """
     Digitizes a variable to requested bit depth and output data type
     

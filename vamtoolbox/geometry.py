@@ -379,7 +379,7 @@ class TargetGeometry(Volume):
             # resize to requested size
             if pixels is not None:
                 image = image.resize(size=(pixels,pixels))
-            image = np.array(image).astype(np.float)
+            image = np.array(image).astype(np.float32)
             # normalize image to 0-1 range
             image = image/np.max(image)
             # binarize image
@@ -669,7 +669,7 @@ def rebinFanBeam(sinogram,vial_width,N_screen,n_write,throw_ratio):
     N_U,N_V = N_screen
     n1=1 #refractive index of air
     n2=n_write # measured refractive index at the projection beam wavelength
-    vial_width=np.int(vial_width) # Apparent vial width in the field of view of the projector.  Obtained by projecting projector columns and noting the first and last columns to intersect the vial vall.
+    vial_width=int(vial_width) # Apparent vial width in the field of view of the projector.  Obtained by projecting projector columns and noting the first and last columns to intersect the vial vall.
     
     throw_ratio_pix=throw_ratio*N_U #Throw ratio x number of pixels in the horizontal direction.  Change this depending on projector width in pixels.
     
@@ -715,7 +715,7 @@ def rebinFanBeam(sinogram,vial_width,N_screen,n_write,throw_ratio):
     theta_samp[(theta_samp<=max_theta-diff_theta) & (theta_samp>max_theta)]=max_theta
     
     #Padding the frames array so that its width is the same as the vial
-    pd=np.int((vial_width-N_r)/2)
+    pd=int((vial_width-N_r)/2)
     if pd>0:
         sinogram.array=np.pad(sinogram.array,((pd,pd),(0,0),(0,0)),mode='constant')
     if np.shape(sinogram.array)[0] < vial_width:

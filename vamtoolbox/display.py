@@ -546,10 +546,10 @@ def errorTolerancePlot(x,target_geo,dh,tol,savepath=None):
 	cmap_over = matplotlib.colors.ListedColormap(['black','paleturquoise'])
 	
 	th_over = np.array(x >= dh-tol, dtype=np.bool)
-	th_over = np.array(np.logical_and(th_over,void),dtype=np.int)
+	th_over = np.array(np.logical_and(th_over,void),dtype=int)
 
 	th_under = np.array(x <= dh+tol, dtype=np.bool)
-	th_under = np.array(np.logical_and(th_under,gel),dtype=np.int)
+	th_under = np.array(np.logical_and(th_under,gel),dtype=int)
 
 	fig, axs = plt.subplots(1,3,figsize=(15,12))
 
