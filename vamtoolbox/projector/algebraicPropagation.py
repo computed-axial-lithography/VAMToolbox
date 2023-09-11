@@ -96,10 +96,10 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         return self.backward_cache
 
     def forward(self, x):  #Wrapper around matvec(x)
-        return self.matvec(x)
+        return self._matvec(x)
 
     def backward(self, b): #Wrapper around rmatvec(b)
-        return self.rmatvec(b)
+        return self._rmatvec(b)
     
 
     def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=50, show=True, x0=None):

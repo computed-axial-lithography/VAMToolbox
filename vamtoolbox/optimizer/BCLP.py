@@ -28,6 +28,8 @@ class LogPerf:
 
         self.iter_times = np.zeros(options.n_iter+1)
         self.t0 = np.nan
+        self.is_converged = False
+
     def save(self,filename):
         np.savetxt(filename,
                    np.column_stack([range(self.options.n_iter+1),self.iter_times,self.loss,self.l0,self.l1,self.l2,self.lf,self.l0_eps0,self.l1_eps0,self.l2_eps0,self.lf_eps0]),
@@ -123,6 +125,7 @@ class BCLPNorm:
         self.gub = options.bub
         self.bit_depth = options.bit_depth
         self.dvol = 1 #differential volume in integration
+        self.exit_param = options.exit_param #Convergence tolerance. Expressed as percentage change of loss.
         self.verbose = options.verbose
         self.save_img_path = options.save_img_path
 
@@ -251,8 +254,15 @@ class BCLPNorm:
         operand = self.v * self.weight * (np.abs(self.mapped_dose_error_from_band)**(self.p-1)) * np.sign(self.mapped_dose_error_from_f_T) * self.response_model.dmapdf(self.dose)
 
         #Computation of gradient happens between the two iterations. Now the index just incremented, but we need to access the loss evaluated in last iteration
-        loss_grad =  ( self.q * self.loss**((self.q - self.p)/self.q) ) * self.P.forward(operand) 
+        loss_grad =  ( self.q * self.loss**((self.q - self.p)/self.q) ) * self.P.forward(operand) if self.loss != 0.0 else self.P.forward(operand)
+        '''
+        Explanation of the conditional evaluation of loss_grad:
+        When (self.loss == 0.0) AND (self.q-self.p < 0), the ( self.q * self.loss**((self.q - self.p)/self.q) ) results in infinity because it is a division by 0.
+        self.P.forward(operand) is an sinogram array of all zeros.
+        Infinity * 0 results in nan.
 
+        To fix this problem, we force the gradient to be zero in this step to prevent the sinogram to be further updated. 
+        '''
         loss_grad = self.checkSinogramShape(loss_grad, desired_shape= "flattened")
 
         return loss_grad
@@ -337,7 +347,12 @@ class BCLPNorm:
             
             #Evaluate performance
             self.getLoss(g_iter)
-            self.callback(g_iter)
+            is_converged = self.checkConvergence() #This is where the loss function and gradient is evaluated, but the other auxilliary norms are not evaluated yet.
+            self.callback(g_iter) #self.logs.curr_iter is updated here
+            if is_converged:
+                self.logger.warning('Optimization converged or loss value reached zero.')
+                self.logs.is_converged = is_converged
+                break
             
         self.updateVariables(g_iter) #Update the variables according to the last generated g_iter
         self.evaluateNormMetrics() #compute the metrics for the last generated g_iter
@@ -370,7 +385,34 @@ class BCLPNorm:
         
         return g
         
+    def checkConvergence(self):
+        #This function checks convergence by evaluating fractional change of loss from previous to current iteration
+        #Slope on the plot Loss vs effort (effort = step size * iteration). This slope is evaluated over one iteration.
+        is_loss_zero = True if self.logs.loss[self.logs.curr_iter] == 0.0 else False
 
+        avg_over_n_iter = 5
+        if self.logs.curr_iter > avg_over_n_iter and self.exit_param is not None:
+            change_of_loss = np.abs(np.diff(self.logs.loss[self.logs.curr_iter-avg_over_n_iter:self.logs.curr_iter]))
+            avg_change_of_loss_over_n_iter = np.mean(change_of_loss)
+            if avg_change_of_loss_over_n_iter <= self.exit_param*self.logs.loss[self.logs.curr_iter]:
+                is_converged = True
+
+        # if self.logs.curr_iter > 0 and self.exit_param is not None:
+        #     norm_grad = np.linalg.norm(self.loss_grad)
+        #     if norm_grad <= self.exit_param:
+        #         is_converged = True
+
+        # if self.logs.curr_iter > 0 and self.exit_param is not None:
+        #     change_of_loss = np.abs(self.logs.loss[self.logs.curr_iter] - self.logs.loss[self.logs.curr_iter-1])
+        #     if change_of_loss <= self.exit_param*self.logs.loss[self.logs.curr_iter-1]*self.learning_rate:
+        #         is_converged = True
+
+            else:
+                is_converged = False
+        else:
+            is_converged = False
+        
+        return is_converged or is_loss_zero
 
 def minimizeBCLP(target_geo, proj_geo, options, output = "packaged"):
     """
