@@ -100,12 +100,12 @@ class PyTorchAlgebraicPropagator:
     @torch.inference_mode()
     def forward(self, x):
         if ~isinstance(x, torch.Tensor): #Convert the input to a torch tensor if it is not
-            x = torch.as_tensor(x, device = self.device)
+            x = torch.as_tensor(x, device = self.device, dtype = self.dtype)
 
         # if x.ndimension() > 1:
         #     x = x.flatten()
 
-        x = x.reshape((-1, self.z_tiling))  # Reshape x for batched matrix multiplication
+        x = x.reshape((-1, self.z_tiling)).to(self.dtype)  # Reshape x for batched matrix multiplication. Make sure data type is correct.
         b = torch.sparse.mm(self.propagation_matrix, x).flatten()
         if self.output_torch_tensor:
             return b
@@ -115,12 +115,12 @@ class PyTorchAlgebraicPropagator:
     @torch.inference_mode()
     def backward(self, b):
         if ~isinstance(b, torch.Tensor): #Convert the input to a torch tensor if it is not
-            b = torch.as_tensor(b, device = self.device)
+            b = torch.as_tensor(b, device = self.device, dtype = self.dtype)
 
         # if b.ndimension() > 1:
         #     b = b.flatten()
 
-        b = b.reshape((-1, self.z_tiling))  # Reshape b for batched matrix multiplication
+        b = b.reshape((-1, self.z_tiling)).to(self.dtype)  # Reshape b for batched matrix multiplication. Make sure data type is correct.
         x = torch.sparse.mm(self.propagation_matrix_H, b).flatten()
         if self.output_torch_tensor:
             return x

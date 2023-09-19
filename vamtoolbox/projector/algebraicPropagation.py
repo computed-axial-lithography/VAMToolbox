@@ -55,43 +55,48 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         #Define the effective linear operator shape
         super().__init__(shape = (self.n_row_eff, self.n_col_eff), dtype = self.propagation_matrix.dtype) #Supply the properties of the sparse matrix to superclass for output size checking.
 
-        self.forward_cache = np.zeros(self.n_row_eff)
-        self.backward_cache = np.zeros(self.n_col_eff)
+        # Preallocate memory for result storage. Only need for old python loop method
+        # self.forward_cache = np.zeros(self.n_row_eff)
+        # self.backward_cache = np.zeros(self.n_col_eff)
 
 
     def _matvec(self, x):
         #Forward propagation. return b = Ax or eqivalently g = Pf
-        if x.ndim > 1:
-            x = x.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _matvec
-    
-        for z_section in range(self.z_tiling): #handle each z-slice every loop
-            #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
-            self.forward_cache[z_section::self.z_tiling] = self.propagation_matrix.dot(x[z_section::self.z_tiling])
-
-        ''' #To be tested
-        x = x.reshape((x.shape[0]//self.z_tiling,self.z_tiling)) # x.shape[0]//self.z_tiling = self.n_col_internal
+        
+        #Old python loop implementation
+        # if x.ndim > 1:
+        #     x = x.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _matvec
+        # for z_section in range(self.z_tiling): #handle each z-slice every loop
+        #     #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
+        #     self.forward_cache[z_section::self.z_tiling] = self.propagation_matrix.dot(x[z_section::self.z_tiling])
+        # return self.forward_cache
+        
+        #Reshape method
+        # x = x.reshape((x.shape[0]//self.z_tiling,self.z_tiling)) # x.shape[0]//self.z_tiling = self.n_col_internal
+        x = x.reshape((-1,self.z_tiling)) #-1 means automatically infer the size along that dimension
         return self.propagation_matrix.dot(x).flatten() #or ravel
-        '''
-        return self.forward_cache
+        
 
 
 
     def _rmatvec(self, b):
         #Backpropagation. return x = (A^T)b or eqivalently f = (P^T)g
-        if b.ndim > 1:
-            b = b.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _rmatvec
-    
         AT = self.propagation_matrix.transpose(copy=False)
-        for z_section in range(self.z_tiling): #handle each z-slice every loop
-            #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
-            self.backward_cache[z_section::self.z_tiling] = AT.dot(b[z_section::self.z_tiling])
-            #Although mathematically, np.dot(b.T,A).T is equivalent but np will convert the sparse array to dense array so it will consume unreasonable amount of memory. It should not be faster either.  
 
-        ''' #To be tested
-        b = b.reshape((b.shape[0]//self.z_tiling,self.z_tiling)) # b.shape[0]//self.z_tiling = self.n_row_internal
+        #Old python loop implementation
+        # if b.ndim > 1:
+        #     b = b.flatten() #raval (returns a view) and flatten (returns a copy) both works. Theoretically raval is faster but in test flatten is faster, potentially due to further slicing in _rmatvec
+        # for z_section in range(self.z_tiling): #handle each z-slice every loop
+        #     #ravel, reshape and flatten are by default in C order, the last index (z dimension) varies the quickest.
+        #     self.backward_cache[z_section::self.z_tiling] = AT.dot(b[z_section::self.z_tiling])
+        #     #Although mathematically, np.dot(b.T,A).T is equivalent but np will convert the sparse array to dense array so it will consume unreasonable amount of memory. It should not be faster either.  
+        # return self.backward_cache
+
+        #Reshape method
+        # b = b.reshape((b.shape[0]//self.z_tiling,self.z_tiling)) # b.shape[0]//self.z_tiling = self.n_row_internal
+        b = b.reshape((-1,self.z_tiling)) # -1 means automatically infer the size along that dimension
         return AT.dot(b).flatten() #or ravel
-        '''
-        return self.backward_cache
+        
 
     def forward(self, x):  #Wrapper around matvec(x)
         return self._matvec(x)
