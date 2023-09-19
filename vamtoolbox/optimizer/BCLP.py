@@ -102,7 +102,7 @@ class BCLPNorm:
         self.logger = logging.getLogger(__name__)
 
         self.target_geo = target_geo
-        # self.target_geo.array = np.atleast_3d(self.target_geo.array) #atleast_3d should be used here when all formulation accepts 2D array as 3D array with third dimension of 1.
+        self.target_geo.array = np.atleast_3d(self.target_geo.array) #atleast_3d should be used here when all formulation accepts 2D array as 3D array with third dimension of 1.
         self.proj_geo = proj_geo
 
         #Initialize performance logger
@@ -390,10 +390,10 @@ class BCLPNorm:
         #Slope on the plot Loss vs effort (effort = step size * iteration). This slope is evaluated over one iteration.
         is_loss_zero = True if self.logs.loss[self.logs.curr_iter] == 0.0 else False
 
-        avg_over_n_iter = 5
-        if self.logs.curr_iter > avg_over_n_iter and self.exit_param is not None:
-            change_of_loss = np.abs(np.diff(self.logs.loss[self.logs.curr_iter-avg_over_n_iter:self.logs.curr_iter]))
-            avg_change_of_loss_over_n_iter = np.mean(change_of_loss)
+        avg_over_n_iter = 5 #Average over n iterations to check convergence. Taken as 5.
+        if self.logs.curr_iter >= avg_over_n_iter and self.exit_param is not None: #At least get 6 iterations before checking convergence
+            change_of_loss = np.abs(np.diff(self.logs.loss[self.logs.curr_iter-avg_over_n_iter:self.logs.curr_iter+1])) #obtain 5 differences over 6 iterations. +1 is needed to include curr_iter
+            avg_change_of_loss_over_n_iter = np.mean(change_of_loss) #average over 5 iterations
             if avg_change_of_loss_over_n_iter <= self.exit_param*self.logs.loss[self.logs.curr_iter]:
                 is_converged = True
 
