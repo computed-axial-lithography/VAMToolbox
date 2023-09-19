@@ -44,7 +44,8 @@ def projectorconstructor(target_geo : geometry.TargetGeometry, proj_geo : geomet
     # if GPU projection
     if proj_geo.CUDA is True:
         if proj_geo.ray_type == 'algebraic':
-            raise Exception('GPU version of algebraic propagation is not yet implemented')
+            from vamtoolbox.projector.pyTorchAlgebraicPropagation import PyTorchAlgebraicPropagator
+            A = PyTorchAlgebraicPropagator(target_geo,proj_geo)
         elif proj_geo.ray_type == 'ray_trace':  #PyTorchRayTracingPropagator automatically uses GPU if it is present and fallback to CPU if not found. 
             from vamtoolbox.projector.pyTorchRayTrace import PyTorchRayTracingPropagator
             A = PyTorchRayTracingPropagator(target_geo, proj_geo)

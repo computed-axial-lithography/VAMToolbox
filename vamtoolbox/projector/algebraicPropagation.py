@@ -1,9 +1,6 @@
 from scipy import sparse
 import time
 import numpy as np
-#CPU implementation.
-#subclass scipy linear operator. wrap their matrix-vector multiplication with * , transpose and ".forward" ".backward" member functions.
-#The operator automatically identify the z-size mismatch (if there is any, and apply to all the layers.)
 
 
 class AlgebraicPropagator(sparse.linalg.LinearOperator):
@@ -26,6 +23,7 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
 
     #TODO: replace _rmatvec with _adjoint
     # use ravel() to perform z-tiled multiplication instead of loops
+    #TODO: Performance mode to store 2 CSR copies of the matrix.
     """
     def __init__(self, target_geo, proj_geo) -> None:
 
@@ -43,22 +41,22 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         self.n_row_internal, self.n_col_internal = self.internal_matrix_shape
 
         #Get array shape of real space target.
-        n_col_eff = target_geo.array.size #Number of voxel in target_geo
+        self.n_col_eff = target_geo.array.size #Number of voxel in target_geo
 
         #Check if the shape of imported sparse matrix is compatible to target_geo and proj_geo
         #Compatibile means that either the imported sparse matrix is created exactly for the dimension of the input/output of the propagation,
         # or it can be extended along z to produce propagation result. The latter case being matrix created for 2D problem being used to project in 3D, assuming slice independency.  
-        if (n_col_eff % self.n_col_internal) != 0: #The target_geo is not a z-extension of the col
-            raise Exception(f'The imported sparse matrix has {self.n_col_internal} columns, and it can neither match or be tiled to match total number of voxel ({n_col_eff})of real space target.')
+        if (self.n_col_eff % self.n_col_internal) != 0: #The target_geo is not a z-extension of the col
+            raise Exception(f'The imported sparse matrix has {self.n_col_internal} columns, and it can neither match or be tiled to match total number of voxel ({self.n_col_eff})of real space target.')
 
         self.z_tiling = target_geo.array.size // self.n_col_internal # minimum 1
-        n_row_eff = self.internal_matrix_shape[0] * self.z_tiling
+        self.n_row_eff = self.internal_matrix_shape[0] * self.z_tiling
 
         #Define the effective linear operator shape
-        super().__init__(shape = (n_row_eff, n_col_eff), dtype = self.propagation_matrix.dtype) #Supply the properties of the sparse matrix to superclass for output size checking.
+        super().__init__(shape = (self.n_row_eff, self.n_col_eff), dtype = self.propagation_matrix.dtype) #Supply the properties of the sparse matrix to superclass for output size checking.
 
-        self.forward_cache = np.zeros(n_row_eff)
-        self.backward_cache = np.zeros(n_col_eff)
+        self.forward_cache = np.zeros(self.n_row_eff)
+        self.backward_cache = np.zeros(self.n_col_eff)
 
 
     def _matvec(self, x):
