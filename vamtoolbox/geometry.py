@@ -360,7 +360,7 @@ class TargetGeometry(Volume):
         self.insert = None
         self.zero_dose = None
         if target is not None:
-            array = target
+            array = np.atleast_3d(target) #Adapt to new practice of treating both 2D and 3D targets in 3D array.
 
 
         # image as target
@@ -396,6 +396,7 @@ class TargetGeometry(Volume):
                 self.zero_dose = None
                 self.insert = None
 
+            array = np.atleast_3d(array) #Adapt to new practice of treating both 2D and 3D targets in 3D array.
 
         # stl file as target to voxelized
         elif stlfilename is not None:

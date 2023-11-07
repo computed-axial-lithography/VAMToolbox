@@ -152,7 +152,7 @@ def voxelizeTarget(input_path, resolution, bodies='all', rot_angles=[0,0,0]): # 
 		selection = ugrid.select_enclosed_points(child_mesh.extract_surface(),
 												tolerance=0.0,
 												check_surface=False)
-		mask = selection.point_data['SelectedPoints'].view(np.bool)
+		mask = selection.point_data['SelectedPoints'].view(bool)
 		ind = parent_voxels_ind[mask]
 		
 		if bodies != 'all':

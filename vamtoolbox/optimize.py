@@ -134,7 +134,7 @@ class Options:
             self.learning_rate = self.__default_BCLP["learning_rate"]
             self.optim_alg = self.__default_BCLP["optim_alg"]
             self.g0 = self.__default_BCLP["g0"]
-
+            self.test_alternate_handling = self.__dict__.get('test_alternate_handling',False) #flag for testing alternate handling. Default: False. This will override original weight setting. Will be removed for actual release
     def __str__(self):
         return str(self.__dict__)
 

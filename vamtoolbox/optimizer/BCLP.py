@@ -128,6 +128,7 @@ class BCLPNorm:
         self.exit_param = options.exit_param #Convergence tolerance. Expressed as percentage change of loss.
         self.verbose = options.verbose
         self.save_img_path = options.save_img_path
+        self.test_alternate_handling = options.test_alternate_handling #flag for testing alternate handling. Default: False. This will override original weight setting. Will be removed for actual release
 
         #State variables, in the order of computation
         self.dose = None
@@ -142,6 +143,7 @@ class BCLPNorm:
         self.mapped_dose_error_from_f_T_iter = -1
         self.mapped_dose_error_from_band_iter = -1
         self.v_iter = -1
+        self.weight_iter = -1 #iteration-dependent weight. Only used when 'test_alternate_handling' is true. Will be removed for actual release
         self.loss_iter = -1
         self.loss_grad_iter = -1
 
@@ -214,6 +216,16 @@ class BCLPNorm:
         if self.v_iter != self.logs.curr_iter:
             self.v = (self.mapped_dose_error_from_band > 0)
             self.v_iter = self.logs.curr_iter
+
+        #START: For testing the alternate handling of OSMO only. Will be removed for actual release
+        if self.test_alternate_handling:
+            if self.weight_iter != self.logs.curr_iter:
+                if self.logs.curr_iter%2 == 0: #even iteration
+                    self.weight = (self.target_geo.array>0).astype(float)
+                else: #odd iteration
+                    self.weight = (~(self.target_geo.array>0)).astype(float)
+                self.weight_iter = self.logs.curr_iter
+        #END: For testing the alternate handling of OSMO only. Will be removed for actual release
 
         if self.loss_iter != self.logs.curr_iter:
             self.loss = self.computeLoss()
@@ -347,7 +359,7 @@ class BCLPNorm:
             
             #Evaluate performance
             self.getLoss(g_iter)
-            is_converged = self.checkConvergence() #This is where the loss function and gradient is evaluated, but the other auxilliary norms are not evaluated yet.
+            is_converged = self.checkConvergence() if  self.exit_param is not None else False #This is where the loss function and gradient is evaluated, but the other auxilliary norms are not evaluated yet.
             self.callback(g_iter) #self.logs.curr_iter is updated here
             if is_converged:
                 self.logger.warning('Optimization converged or loss value reached zero.')

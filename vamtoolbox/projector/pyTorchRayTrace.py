@@ -643,7 +643,7 @@ class RayTraceSolver():
 
         voxel_idx_select = torch.cat((voxel_idx_x[:,0, above_x][:,None], voxel_idx_x[:,1, above_y][:,None], voxel_idx_x[:,2, above_z][:,None]), dim = 1)
 
-        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, igore it
+        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, ignore it
         valid_idx = (voxel_idx_select[:,0] >= 0) & (voxel_idx_select[:,0] < self.index_model.xv.numel()) #Check x index
         valid_idx = valid_idx & (voxel_idx_select[:,1] >= 0) & (voxel_idx_select[:,1] < self.index_model.yv.numel()) #Check y index
         valid_idx = valid_idx & (voxel_idx_select[:,2] >= 0) & (voxel_idx_select[:,2] < self.index_model.zv.numel()) #Check z index
