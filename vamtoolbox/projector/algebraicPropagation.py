@@ -105,7 +105,7 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         return self._rmatvec(b)
     
 
-    def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=50, show=True, x0=None):
+    def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=10, show=True, x0=None, **kwargs):
         '''
         #Currently only works for one 2D slice.
 

@@ -114,7 +114,7 @@ class PyTorchRayTracingPropagator():
             return np.squeeze(deposition_grid.cpu().numpy()) 
 
     @torch.inference_mode()
-    def inverseBackward(self, f, filter_option = 'ram-lak'):
+    def inverseBackward(self, f, filter_option = 'ram-lak', **kwargs):
         '''This function compute the inverse of backpropagation. Similar to forward propagation, this function maps from a spatial quantity to a sinogram quantity.'''
         #Convert the input to a torch tensor if it is not
         if ~isinstance(f, torch.Tensor): #attempt to convert input to tensor
