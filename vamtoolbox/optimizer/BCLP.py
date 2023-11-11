@@ -1,3 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# This software may be used and distributed according to the GNU GPLv3 license.
+
 import numpy as np
 import time
 import logging
