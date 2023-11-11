@@ -15,4 +15,4 @@ from . import response
 from . import medium
 from . import displaygrayscale
 
-__version__ = "0.1.5b"
+__version__ = "2.0.0"
