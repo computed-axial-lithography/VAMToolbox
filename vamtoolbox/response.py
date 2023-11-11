@@ -220,7 +220,7 @@ class ResponseModel:
 
 
     #=================================Utilities==========================================================================
-    def plotMap(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+    def plotMap(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=True, **plot_kwargs):
 
         f_test = np.linspace(lb,ub,n_pts)
         mapped_f_test = self.map(f_test)
@@ -228,19 +228,21 @@ class ResponseModel:
         if ax == None:
             fig, ax =  plt.subplots()
 
-        ax.plot(f_test, mapped_f_test)
+        ax.plot(f_test, mapped_f_test,**plot_kwargs)
         ax.set_xlabel('Optical dose')
         ax.set_ylabel('Material response (mapped dose)')
 
         if block == False:
-            plt.ion()
-        if show == True:
-            plt.show()
+            fig.show() #does not block. This function does not accept block argument.
+        else:
+            if 'label' in plot_kwargs:
+                ax.legend()
+            plt.show(block=True)
 
         return fig, ax
 
 
-    def plotDmapDf(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+    def plotDmapDf(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=True, **plot_kwargs):
 
         f_test = np.linspace(lb,ub,n_pts)
         mapped_f_test = self.dmapdf(f_test)
@@ -248,22 +250,21 @@ class ResponseModel:
         if ax == None:
             fig, ax =  plt.subplots()
 
-        ax.plot(f_test, mapped_f_test)
+        ax.plot(f_test, mapped_f_test,**plot_kwargs)
         ax.set_xlabel('Optical dose')
         ax.set_ylabel('1st derivative of material response (mapped dose)')
 
-        if block == True:
-            plt.ioff()
+        if block == False:
+            fig.show() #does not block. This function does not accept block argument.
         else:
-            plt.ion()
-
-        if show == True:
-            plt.show()    
+            if 'label' in plot_kwargs:
+                ax.legend()
+            plt.show(block=True)  
         
         return fig, ax
 
 
-    def plotMapInv(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+    def plotMapInv(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=True, **plot_kwargs):
 
         map_test = np.linspace(lb,ub,n_pts)
         f_test = self.map_inv(map_test)
@@ -271,17 +272,16 @@ class ResponseModel:
         if ax == None:
             fig, ax =  plt.subplots()
 
-        ax.plot(map_test, f_test)
+        ax.plot(map_test, f_test, **plot_kwargs)
         ax.set_xlabel('Material response (mapped dose)')
         ax.set_ylabel('Optical dose')
 
-        if block == True:
-            plt.ioff()
+        if block == False:
+            fig.show() #does not block. This function does not accept block argument.
         else:
-            plt.ion()
-
-        if show == True:
-            plt.show() 
+            if 'label' in plot_kwargs:
+                ax.legend()
+            plt.show(block=True)
 
         return fig, ax
 
@@ -318,116 +318,3 @@ class ResponseModel:
 
     def __repr__(self):
         return str(self.params)
-
-
-## Test
-
-if __name__ == '__main__':
-    '''
-    plt.figure()
-    plt.title('Generalized logistic function with varying B')
-    plt.grid(True)
-    test_rm = ResponseModel(B=10)
-    test_rm.plotMap(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(B=25)
-    test_rm.plotMap(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(B=50)
-    test_rm.plotMap(show = False)
-    print(test_rm.params)
-
-    plt.figure()
-    plt.title('Generalized logistic function with varying nu')
-    plt.grid(True)
-    test_rm = ResponseModel(nu=0.2)
-    test_rm.plotMap(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(nu=1)
-    test_rm.plotMap(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(nu=5)
-    test_rm.plotMap(show = False)
-    print(test_rm.params)
-
-    plt.figure()
-    plt.title('Derivative of generalized logistic function with varying B')
-    plt.grid(True)
-    test_rm = ResponseModel(B=10)
-    test_rm.plotDmapDf(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(B=25)
-    test_rm.plotDmapDf(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(B=50)
-    test_rm.plotDmapDf(show = False)
-    print(test_rm.params)
-
-    plt.figure()
-    plt.title('Derivative of generalized logistic function with varying nu')
-    plt.grid(True)
-    test_rm = ResponseModel(nu=0.2)
-    test_rm.plotDmapDf(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(nu=1)
-    test_rm.plotDmapDf(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(nu=5)
-    test_rm.plotDmapDf(show = False)
-    print(test_rm.params)
-
-    #Check inversion function
-    plt.figure()
-    plt.title('Inverse of generalized logistic function with varying B')
-    plt.grid(True)
-    test_rm = ResponseModel(B=10)
-    test_rm.plotMapInv(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(B=25)
-    test_rm.plotMapInv(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(B=50)
-    test_rm.plotMapInv(show = False)
-    print(test_rm.params)
-
-    plt.figure()
-    plt.title('Inverse of generalized logistic function with varying nu')
-    plt.grid(True)
-    test_rm = ResponseModel(nu=0.2)
-    test_rm.plotMapInv(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(nu=1)
-    test_rm.plotMapInv(show = False)
-    print(test_rm.params)
-
-    test_rm = ResponseModel(nu=5)
-    test_rm.plotMapInv(show = False)
-    print(test_rm.params)
-    '''
-
-    test_rm = ResponseModel(form = 'linear')
-    fig, ax = test_rm.plotMap(show = False)
-    # ax.set_title('Generalized logistic function (B=10)')
-
-    ax.set_title('Linear material response')
-    # test_rm = ResponseModel(B=10)
-    # test_rm.plotMap(ax = ax, show = False)
-    # test_rm = ResponseModel(B=25)
-    # test_rm.plotMap(ax = ax, show = False)
-    # ax.set_title('Generalized logistic function when B=[10,25,50], A=0, K=1, M=0.5, nu = 1')
-    # ax.legend(['B=10', 'B=25', 'B=50'])
-    print(test_rm.params)
-    plt.grid(True)
-    plt.show()
-    input()

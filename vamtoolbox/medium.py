@@ -174,7 +174,7 @@ class IndexModel(MediumModel):
     _default_interpolation = {'interpolation_padding_mode': 'border'}
 
     @torch.inference_mode()
-    def __init__(self, coord_vec : np.ndarray, type : str = 'analytical', form :str = 'luneburg_lens', **kwargs):
+    def __init__(self, coord_vec : np.ndarray, type : str = 'analytical', form :str = 'homogeneous', **kwargs):
         '''
         Analytical and interpolated decription of index distribution of the simulation domain.
         Internally implemented with pyTorch tensor for GPU computation and compatibility with pyTorchRayTrace.
@@ -400,7 +400,7 @@ class IndexModel(MediumModel):
     def _grad_n_eaton(self):
         raise Exception('To be implemented.')
     #=================================Utilities==========================================================================
-    def plotIndex(self, fig = None, ax = None, block=False, show = True):
+    def plotIndex(self, fig = None, ax = None, block=False):
         '''
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
@@ -425,14 +425,14 @@ class IndexModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            plt.ion()
-        if show == True:
-            plt.show()
+            fig.show() #does not block. This function does not accept block argument.
+        else:
+            plt.show(block=True)
 
         return fig, ax
 
 
-    def plotGradNMag(self, fig = None, ax = None, block=False, show = True):
+    def plotGradNMag(self, fig = None, ax = None, block=False):
         '''
         Plot a 2D slice of index gradient. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
@@ -475,16 +475,16 @@ class IndexModel(MediumModel):
         plt.colorbar(plt_z)
 
         if block == False:
-            plt.ion()
-        if show == True:
-            plt.show()
+            fig.show() #does not block. This function does not accept block argument.
+        else:
+            plt.show(block=True)
         
         return fig, ax
 
-    def plotGradNArrow(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
-        '''
-        Plot a 2D slice of index gradient in sampled arrow plot. Currently only for real part. Future extenstion: for both its real and imaginary parts
-        '''
+    # def plotGradNArrow(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False):
+    #     '''
+    #     Plot a 2D slice of index gradient in sampled arrow plot. Currently only for real part. Future extenstion: for both its real and imaginary parts
+    #     '''
 
         # grad_n_slice = self.presampled_vector_field_4D[:,:,self.presampled_vector_field_4D.shape[2]//2,:].cpu().numpy()
 
@@ -509,13 +509,13 @@ class IndexModel(MediumModel):
         # # plt.colorbar(mappable)
 
         # if block == False:
-        #     plt.ion()
-        # if show == True:
-        #     plt.show()
+        #     fig.show() #does not block. This function does not accept block argument.
+        # else:
+        #     plt.show(block=True)
         
-        return fig, ax
+        # return fig, ax
 
-    def plotRandomlySampledIndex(self, pts = 500, fig = None, ax = None, block=False, show = True):
+    def plotRandomlySampledIndex(self, pts = 500, fig = None, ax = None, block=False):
         '''
         Create a scatter plot of index at random positions. Color value is proportional to index.
         '''
@@ -525,10 +525,10 @@ class IndexModel(MediumModel):
         random_position[:,1] = (random_position[:,1]-0.5)*2*torch.amax(self.yv)
         random_position[:,2] = (random_position[:,2]-0.5)*2*torch.amax(self.zv)
 
-        self.plotIndexAtPosition(x = random_position, fig = fig, ax = ax, block = block, show = show)
+        self.plotIndexAtPosition(x = random_position, fig = fig, ax = ax, block = block)
 
 
-    def plotIndexAtPosition(self, x, fig = None, ax = None, block=False, show = True, cmap = 'viridis', marker = 'o'):
+    def plotIndexAtPosition(self, x, fig = None, ax = None, block=False, cmap = 'viridis', marker = 'o'):
         '''
         Create a scatter plot of index at specified positions x. Color value is proportional to index.
         '''
@@ -552,9 +552,9 @@ class IndexModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            plt.ion()
-        if show == True:
-            plt.show()
+            fig.show() #does not block. This function does not accept block argument.
+        else:
+            plt.show(block=True)
 
 
 class AttenuationModel(MediumModel):
@@ -694,7 +694,7 @@ class AttenuationModel(MediumModel):
         return alpha
 
     #=================================Utilities==========================================================================
-    def plotAlpha(self, fig = None, ax = None, block=False, show = True):
+    def plotAlpha(self, fig = None, ax = None, block=False):
         '''
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
@@ -719,14 +719,14 @@ class AttenuationModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            plt.ion()
-        if show == True:
-            plt.show()
+            fig.show() #does not block. This function does not accept block argument.
+        else:
+            plt.show(block=True)
 
         return fig, ax
 
 
-    def plotRandomlySampledAlpha(self, pts = 500, fig = None, ax = None, block=False, show = True):
+    def plotRandomlySampledAlpha(self, pts = 500, fig = None, ax = None, block=False):
         '''
         Create a scatter plot of index at random positions. Color value is proportional to alpha.
         '''
@@ -736,10 +736,10 @@ class AttenuationModel(MediumModel):
         random_position[:,1] = (random_position[:,1]-0.5)*2*torch.amax(self.yv)
         random_position[:,2] = (random_position[:,2]-0.5)*2*torch.amax(self.zv)
 
-        self.plotAlphaAtPosition(x = random_position, fig = fig, ax = ax, block = block, show = show)
+        self.plotAlphaAtPosition(x = random_position, fig = fig, ax = ax, block = block)
 
 
-    def plotAlphaAtPosition(self, x, fig = None, ax = None, block=False, show = True, cmap = 'viridis', marker = 'o'):
+    def plotAlphaAtPosition(self, x, fig = None, ax = None, block=False, cmap = 'viridis', marker = 'o'):
         '''
         Create a scatter plot of index at specified positions x. Color value is proportional to index.
         '''
@@ -751,7 +751,6 @@ class AttenuationModel(MediumModel):
         x = x.cpu().numpy()
 
         if ax == None:
-            # fig, ax =  plt.subplots()
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
 
@@ -763,9 +762,9 @@ class AttenuationModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            plt.ion()
-        if show == True:
-            plt.show()
+            fig.show() #does not block. This function does not accept block argument.
+        else:
+            plt.show(block=True)
 
 class AbsorptionModel(AttenuationModel):
     def __init__(self, *args, **kwargs):
@@ -776,8 +775,3 @@ class ScatteringModel(AttenuationModel):
     def __init__(self, *args, **kwargs):
         '''Subclass of AttenuationModel. Reserved for future development.'''
         super().__init__(*args, **kwargs)
-
-## Test
-
-if __name__ == '__main__':
-    input()
