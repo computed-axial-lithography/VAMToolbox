@@ -11,17 +11,10 @@
 .. |zen| image:: https://zenodo.org/badge/500715593.svg
    :target: https://zenodo.org/badge/latestdoi/500715593
 
-+----------------------+-----------+
-| Deployment           | |conda|   |
-+----------------------+-----------+
-| Documentation        | |rtd|     |
-+----------------------+-----------+
-| Citation             | |zen|     |
-+----------------------+-----------+
 
 Features of LCDT-VAM
 ------------
-VAMToolbox is a python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing.
+`VAMToolbox <https://github.com/computed-axial-lithography/VAMToolbox>`_ is a python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing.
 It provides visualization, various optimization techniques, and flexible projection geometries to assist in the creation of sinograms and reconstructions for simulated VAM.
 
 The local-dose-controlled tomography (LDCT) project forks the original VAMToolbox and provides the following features and improvements:
@@ -67,10 +60,11 @@ Installation
 To install LCDT-VAM, please create a compatible anaconda environment and install the package using pip.
 
 Steps:
+
 1. Clone the repository with git or download the zip file. Navigate into the projector folder LDCT-VAM.
 
 2. Locate the file "ldct_vam_env.yaml" in the "conda" subfolder.
-Execute the following command in anaconda to create an environment with the required dependencies:
+   Execute the following command in anaconda to create an environment with the required dependencies:
 
    conda env create -f ldct_vam_env.yaml
 
@@ -101,11 +95,22 @@ The package can be imported by:
    import vamtoolbox
 
 
-Resources
-------------
-View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.
-
-
 License
 ------------
 This repository is licensed under GNU General Public License v3. Please see LICENSE.txt for details.
+
+
+Publication
+------------
+"Tomographic projection optimization for volumetric additive manufacturing with general band constraint Lp-norm minimization", arXiv,
+Chi Chung Li (@alvinccli), Joseph Toombs (@jttoombs), Hayden K. Taylor, Thomas J. Wallin
+
+Resource on VAMToolbox
+------------
++----------------------+-----------+
+| Deployment           | |conda|   |
++----------------------+-----------+
+| Documentation        | |rtd|     |
++----------------------+-----------+
+| Citation             | |zen|     |
++----------------------+-----------+
