@@ -630,11 +630,11 @@ class AttenuationModel(MediumModel):
                 R_domain_min = min(R_domain_0, R_domain_1, R_domain_2)
             self.params['R_physical'] = self.params['R']*R_domain_min
 
-        elif self.params['length_unit_of_R'] == 'physical':
+        elif self.params['length_unit_of_R'] == 'physical_coordinate':
             self.params['R_physical'] = self.params['R']
 
         else:
-            raise Exception('"length_unit" should be either "fractional_domain_radius" or "physical"')
+            raise Exception('"length_unit" should be either "fractional_domain_radius" or "physical_coordinate"')
             
         #==========================Setup index query functions according to type and form================================
         if self.type == 'analytical':

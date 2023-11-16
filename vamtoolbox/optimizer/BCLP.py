@@ -150,7 +150,7 @@ class BCLPNorm:
         self.loss_grad_iter = -1
 
         if self.verbose == 'plot':
-            self.dp = vamtoolbox.displaygrayscale.EvolvingPlot(target_geo,self.logs.options.n_iter+1, self.save_img_path)
+            self.dp = vamtoolbox.displaygrayscale.EvolvingPlot(target_geo,self.logs.options.n_iter+1, self.save_img_path, vmin = np.amin(target_geo.array), vmax = np.amax(target_geo.array))
         elif self.verbose == 'plot_demo':
             self.dp = vamtoolbox.displaygrayscale.EvolvingPlotDemo(target_geo,self.logs.options.n_iter+1, self.save_img_path)
 

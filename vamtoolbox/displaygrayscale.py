@@ -520,7 +520,7 @@ def showHistogramPlot(*args,**kwargs):
 
 
 class EvolvingPlot():
-	def __init__(self,target_geo,n_iter, save_img_path = None):
+	def __init__(self,target_geo,n_iter, save_img_path = None, vmin = 0, vmax = 1):
 		plt.ion()
 		self.target = target_geo.array
 		self.n_dim = target_geo.n_dim
@@ -533,10 +533,10 @@ class EvolvingPlot():
 		manager = plt.get_current_fig_manager()
 		manager.full_screen_toggle()
 		# self.fig, self.axs = plt.subplots(2,2,figsize=(12,10)) #WARNING: This line is preventing proper drawing of the figure. Potentially a bug in the matplotlib backend.
-		self.target_plot = SlicePlot(self.target,vol_type='target',ax=self.axs[0,0],fig=self.fig, title = 'Response target, $f_{T}$', cmap='gray',interpolation='none')
-		self.recon_plot_dose = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig, title = 'Optical dose, $f$', cmap='gray')
-		self.recon_plot_mapped = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,2],fig=self.fig, title = 'Dose response, $M(f)$', cmap='gray')
-		self.recon_plot_mapped_error = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,3],fig=self.fig, title = 'Response error, $M(f)-f_{T}$', vmin = -1, vmax = 1, cmap='coolwarm')
+		self.target_plot = SlicePlot(self.target,vol_type='target',ax=self.axs[0,0],fig=self.fig, title = 'Response target, $f_{T}$', cmap='gray',interpolation='none', vmin = vmin, vmax = vmax)
+		self.recon_plot_dose = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,1],fig=self.fig, title = 'Optical dose, $f$', cmap='gray', vmin = vmin, vmax = vmax)
+		self.recon_plot_mapped = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,2],fig=self.fig, title = 'Dose response, $M(f)$', cmap='gray', vmin = vmin, vmax = vmax)
+		self.recon_plot_mapped_error = SlicePlot(np.zeros_like(self.target),vol_type='recon',ax=self.axs[0,3],fig=self.fig, title = 'Response error, $M(f)-f_{T}$', vmin = -np.abs(vmax-vmin), vmax = np.abs(vmax-vmin), cmap='coolwarm')
 		self.error_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),ax=self.axs[1,0],fig=self.fig, title= 'Weighted $L_{p}$ norm loss function', xlabel= 'Iteration', ylabel='Cost')
 		self.error_lp_plot = MultiErrorPlot(np.full(self.n_iter,np.nan),
 			np.full(self.n_iter,np.nan),
