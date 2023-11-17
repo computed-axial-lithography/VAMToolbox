@@ -117,7 +117,7 @@ class Voxelizer():
         # after adding all meshes, update the global max and min bounds
         self._updateBounds()
 
-    def voxelize(self,body_name:str,layer_thickness:float,voxel_value:float,voxel_dtype:np.dtype=np.uint8,store_voxel_array:bool=False,slice_save_path:str=None):
+    def voxelize(self,body_name:str,layer_thickness:float,voxel_value:float,voxel_dtype:str='uint8',store_voxel_array:bool=False,slice_save_path:str=None):
         """
         Parameters
         ----------
