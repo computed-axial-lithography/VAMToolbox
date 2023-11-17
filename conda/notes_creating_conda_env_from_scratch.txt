@@ -1,0 +1,5 @@
+For development
+1. Create environment with python version >3.8
+2. Install pytorch>2.0.1
+3. Install astra-toolbox colorama dill docutils ffmpeg-python vedo matplotlib ipython ipykernel numba opencv imageio pyvista pyglet scikit-image
+4. Install vamtoolbox in development mode with pip. (cd into LDCT-VAM and perform pip install -e .)

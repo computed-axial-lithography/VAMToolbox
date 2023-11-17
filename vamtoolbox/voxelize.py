@@ -621,7 +621,7 @@ def voxelizeTarget(input_path, resolution, bodies='all', rot_angles=[0,0,0]): # 
 		selection = ugrid.select_enclosed_points(child_mesh.extract_surface(),
 												tolerance=0.0,
 												check_surface=False)
-		mask = selection.point_data['SelectedPoints'].view(np.bool)
+		mask = selection.point_data['SelectedPoints'].view(bool)
 		ind = parent_voxels_ind[mask]
 		
 		if bodies != 'all':
@@ -668,7 +668,8 @@ def rotate(mesh, rot_angles):
 
 	return mesh
 
-def pad_target_to_square(input_voxel_array):
+
+def pad_target_to_square(input_voxel_array, xy_side_length = None):
 	"""
 	Places input array inside a square array (nx,ny,nz) where nx = ny
 
@@ -676,7 +677,10 @@ def pad_target_to_square(input_voxel_array):
 	----------
 	input_voxel_array : ndarray
 		target voxel array
-
+	
+	nR : int or None
+		The specified number of voxels of the output array in x and y direction. 
+		If None, nR is determined to be minimium radial distance. nR = np.round(np.sqrt(nX**2 + nY**2))
 	Returns
 	-------
 	voxels : ndarray
@@ -685,10 +689,14 @@ def pad_target_to_square(input_voxel_array):
 	nX, nY, nZ = input_voxel_array.shape
 
 	# Largest dimension of projections is when the diagonal of the cubic target matrix is perpendicular to the projection angle 
-	nR = np.round(np.sqrt(nX**2 + nY**2))
-	if np.mod(nR,2) != 0:
-		nR = nR + 1
-
+	if (xy_side_length is not None) and (xy_side_length > np.round(np.sqrt(nX**2 + nY**2))):
+		nR = xy_side_length
+	else:
+		nR = np.round(np.sqrt(nX**2 + nY**2))
+		if np.mod(nR,2) != 0:
+			nR = nR + 1
+		print(f'Padding array to xy size: {nR}')
+	
 	pad_x_before = (nR-nX)//2
 	pad_y_before = (nR-nY)//2
 	pad_x_after = pad_x_before
@@ -706,7 +714,8 @@ def pad_target_to_square(input_voxel_array):
 	pad_y_after = int(pad_y_after)
 
 	square_pad_voxels = np.pad(input_voxel_array, ((pad_x_before,pad_x_after),(pad_y_before,pad_y_after),(0,0)), 'constant')
-
+	print(f'Resultant array shape: {square_pad_voxels.shape}')
+	
 	return square_pad_voxels
 
 def rotate_mesh(mesh, rot_angles):
