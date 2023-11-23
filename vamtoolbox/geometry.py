@@ -359,6 +359,7 @@ class TargetGeometry(Volume):
         """
         self.insert = None
         self.zero_dose = None
+
         if target is not None:
             array = np.atleast_3d(target) #Adapt to new practice of treating both 2D and 3D targets in 3D array.
 
