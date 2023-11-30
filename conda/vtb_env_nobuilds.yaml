@@ -1,19 +1,13 @@
-{% set setup_data = load_setup_py_data() %}
-package:
-  name: vamtoolbox
-  version: {{ setup_data['version'] }}
-
-source:
-  path: ..
-
-build:
-  script: {{ PYTHON }} setup.py install
-
-requirements:
-  build:
-    - python=3.10
-    - setuptools
-  run:
+name: ldct310
+channels:
+  - astra-toolbox
+  - conda-forge
+  - anaconda
+  - nvidia
+  - numba
+  - pytorch
+  - defaults
+dependencies:
   - astra-toolbox=2.1.0
   - asttokens=2.4.0
   - backcall=0.2.0
@@ -244,17 +238,7 @@ requirements:
   - zfp=0.5.5
   - zlib=1.2.13
   - zstd=1.4.9
-  - torchaudio=2.0.2
-  - torchvision=0.15.2
-
-  test:
-    imports:
-      - {{ setup_data['name'] }}
-     
-  about:
-    home: "https://github.com/computed-axial-lithography/VAMToolbox"
-    doc_url: "https://vamtoolbox.readthedocs.io/"
-    dev_url: "https://github.com/computed-axial-lithography/VAMToolbox"
-    license: "GNU GPLv3"
-    license_family: "GNU GPL"
-    summary: "Python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing."
+  - pip:
+      - torchaudio==2.0.2
+      - torchvision==0.15.2
+prefix: C:\ProgramData\miniconda3\envs\ldct310

@@ -2,33 +2,46 @@ name: publish_to_conda
 
 on:
   release:
-    types: [published]
-    
+    types: [published, prereleased]
+    # DRY_RUN: ${{ github.event.release.isPrereleased }}  
+
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    env:
+      DRY_RUN: ${{ github.event.release.prerelease }}  
     steps:
-    - uses: actions/checkout@v2
-    - name: publish-to-conda
-      uses: computed-axial-lithography/conda-package-publish-action@v1.6
+    - uses: actions/checkout@v4
+    - name: Set up python
+      uses: actions/setup-python@v2
       with:
-        subDir: 'conda'
-        platforms: 'win'
-        AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-
-
-# on:
-#   push:
-#     branches: [main]
-#   pull_reques:
-#     branches: [main]
-
-# jobs:
-#   build:
-#     runs-on:
-
-#     steps:
-#     - uses: actions/checkout@v2
-
-#     - name: Setup miniconda
-#       uses: 
+        python-version: '3.10'
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools wheel
+    - name: Install Miniconda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-update-conda: true
+    - name: Install conda-build
+      run: |
+        conda install -y -c conda-forge anaconda-client conda-build
+    - name: Add channels
+      run: |
+        conda config --add channels conda-forge
+        conda config --add channels anaconda 
+        conda config --add channels pytorch
+        conda config --add channels numba
+        conda config --add channels nvidia
+        conda config --add channels astra-toolbox
+    - name: Build Conda Package
+      run: |
+        cd conda
+        conda build .
+    - name: Upload to Anaconda
+      if: env.DRY_RUN != 'true'
+      env:
+        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        anaconda upload --label main -u VAMToolbox win-64/*.tar.bz2
