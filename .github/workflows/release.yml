@@ -48,7 +48,7 @@ jobs:
         conda config --add channels astra-toolbox
     - name: Build Conda Package
       run: |
-        echo Get-Location
+        Get-Location
         cd conda
         conda build --output-folder . .
     - name: Upload to Anaconda
@@ -56,5 +56,5 @@ jobs:
       env:
         anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        echo Get-Location
+        Get-Location
         anaconda -t "$env:anaconda_token" upload -u VAMToolbox .\conda\win-64\*.tar.bz2
