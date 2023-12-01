@@ -9,7 +9,7 @@ def load(input:str):
     Parameters
     ----------
     input : str
-        resource to load, options: "reschart.png", "trifurcatedvasculature.stl", "bear.stl", "thinker.stl", "screwdriver.stl", "ring.stl", "onaxiscylinder.stl", "offaxiscylinder.stl", "seq0imagesdir", "sino0.sino", "video0.mp4",
+        resource to load, options: "reschart.png", "flower.png", "trifurcatedvasculature.stl", "bear.stl", "thinker.stl", "screwdriver.stl", "ring.stl", "onaxiscylinder.stl", "offaxiscylinder.stl", "seq0imagesdir", "sino0.sino", "video0.mp4",
     
     Returns
     -------
@@ -19,6 +19,8 @@ def load(input:str):
 
     options = [
         "reschart.png",
+        "flower.png",
+        "flower_binarized.png",
         "trifurcatedvasculature.stl",
         "bear.stl",
         "thinker.stl",

@@ -5,9 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image, ImageOps
 from scipy import interpolate
-
+from scipy import sparse
 import vamtoolbox
-
+import torch
 
 def defaultKwargs(**default_kwargs):
     def actualDecorator(fn):
@@ -27,7 +27,7 @@ class ProjectionGeometry:
             vector of angles at which to forward/backward project
 
         ray_type : str
-            ray type of projection geometry e.g. "parallel","cone"
+            ray type of projection geometry e.g. "parallel","cone","algebraic","ray_trace"
 
         CUDA : boolean, optional
             activates CUDA-GPU accelerated projectors
@@ -47,7 +47,36 @@ class ProjectionGeometry:
 
         inclination_angle : float, optional
             laminography configuration angle above the plane of normal tomography configuration
-       
+
+        index_model : class IndexModel, optional, only used when ray tracing is enabled
+            This object provide analytical or interpolational description of real part of refractive index of the simulation volume in ray tracing.
+            index_model is configured prior to initialization of proj_geo, using class vamtoolbox.medium.IndexModel.
+
+        attenuation_model : class AttenuationModel, optional, only used when ray tracing is enabled
+            This object provide analytical or interpolational description of total attenuation coefficient of the simulation volume in ray tracing.
+            attenuation_model is confifgured prior to initialization of proj_geo, using class vamtoolbox.medium.AttenuationModel.
+
+        absorption_model : class AbsorptionModel, optional, only used when ray tracing is enabled.
+            This object provide analytical or interpolational description of the absorption coefficient of the photochemically active component (e.g. photointiatior) of simulation volume in ray tracing.
+            absorption_model is confifgured prior to initialization of proj_geo, using class vamtoolbox.medium.AbsorptionModel (alias of AttenuationModel).
+
+        ray_trace_method : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
+            'eikonal', 'snells', 'hybrid'. Default: 'eikonal' 
+
+        eikonal_parametrization : str, Required for when (ray_trace_method == 'eikonal') or (ray_trace_method == 'hybrid')
+            'canonical', 'physical_path_length', 'optical_path_length'
+
+        ray_trace_ode_solver : str, Required for ray tracing propagation (when ray_type == 'ray_trace')
+            'forward_symplectic_euler', 'forward_euler', 'leapfrog', 'rk4'
+
+        ray_trace_ray_config : str, optional
+            'parallel', 'cone', user_defined RayState. Default: 'parallel'
+            user_defined RayState is an object storing the initial position and direction of the set of rays.
+
+        loading_path_for_matrix : str, Required for algebraic propagation (when ray_type == 'algebraic')
+            For algebraic propagation only.
+            File path to algebraic propagation matrix. File type .npz (scipy sparse matrix format)
+
         """
         
         self.angles = angles
@@ -61,6 +90,16 @@ class ProjectionGeometry:
         self.occlusion = None if 'occlusion' not in kwargs else kwargs['occlusion']
         self.inclination_angle = None if 'inclination_angle' not in kwargs else kwargs['inclination_angle']
         self.zero_dose_sino = None if 'zero_dose_sino' not in kwargs else kwargs['zero_dose_sino']
+        self.index_model = None if 'index_model' not in kwargs else kwargs['index_model']
+        self.attenuation_model = None if 'attenuation_model' not in kwargs else kwargs['attenuation_model']
+        self.absorption_model = None if 'absorption_model' not in kwargs else kwargs['absorption_model']
+        self.ray_trace_method = None if 'ray_trace_method' not in kwargs else kwargs['ray_trace_method']
+        self.eikonal_parametrization = None if 'eikonal_parametrization' not in kwargs else kwargs['eikonal_parametrization']
+        self.ray_trace_ode_solver = None if 'ray_trace_ode_solver' not in kwargs else kwargs['ray_trace_ode_solver']
+        self.ray_trace_ray_config = None if 'ray_trace_ray_config' not in kwargs else kwargs['ray_trace_ray_config']
+        self.tensor_dtype = None if 'tensor_dtype' not in kwargs else kwargs['tensor_dtype']
+        self.ray_density = None if 'ray_density' not in kwargs else kwargs['ray_density']
+        self.loading_path_for_matrix = True if 'loading_path_for_matrix' not in kwargs else kwargs['loading_path_for_matrix']
 
     def calcZeroDoseSinogram(self,A,target_geo):
         b = A.forward(target_geo.zero_dose)
@@ -101,8 +140,10 @@ class Volume:
         self.proj_geo = proj_geo
         self.file_extension = None if 'file_extension' not in kwargs else kwargs['file_extension']
         self.vol_type = None if 'vol_type' not in kwargs else kwargs['vol_type']
+        self.spatial_sampling_rate = None if 'spatial_sampling_rate' not in kwargs else kwargs['spatial_sampling_rate']
 
         self.n_dim = self.array.ndim
+        # self.n_dim = len(np.squeeze(self.array).shape) #robust against singleton dimensions
         if self.vol_type == 'recon' or self.vol_type == 'target':
             if self.n_dim == 2:
                 self.nY, self.nX = self.array.shape
@@ -187,8 +228,106 @@ class Volume:
 
         plt.show()
 
+
+    def constructCoordGrid(self, spatial_sampling_rate = None, device = None):
+        '''
+        Get coordinate grid centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
+        Unit of spatial_samplign_rate is voxel/cm
+        '''
+        if self.vol_type == 'sino':
+            print('Coordinate system of sinogram is defined by propagator, using both target_geo and proj_geo.')
+            return None
+
+        ###=============== This part accommodate the cases where sampling rate to be either predefined, supplied, or neither.
+        if spatial_sampling_rate is not None:
+            self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
+        
+        if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
+            self.spatial_sampling_rate = 500 #the assumed 500 voxel/cm correspond to 20 micron per voxel
+        ###===============
+        
+        #get the coordinate vectors as numpy arrays
+        coord_vec_list = self.constructCoordVec(self.spatial_sampling_rate, device = None) 
+
+        #Construct grid using meshgrid 'ij' indexing. Order of coordinate axes are x,y,z (instead of y,x,z)
+        ''' Old implementation. The length of the output list varies.
+        if self.n_dim == 2:
+            xv = coord_vec_list[0]
+            yv = coord_vec_list[1]
+            xg, yg = np.meshgrid(xv, yv, indexing = 'ij')
+            self.coord_grid_list = [xg, yg]
+
+        elif self.n_dim == 3:
+            xv = coord_vec_list[0]
+            yv = coord_vec_list[1]
+            zv = coord_vec_list[2]
+            xg, yg, zg = np.meshgrid(xv, yv, zv, indexing = 'ij')
+            self.coord_grid_list = [xg, yg, zg]
+        '''
+        #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
+        xg, yg, zg = np.meshgrid(coord_vec_list[0], coord_vec_list[1], coord_vec_list[2], indexing = 'ij')
+
+        #If device is specified, the vectors are provided as tensor. Otherwise, numpy array are provided.
+        #Providing tensor directly at this level facilitate data sharing and avoid storing duplicates unnecessarily.
+        # if device is not None:
+        #     xg = torch.as_tensor(xg, device=device)
+        #     yg = torch.as_tensor(yg, device=device)
+        #     zg = torch.as_tensor(zg, device=device)
+
+        self.coord_grid_list = [xg, yg, zg]
+        return self.coord_grid_list
+
+
+    def constructCoordVec(self, spatial_sampling_rate = None, device = None):
+        '''
+        Get coordinate vectors centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
+        Unit of spatial_samplign_rate is voxel/cm
+        '''
+        if self.vol_type == 'sino':
+            print('Coordinate system of sinogram is defined by propagator, using both target_geo and proj_geo.')
+            return None
+
+        ###=============== This part accommodate the cases where sampling rate to be either predefined, supplied, or neither.
+        if spatial_sampling_rate is not None:
+            self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
+        
+        if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
+            self.spatial_sampling_rate = 500 #the assumed 500 voxel/cm correspond to 20 micron per voxel
+        ###===============
+        ''' Old implementation. The length of the output list varies.
+        #Construct vectors
+        if self.n_dim == 2:
+            xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
+            yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
+            self.coord_vec_list = [xv, yv]
+
+        elif self.n_dim == 3:
+            xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
+            yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
+            zv = np.linspace(-(self.nZ-1)/(2*self.spatial_sampling_rate), (self.nZ-1)/(2*self.spatial_sampling_rate), self.nZ)
+            self.coord_vec_list = [xv, yv, zv]
+        '''
+        #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
+        xv = np.linspace(-(self.nX-1)/(2*self.spatial_sampling_rate), (self.nX-1)/(2*self.spatial_sampling_rate), self.nX)
+        yv = np.linspace(-(self.nY-1)/(2*self.spatial_sampling_rate), (self.nY-1)/(2*self.spatial_sampling_rate), self.nY)
+        if self.n_dim == 2:
+            zv = np.atleast_1d(0.0) #we can't use the same expression as in 3D case because self.nZ is defined as 0 =/= 1 for 2D case.
+        elif self.n_dim == 3:
+            zv = np.linspace(-(self.nZ-1)/(2*self.spatial_sampling_rate), (self.nZ-1)/(2*self.spatial_sampling_rate), self.nZ)
+        
+        #If device is specified, the vectors are provided as tensor. Otherwise, numpy array are provided.
+        #Providing tensor directly at this level facilitate data sharing and avoid storing duplicates unnecessarily.
+        # if device is not None:
+        #     xv = torch.as_tensor(xv, device=device)
+        #     yv = torch.as_tensor(yv, device=device)
+        #     zv = torch.as_tensor(zv, device=device)
+
+        self.coord_vec_list = [xv, yv, zv]
+        return self.coord_vec_list
+
+
 class TargetGeometry(Volume):
-    def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',options=None):
+    def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',binarize_image=True, clip_to_circle = True, options=None):
         """
         Parameters
         ----------
@@ -219,8 +358,11 @@ class TargetGeometry(Volume):
 
         """
         self.insert = None
+        self.zero_dose = None
+
         if target is not None:
-            array = target
+            array = np.atleast_3d(target) #Adapt to new practice of treating both 2D and 3D targets in 3D array.
+
 
         # image as target
         elif imagefilename is not None and stlfilename is None:
@@ -238,12 +380,15 @@ class TargetGeometry(Volume):
             # resize to requested size
             if pixels is not None:
                 image = image.resize(size=(pixels,pixels))
-            image = np.array(image).astype(np.float)
+            image = np.array(image).astype(np.float32)
             # normalize image to 0-1 range
             image = image/np.max(image)
             # binarize image
-            array = np.where(image>=0.5,1.0,0.0)
-
+            if binarize_image == True:
+                array = np.where(image>=0.5,1.0,0.0)
+            else:
+                array = image
+                
             if bodies != "all":
                 print("Warning: zero dose and insert bodies are not implemented in 2D yet.")
                 self.zero_dose = None
@@ -252,6 +397,7 @@ class TargetGeometry(Volume):
                 self.zero_dose = None
                 self.insert = None
 
+            array = np.atleast_3d(array) #Adapt to new practice of treating both 2D and 3D targets in 3D array.
 
         # stl file as target to voxelized
         elif stlfilename is not None:
@@ -262,6 +408,8 @@ class TargetGeometry(Volume):
 
         
         self.gel_inds, self.void_inds = getInds(array)
+        if clip_to_circle:
+            array = vamtoolbox.util.data.clipToCircle(array)
         super().__init__(array=array,
         options=options,
         file_extension=".target",
@@ -523,7 +671,7 @@ def rebinFanBeam(sinogram,vial_width,N_screen,n_write,throw_ratio):
     N_U,N_V = N_screen
     n1=1 #refractive index of air
     n2=n_write # measured refractive index at the projection beam wavelength
-    vial_width=np.int(vial_width) # Apparent vial width in the field of view of the projector.  Obtained by projecting projector columns and noting the first and last columns to intersect the vial vall.
+    vial_width=int(vial_width) # Apparent vial width in the field of view of the projector.  Obtained by projecting projector columns and noting the first and last columns to intersect the vial vall.
     
     throw_ratio_pix=throw_ratio*N_U #Throw ratio x number of pixels in the horizontal direction.  Change this depending on projector width in pixels.
     
@@ -569,7 +717,7 @@ def rebinFanBeam(sinogram,vial_width,N_screen,n_write,throw_ratio):
     theta_samp[(theta_samp<=max_theta-diff_theta) & (theta_samp>max_theta)]=max_theta
     
     #Padding the frames array so that its width is the same as the vial
-    pd=np.int((vial_width-N_r)/2)
+    pd=int((vial_width-N_r)/2)
     if pd>0:
         sinogram.array=np.pad(sinogram.array,((pd,pd),(0,0),(0,0)),mode='constant')
     if np.shape(sinogram.array)[0] < vial_width:

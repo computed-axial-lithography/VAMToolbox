@@ -11,4 +11,8 @@ from . import optimizer
 from . import projector
 from . import resources
 
-__version__ = "0.1.5b"
+from . import response
+from . import medium
+from . import displaygrayscale
+
+__version__ = "2.0.0"

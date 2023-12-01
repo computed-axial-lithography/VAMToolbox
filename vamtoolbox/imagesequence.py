@@ -6,7 +6,6 @@ from scipy import ndimage
 from PIL import Image
 import os
 import matplotlib.pyplot as plt
-import imageio
 
 import vamtoolbox
 
@@ -39,6 +38,12 @@ class ImageConfig:
         array_offset : int, optional
             pitch of arrayed sinograms in pixels
 
+        normalization_percentile : float, optional
+            normalize the intensity values with this percentile
+
+        bit_depth : int, optional
+            bit depth of the resulting image sequence
+
         intensity_scale : float, optional
             intensity scale factor
 
@@ -60,10 +65,11 @@ class ImageConfig:
         self.array_num = 1 if 'array_num' not in kwargs else kwargs['array_num']
         self.array_offset = 0 if 'array_offset' not in kwargs else kwargs['array_offset']
 
+        self.normalization_percentile = None if 'normalization_percentile' not in kwargs else kwargs['normalization_percentile']
         self.intensity_scale = 1.0 if 'intensity_scale' not in kwargs else kwargs['intensity_scale']
+        self.bit_depth = 8 if 'bit_depth' not in kwargs else kwargs['bit_depth']
+
         self.size_scale = 1.0 if 'size_scale' not in kwargs else kwargs['size_scale']
-
-
 
 class ImageSeq:
     def __init__(self,image_config,sinogram):
@@ -75,6 +81,12 @@ class ImageSeq:
             
         sinogram : geometry.Sinogram object
             sinogram object to be converted to image set
+
+        ----------
+        The stored sinogram is formatted by the following sequence of operations:
+        - Normalization to specified 'normalization_percentile' (if not None)
+        - Scale sinogram values with 'intensity_scale'
+        - truncate to specified bit_depth (maximum value = 2**bit_depth-1). 255 for 8-bit, 1023 for 10-bit
         """
         if isinstance(sinogram,np.ndarray):
             pass
@@ -102,16 +114,25 @@ class ImageSeq:
         if self.image_config.size_scale != 1.0:
             mod_sinogram = _scaleSize(mod_sinogram,self.image_config.size_scale)
         
-        max_intensity = np.max(mod_sinogram)
-        if  max_intensity > 0 and max_intensity <= 1:
-            mod_sinogram = mod_sinogram*255
+        max_output_value = 2**self.image_config.bit_depth - 1
+
+        if self.image_config.normalization_percentile != None:
+            normalization_value = np.percentile(mod_sinogram, self.image_config.normalization_percentile)
+            mod_sinogram = mod_sinogram/normalization_value*max_output_value
 
         if self.image_config.intensity_scale != 1.0:
             mod_sinogram = _scaleIntensity(mod_sinogram,self.image_config.intensity_scale)
+        
+        if self.image_config.bit_depth <= 8:
+            dtype = np.uint8
+        elif self.image_config.bit_depth > 8 and self.image_config.bit_depth <= 16:
+            dtype = np.uint16
+        elif self.image_config.bit_depth > 16 and self.image_config.bit_depth <= 32:
+            dtype = np.uint32
+        else:
+            raise Exception('Bit depth higher than 32-bit is not supported.')
 
-        mod_sinogram = _cropToBounds(mod_sinogram)
-
-        mod_sinogram = mod_sinogram.astype(np.uint8)
+        mod_sinogram = _truncateIntensity(mod_sinogram,max_output_value).astype(dtype) #The truncation is trivial if normalization_percentile is specified.
 
 
         images = list()
@@ -148,60 +169,68 @@ class ImageSeq:
         """Preview an animated image sequence"""
         vamtoolbox.dlp.players.preview(self)
 
-    #TODO make show method with scrollable images like geometry.show()
-    # def show(self,savepath=None,dpi='figure',**kwargs):
-    #     """
-    #     Parameters
-    #     ----------
-    #     savepath : str, optional
 
-    #     dpi : int, optional
-    #         image dots per inch from `matplotlib.pyplot.savefig <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.savefig.html>`_
+    def saveAsVideo(self,save_path:str, rot_vel:float, num_loops:float=1, mode:str='conventional', angle_increment_per_image:float=None, preview:bool=False):
+        """
+        Parameters
+        ----------
+        save_path : str
+            filename of output video e.g. "video.mp4"
 
-    #     **kwargs
-    #         accepts `matplotlib.pyplot.imshow <https://matplotlib.org/3.5.0/api/_as_gen/matplotlib.pyplot.imshow.html>`_ keyword arguments
-    #     """
-    #     kwargs['cmap'] = 'CMRmap' if 'cmap' not in kwargs else kwargs['cmap']
-    #     kwargs['interpolation'] = 'antialiased' if 'interpolation' not in kwargs else kwargs['interpolation']
+        rot_vel : float
+            rotation velocity (deg/s)
 
-    #     # must keep instance of slicer for mouse wheel scrolling to work
-    #     self.viewer = vamtoolbox.display.VolumeSlicer(self.array,self.vol_type,**kwargs)
-        
-    #     if savepath is not None:
-    #         plt.savefig(savepath,dpi=dpi)
+        num_loops : float, optional
+            number of times to loop the images in playback. In conventional mode, num_loops is equivalent to the number of rotations because the image set is assumed to span a full rotation.
 
-    #     plt.show()
+        mode : str, optional
+            'conventional' mode: angle_increment_per_image is derived from number of images, assuming the image set span a full rotation.
+                            Video duration is proportional to num_loops. The argument angle_increment_per_image is ignored in this mode.
+            'prescribed' mode: angle_increment_per_image is prescribed. Assuming the video plays back the image set exactly once, regardless whether the image set span less or more than one rotation.
+                            The argument num_loops is ignored in this mode.
 
-    def saveAsVideo(self,save_path: str,rot_vel: float,duration: float):
+        angle_increment_per_image : float, optional
+            spacing of images (deg)
 
+        preview : bool, optional
+            preview the video while the function exports the video
+            
+        """
         if self.images is None:
             raise Exception("Problem encountered creating images in ImageSeq initialization")
 
-        # codec = cv2.VideoWriter_fourcc("I","4","2","0")
-        # codec = cv2.VideoWriter_fourcc('X','2','6','4')
+        if preview:
+            cv2.namedWindow('Preview', cv2.WINDOW_NORMAL)
 
+        if mode == 'conventional':
+            assert angle_increment_per_image is None, ('angle_increment_per_image must be None in conventional mode because it is derived from number of images in sinogram')
+            angle_increment_per_image = 360/len(self.images)
+            num_image_per_rot = 360.0/angle_increment_per_image
+            num_total_images = int(np.round(num_image_per_rot*num_loops))
+        elif mode == 'prescribed':
+            assert angle_increment_per_image is not None, ('angle_increment_per_image must be None in conventional mode because it is derived from number of images in sinogram')
+            num_total_images = len(self.images)*num_loops
+        else:
+            raise Exception('mode argument is not valid. Either "conventional" or "prescribed"')
+    
+        image_time = angle_increment_per_image/rot_vel
+        fps = 1/image_time
 
-
-        N_images_per_rot = len(self.images)
-        fps = N_images_per_rot/(360/rot_vel)
-        video_out = imageio.get_writer(save_path,fps=fps)
-        # video_out = cv2.VideoWriter(save_path, codec, fps, (int(self.image_config.N_u), int(self.image_config.N_v)))
-
-
-        N_total_images = np.round(N_images_per_rot/360*rot_vel*duration)
-
+        codec = cv2.VideoWriter_fourcc(*'avc1')
+        video_out = cv2.VideoWriter(save_path, codec, fps, (int(self.image_config.N_u), int(self.image_config.N_v)))
+        
         k = 0
-        while k < N_total_images:
-                
-            for image in self.images:
-                # video_out.write(image)
-                video_out.append_data(image)
-                k += 1
-                if k % 5 == 0:
-                    print("Writing video frame %4.0d/%4.0d..."%(k,N_total_images))
+        while k < num_total_images:
+            image = self.images[k%len(self.images)]
+            video_out.write(image)
+            if preview:
+                cv2.imshow('Preview',image)
+                cv2.waitKey(1)
+            k += 1
+            if (k == 1) or (k % 5 == 0) or (k == num_total_images):
+                print(f"Writing video frame {k:4d}/{num_total_images:4d}...")
             
-        # video_out.release()
-        video_out.close()
+        video_out.release()
 
     def saveAsImages(self,save_dir: str,image_prefix: str ="image",image_type: str =".png"):
         
@@ -221,9 +250,7 @@ def loadImageSeq(file_name:str):
     return A
 
 
-def _insertImage(image,image_out,image_config,**kwargs):
-
-    v_offset = image_config.v_offset if 'v_offset' not in kwargs else kwargs['v_offset']
+def _insertImage(image,image_out,image_config,v_offset,**kwargs):
 
     N_u = image_config.N_u
     N_v = image_config.N_v
@@ -231,8 +258,8 @@ def _insertImage(image,image_out,image_config,**kwargs):
     S_u = image.shape[1]
     S_v = image.shape[0]
   
-    u1, u2 = int(N_u/2 + image_config.u_offset - S_u/2), int(N_u/2 + image_config.u_offset + S_u/2)
-    v1, v2 = int(N_v/2 - v_offset - S_v/2), int( N_v/2 - v_offset + S_v/2)
+    u1, u2 = int(N_u/2 - image_config.u_offset - S_u/2), int(N_u/2 - image_config.u_offset + S_u/2)
+    v1, v2 = int(N_v/2 - image_config.v_offset - v_offset - S_v/2), int(N_v/2 - image_config.v_offset - v_offset + S_v/2)
 
     if u1 < 0 or u2 > image_config.N_u:
         raise Exception("Image could not be inserted because it is either too large in the u-dimension or the offset causes it to extend out of the input screen size")
@@ -281,8 +308,11 @@ def _scaleSize(sinogram,scale_factor):
     return mod_sinogram
 
 def _scaleIntensity(sinogram,intensity_scalar):
-    mod_sinogram = np.minimum(sinogram*intensity_scalar,255)
-    
+    mod_sinogram = sinogram*intensity_scalar
+    return mod_sinogram
+
+def _truncateIntensity(sinogram,maximum_intensity):
+    mod_sinogram = np.minimum(sinogram,maximum_intensity)
     return mod_sinogram
     
 
@@ -290,43 +320,3 @@ def _rotate(sinogram,angle_deg):
     mod_sinogram = ndimage.rotate(sinogram,angle_deg,axes=(0,2),reshape=True,order=1)
 
     return mod_sinogram
-
-
-def _cropToBounds(sinogram):
-    collapsed_sinogram = np.squeeze(np.sum(sinogram,1))
-
-    collapsed_u_sinogram = np.sum(collapsed_sinogram,1)
-    collapsed_v_sinogram = np.sum(collapsed_sinogram,0)
-
-    indices_u = np.argwhere(collapsed_u_sinogram != 0.0)
-    indices_v = np.argwhere(collapsed_v_sinogram != 0.0)
-    first_u, last_u = int(indices_u[0]), int(indices_u[-1])
-    first_v, last_v = int(indices_v[0]), int(indices_v[-1])
-
-    # if first_u == 0 or last_u == sinogram.shape[0]:
-    #     mod_sinogram = sinogram
-    # elif first_v == 0 or last_v == sinogram.shape[2]:
-    #     mod_sinogram = sinogram
-    # else:
-    #     mod_sinogram = sinogram[first_v:last_v,:,first_u:last_u]
-    mod_sinogram = sinogram[first_u:last_u,:,first_v:last_v]
-    
-    return mod_sinogram
-
-
-# def array(view_box,center,mod_proj_shape,array_num,array_shift):
-#     j = 0
-#     for i in range(array_num):
-#         if i == 0:
-#             k = 0                
-#         elif (i+1)%2 == 0:
-#             k = 1
-#             j+=1
-#         else:
-#             k = -1
-
-#         T = center[1] - mod_proj_shape[2]//2 - k*j*array_shift
-#         L = center[0] - mod_proj_shape[0]//2
-
-#         view_box.append(((L,T),(mod_proj_shape[2],mod_proj_shape[0])))
-#     return view_box
