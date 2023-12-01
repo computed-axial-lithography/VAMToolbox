@@ -2,7 +2,7 @@
 mock
 sphinx
 pydata-sphinx-theme
-sphinx-autoapi
+sphinx-autoapi==3.0.0
 sphinx-copybutton==0.5.0
 sphinx-panels==0.6.0
 sphinx_rtd_theme==1.0.0
