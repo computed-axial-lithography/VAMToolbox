@@ -12,15 +12,17 @@ jobs:
       DRY_RUN: ${{ github.event.release.prerelease }}  
       anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
     steps:
-    - name: Check ANACONDA_TOKEN
-    - if: ${{ env.anaconda_token == '' }}
+    - name: Check if ANACONDA_TOKEN empty
+      if: ${{ env.anaconda_token == '' }}
       run: |
         echo 'ANACONDA_TOKEN does not have a value set. Exiting job.'
         exit 1
-    - if: ${{ env.anaconda_token != '' }}
+    - name: Check if ANACONDA_TOKEN filled
+      if: ${{ env.anaconda_token != '' }}
       run: |
         echo 'ANACONDA_TOKEN has a value set.'
-    - uses: actions/checkout@v4
+    - name: Checkout repo
+      uses: actions/checkout@v4
     - name: Set up python
       uses: actions/setup-python@v2
       with:
