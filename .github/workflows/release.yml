@@ -12,10 +12,11 @@ jobs:
       DRY_RUN: ${{ github.event.release.prerelease }}  
       anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
     steps:
-    - if: ${{ env.anaconda_token != '' }}
+    - name: Check ANACONDA_TOKEN
+      if: ${{ env.anaconda_token != '' }}
       run: |
         echo 'ANACONDA_TOKEN has a value set.'
-    - if: ${{ env.anaconda_token == '' }}
+      if: ${{ env.anaconda_token == '' }}
       run: |
         echo 'ANACONDA_TOKEN does not have a value set. Exiting job.'
         exit 1
@@ -45,11 +46,13 @@ jobs:
         conda config --add channels astra-toolbox
     - name: Build Conda Package
       run: |
+        echo Get-Location
         cd conda
-        conda build --output-folder . .
+        conda build --output-folder . . -output
     - name: Upload to Anaconda
       if: env.DRY_RUN != 'true'
       env:
         anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        anaconda -t "$env:anaconda_token" upload --label main -u VAMToolbox .\win-64\*.tar.bz2
+        echo Get-Location
+        anaconda -t "$env:anaconda_token" upload -u VAMToolbox .\conda\win-64\*.tar.bz2
