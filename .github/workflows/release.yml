@@ -41,5 +41,7 @@ jobs:
         conda build . --output-folder .
     - name: Upload to Anaconda
       if: env.DRY_RUN != 'true'
+      env:
+        anaconda_token: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        anaconda -t ${{ secrets.ANACONDA_TOKEN }} upload --label main -u VAMToolbox win-64/*.tar.bz2
+        anaconda -t "$env:anaconda_token" upload --label main -u VAMToolbox win-64/*.tar.bz2
