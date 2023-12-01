@@ -38,10 +38,8 @@ jobs:
     - name: Build Conda Package
       run: |
         cd conda
-        conda build .
+        conda build . --output-folder .
     - name: Upload to Anaconda
       if: env.DRY_RUN != 'true'
-      env:
-        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        anaconda upload --label main -u VAMToolbox win-64/*.tar.bz2
+        anaconda -t ${{ secrets.ANACONDA_TOKEN }} upload --label main -u VAMToolbox win-64/*.tar.bz2
