@@ -11,22 +11,38 @@
 .. |zen| image:: https://zenodo.org/badge/500715593.svg
    :target: https://zenodo.org/badge/latestdoi/500715593
 
++----------------------+-----------+
+| Deployment           | |conda|   |
++----------------------+-----------+
+| Documentation        | |rtd|     |
++----------------------+-----------+
+| Citation             | |zen|     |
++----------------------+-----------+
 
-Features of LCDT-VAM
+VAMToolbox is a Python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing. It provides visualization, various optimization techniques, and flexible projection geometries to assist in the creation of sinograms and reconstructions for simulated VAM.
+
+VAMToolbox 2.0.0 Release Notes:
 ------------
-`VAMToolbox <https://github.com/computed-axial-lithography/VAMToolbox>`_ is a python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing.
-It provides visualization, various optimization techniques, and flexible projection geometries to assist in the creation of sinograms and reconstructions for simulated VAM.
+This major release includes a number of new features and improvements. The major changes are listed below. For more details, please refer to the documentation.
 
-The local-dose-controlled tomography (LDCT) project forks the original VAMToolbox and provides the following features and improvements:
-1. Added a formulation of the general optimization problem called Band-Contraint-Lp-norm (BCLP) minimization. This loss function formulation generalizes three existing optimization schemes and is capable to optimize for grayscale target values.
-2. Added material response model for capturing the non-linear relationship between optical dose and the desired response (such as conversion). This allows the optimization to optimize response profile instead of dose profile.
-3. Added a ray tracing propagator to model light attenuation and refraction in medium with gradient refractive index. This ray tracer is written with pyTorch and performs computation on GPU.
-4. Added a models of spatial variant attenuation coefficient, absorption coefficient and refractive index to support ray tracing operations and optimization. 
+1. General loss function to formulate optimization of grayscale response profile with high tunability
 
-These new features are to be merged to VAMToolbox 2.0 and maintained by the corresponding community initiated at UC Berkeley. 
+   Added a formulation of the general optimization problem called Band-Contraint-Lp-norm (BCLP) minimization. This loss function formulation generalizes three existing optimization schemes and is capable to optimize for grayscale target values.
+   Added material response model for capturing non-linear relationships between optical dose and the desired response (such as conversion). This allows us to optimize response profile instead of dose profile.
+   Refer to the "Band-Contraint-Lp-norm" section for details of BCLP and material response.
+
+2. Ray tracing propagator
+
+   Added a ray tracing propagator to model light attenuation and refraction in medium with gradient refractive index. This ray tracer is written with pyTorch and compatible with python CUDA libraries like cuPy. This ray tracing is performed on GPU.
+   Added a models of spatial variant attenuation coefficient, absorption coefficient and refractive index to support ray tracing operations and optimization. 
+   Refer to the "Ray tracing propagator and algebraic propagator" section for details of ray tracing.
+
+3. OpenGL voxelizer
+
+   Major performance improvement over pure python voxelizers. This is important for voxelizing large objects at high resolution. Please refer to `voxelizestl <https://github.com/computed-axial-lithography/VAMToolbox/blob/main/examples/voxelizestl.py>`_ for example usage. This is also available as a standalone package `OpenGL Voxelizer <https://github.com/computed-axial-lithography/OpenGL-voxelizer>`_.
 
 
-Band-Contraint-Lp-norm (BCLP) minimization
+Band-Contraint-Lp-norm (BCLP) minimization (contribution from `LDCT-VAM <https://github.com/facebookresearch/LDCT-VAM>`_)
 ------------
 This new loss function unified the optimization for both real-valued (grayscale) and binary targets. It is a generalization of three existing projection optimization schemes.
 The target tomogram can now be specified in physical unit of response (such as degree-of-conversion, elastic modulus, or refractive index).
@@ -38,7 +54,7 @@ The BCLP loss function provides control over local response tolerance, local wei
 For details of the BCLP formulation, please refer to our arXiv publication "Tomographic projection optimization for volumetric additive manufacturing with general band constraint Lp-norm minimization".
 
 
-Ray tracing propagator and algebraic propagator
+Ray tracing propagator and algebraic propagator (contribution from `LDCT-VAM <https://github.com/facebookresearch/LDCT-VAM>`_)
 ------------
 The light propagation model is one of the most critical elements in projection optimization. A ray tracing propagator is coded in pyTorch to models light attenuation, absorption and refraction in medium with gradient refractive index.
 The light attenuation, absorption and refraction is simulated based on a spatial description of the simulation medium.
@@ -48,69 +64,26 @@ The memory-intensive algebraic represntation is only practical for 2D problems o
 However, when the propagation can be performed algebraically, the computation is much faster than the ray tracing propagator.
 For futher details of the algebraic representation, refers to the supplementary of the BCLP publication above.
 
-Prerequisites
-------------
-- Anaconda or miniconda installation
-- Windows OS (This toolbox is not tested on other platforms)
-- CUDA-compatible GPU (required when using any features related to ray tracing)
-
 
 Installation
 ------------
-To install LCDT-VAM, please create a compatible anaconda environment and install the package using pip.
 
-Steps:
+To install VAMToolbox, enter the command below in the `Anaconda <https://www.anaconda.com/products/distribution>`_ or `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ prompt::
 
-1. Clone the repository with git or download the zip file. Navigate into the projector folder LDCT-VAM.
+   conda install vamtoolbox -c vamtoolbox -c conda-forge -c astra-toolbox
 
-2. Locate the file "ldct_vam_env.yaml" in the "conda" subfolder.
-   Execute the following command in anaconda to create an environment with the required dependencies:
+*NOTE: This command is different than what Anaconda.org suggests. This is because to properly install the dependencies you must tell conda to search in the astra-toolbox and vamtoolbox channels (in addition to the conda-forge channel, this is a default channel but is added to be explicit).*
 
-   conda env create -f ldct_vam_env.yaml
+*NOTE: This toolbox is currently only compatible with Windows OS.*
 
-   Note that if your current working directory is not this subfolder, you need to specify the full file path.
-   The created environment will be named "ldct310". As the name suggest, this environment use python 3.10.
+For more information, refer to the `installation documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/gettingstarted.html>`_.
 
-3. After creating the environment, activate the environment by running:
 
-   conda activate ldct310
-
-4. In the environment, navigate to the root directory of the repository by:
-
-   cd "path to the root directory of the repository"
-
-   This should be the directory where setup.py is located.
-
-5. Finally, install the toolbox with pip by running:
-
-   pip install -e .
-
-   The flag -e means that this installation is editable. It means changes to the package files comes into effect everytime the python interpreter is restarted.
-   It allows you to modify the python package when needed.
-
-Usage
-------------
-To use the toolbox, just run your python script in the created conda environment.
-The package can be imported by:
-   import vamtoolbox
+Resources
+---------
+View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.
 
 
 License
 ------------
 This repository is licensed under GNU General Public License v3. Please see LICENSE.txt for details.
-
-
-Publication
-------------
-"Tomographic projection optimization for volumetric additive manufacturing with general band constraint Lp-norm minimization", arXiv,
-Chi Chung Li (@alvinccli), Joseph Toombs (@jttoombs), Hayden K. Taylor, Thomas J. Wallin
-
-Resource on VAMToolbox
-------------
-+----------------------+-----------+
-| Deployment           | |conda|   |
-+----------------------+-----------+
-| Documentation        | |rtd|     |
-+----------------------+-----------+
-| Citation             | |zen|     |
-+----------------------+-----------+
