@@ -1,0 +1,21 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: VAMToolbox
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Joseph Toombs
+    email: jtoombs@berkeley.edu
+    name-particle: Joseph
+    family-names: Toombs
+  - given-names: Chi Chung Li
+    email: ccli@berkeley.edu
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.10241027
+repository-code: 'https://github.com/computed-axial-lithography/VAMToolbox'
+license: GPL-3.0
