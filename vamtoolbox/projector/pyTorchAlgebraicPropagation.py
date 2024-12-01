@@ -56,6 +56,7 @@ class PyTorchAlgebraicPropagator:
             self.logger.debug('Converting sparse matrix to PyTorch tensor...')
 
             npz_matrix = scipy.sparse.coo_matrix(npz_matrix, copy=False) #Converting to new coo_matrix format if it is either in other sparse formats
+            npz_matrix.eliminate_zeros() #Remove zero entries to save memory
             # Convert the propagation matrix to a sparse tensor in COO format
             values = torch.as_tensor(npz_matrix.data, dtype = self.dtype, device = self.device)
             # indices = torch.LongTensor(np.vstack((npz_matrix.row, npz_matrix.col)), device = self.device) #stack in numpy

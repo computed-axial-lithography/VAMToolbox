@@ -37,7 +37,7 @@ class PyTorchRayTracingPropagator():
         
         self.domain_n_dim = len(np.squeeze(self.target_geo.array).shape) #Dimensionality of the domain is set to be same as target 
         self.tracing_step_size = self.proj_geo.index_model.voxel_size[0].cpu().numpy()/2 #Assuming the step size (in case of physical step distance) is about half the voxel.
-        self.max_num_step = self.target_geo.array.shape[0]*(2*1.5) #2 is the assumed (voxel size/step size) ratio, 1.5 is safety margin
+        self.max_num_step = int(self.target_geo.array.shape[0]*(2*1.5)) #2 is the assumed (voxel size/step size) ratio, 1.5 is safety margin
 
         #Check if GPU is detected. Fallback to CPU if GPU is not found.
         if torch.cuda.is_available():

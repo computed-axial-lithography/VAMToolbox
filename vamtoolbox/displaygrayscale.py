@@ -9,9 +9,7 @@ import matplotlib.animation as anim
 from matplotlib import colors
 from matplotlib import cm
 from scipy.ndimage import rotate
-import time
-import vedo
-
+import os.path
 import vamtoolbox
 
 
@@ -583,7 +581,7 @@ class EvolvingPlot():
 		plt.show()
 		plt.pause(0.01)
 		if self.save_img_path is not None:
-			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			matplotlib.pyplot.savefig(os.path.join(self.save_img_path, f'{self.frame_ind}.png'))
 			self.frame_ind +=1
 
 
@@ -601,7 +599,7 @@ class EvolvingPlot():
 		self.fig.canvas.draw()
 		self.fig.canvas.flush_events()
 		if self.save_img_path is not None:
-			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			matplotlib.pyplot.savefig(os.path.join(self.save_img_path, f'{self.frame_ind}.png'))
 			self.frame_ind +=1
 
 	def ioff(self):
@@ -649,7 +647,7 @@ class EvolvingPlotDemo():
 		plt.show()
 		plt.pause(0.01)
 		if self.save_img_path is not None:
-			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			matplotlib.pyplot.savefig(os.path.join(self.save_img_path, f'{self.frame_ind}.png'))
 			self.frame_ind +=1
 
 
@@ -664,7 +662,7 @@ class EvolvingPlotDemo():
 		self.fig.canvas.flush_events()
 
 		if self.save_img_path is not None:
-			matplotlib.pyplot.savefig(self.save_img_path + f'\{self.frame_ind}.png')
+			matplotlib.pyplot.savefig(os.path.join(self.save_img_path, f'{self.frame_ind}.png'))
 			self.frame_ind +=1
 
 	def ioff(self):
@@ -672,79 +670,6 @@ class EvolvingPlotDemo():
 
 
 
-# class Visualize:
-# 	def __init__(self,TargetGeometry,ProjectionGeometry):
-# 		self.ProjectionGeometry = ProjectionGeometry
-# 		self.reconstructed = np.zeros((ProjectionGeometry.projections.shape[0],ProjectionGeometry.projections.shape[0]))
-# 		self.target_obj = TargetGeometry
-# 		self.A = projectorconstructor(self.target_obj,self.ProjectionGeometry)
-		
-# 		self.fig, self.axs = plt.subplots(1,1,figsize=(7,6))
-# 		self.image = self.axs.imshow(self.reconstructed,cmap='CMRmap')
-# 		self.axs.axis('off')
-# 		self.axs.set_xticks([])
-# 		self.axs.set_yticks([])
-		
-# 	def show(self,):
-# 		plt.ion()
-# 		plt.show()
-# 		self.fig.canvas.flush_events()
-# 		plt.draw()
-# 		if self.ProjectionGeometry.projections.ndim == 3:
-# 			projection = self.ProjectionGeometry.projections[:,:,self.ProjectionGeometry.projections.shape[2]//2]
-# 		else:
-# 			projection = self.ProjectionGeometry.projections
-# 		cmax = np.max(self.A.backward(projection))/1.5
-# 		self.image.set_clim(vmin=0,vmax=cmax)
-# 		angles = self.ProjectionGeometry.angles
-# 		angle_step = np.abs(angles[0] - angles[1])
-		
-# 		projection_copy = np.zeros_like(projection)
-# 		projection_copy [:,0] = 1
-# 		occ_shadow = self.A.backward(projection_copy)
-# 		# plt.imshow(occ_shadow)
-# 		# plt.show()
-# 		for i, (curr_proj, angle) in enumerate(zip(projection.T, angles)):
-# 			projection_copy[:,i] = curr_proj
-			
-# 			self.reconstructed = self.A.backward(projection_copy)
-			
-# 			self.reconstructed = rotate(self.reconstructed,np.max(angles)-angle,reshape=False,order=2)
-			
-# 			self.reconstructed = self.reconstructed * occ_shadow
-# 			# self.reconstructed = rotate(self.reconstructed,angles[-i],reshape=False,order=2).T
-
-
-# 			# self.reconstructed += np.broadcast_to(curr_proj,self.reconstructed.shape).T
-# 			# self.reconstructed = rotate(self.reconstructed,angle_step,reshape=False,order=2)
-
-
-# 			self.image.set_data(self.reconstructed)
-# 			# self.image.set_clim(vmax=np.max(self.reconstructed))
-# 			self.fig.canvas.flush_events()
-# 			plt.draw()
-# 			plt.savefig("%d.png"%i,dpi=300, bbox_inches = 'tight', pad_inches = 0) 
-
-			
-
-
-# 		plt.ioff()
-# 		plt.show()
-
-	# def update(self,x,b,i):
-		
-	# 	if i == 0:
-	# 		self.showTarget(self.target,ax=self.axs[0])
-		
-	# 	# self.showError(ax=self.axs[1])
-	# 	# self.showHistogram(ax=self.axs[3])
-		
-	# 	# if i == self.n_iter -1:
-	# 	# 	self.showProj(ax=self.axs[4])
-	# 	# 	self.showRecon(ax=self.axs[5])
-	# 	self.fig.canvas.draw()
-	# 	self.fig.canvas.flush_events()
-	# 	# return
 
 def errorTolerancePlot(x,target_geo,dh,tol,savepath=None):
 
