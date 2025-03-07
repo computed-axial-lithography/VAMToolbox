@@ -28,24 +28,28 @@ def projectorconstructor(target_geo : geometry.TargetGeometry, proj_geo : geomet
     """
 
     # check arguments
-    assert isinstance(target_geo,geometry.TargetGeometry), "target_geo should be of type: geometry.TargetGeometry"
+    assert isinstance(target_geo,(geometry.TargetGeometry,geometry.TargetGeometryR2R)), "target_geo should be of type: geometry.TargetGeometry"
     assert isinstance(proj_geo,geometry.ProjectionGeometry), "proj_geo should be of type: geometry.ProjectionGeometry"
     if optical_params is not None:
         isinstance(optical_params,CALopticalparams)
 
-    if target_geo.insert is not None:
-        if proj_geo.attenuation_field is not None:
-            # with attenuation field in place, replace values where insert is with infinite attenuation
-            proj_geo.attenuation_field[np.where(target_geo.insert == 1,True,False)] = np.inf
-        else:
-            # create new attenuation field array the size of the insert array with infinite attenuation where the insert is
-            proj_geo.attenuation_field = np.where(target_geo.insert == 1, np.inf,0)
+    if hasattr(target_geo,"insert"):
+        if target_geo.insert is not None:
+            if proj_geo.attenuation_field is not None:
+                # with attenuation field in place, replace values where insert is with infinite attenuation
+                proj_geo.attenuation_field[np.where(target_geo.insert == 1,True,False)] = np.inf
+            else:
+                # create new attenuation field array the size of the insert array with infinite attenuation where the insert is
+                proj_geo.attenuation_field = np.where(target_geo.insert == 1, np.inf,0)
 
     # if GPU projection
     if proj_geo.CUDA is True:
         if proj_geo.ray_type == 'algebraic':
             from vamtoolbox.projector.pyTorchAlgebraicPropagation import PyTorchAlgebraicPropagator
             A = PyTorchAlgebraicPropagator(target_geo,proj_geo)
+        elif proj_geo.ray_type == 'algebraic_r2r':
+            from vamtoolbox.projector.pyTorchAlgebraicPropagationR2R import PyTorchAlgebraicR2RPropagator
+            A = PyTorchAlgebraicR2RPropagator(target_geo,proj_geo)
         elif proj_geo.ray_type == 'ray_trace':  #PyTorchRayTracingPropagator automatically uses GPU if it is present and fallback to CPU if not found. 
             from vamtoolbox.projector.pyTorchRayTrace import PyTorchRayTracingPropagator
             A = PyTorchRayTracingPropagator(target_geo, proj_geo)
@@ -98,8 +102,9 @@ def projectorconstructor(target_geo : geometry.TargetGeometry, proj_geo : geomet
                     # from vamtoolbox.projector.Projector3DParallel import Projector3DParallelPython
                     # A = Projector3DParallelPython(target_geo,proj_geo)
 
-    if target_geo.zero_dose is not None:
-        proj_geo.calcZeroDoseSinogram(A,target_geo)
+    if hasattr(target_geo,"zero_dose"):
+        if target_geo.zero_dose is not None:
+            proj_geo.calcZeroDoseSinogram(A,target_geo)
 
 
 

@@ -10,5 +10,5 @@ __pycache__/
 
 *_build*
 
-
+*.ini
 vamtoolbox/test

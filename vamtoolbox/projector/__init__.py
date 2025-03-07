@@ -4,5 +4,8 @@ from . import Projector2DParallelCUDA
 from . import Projector3DParallel
 from . import Projector3DParallelCUDA
 from . import pyTorchRayTrace
+from . import pyTorchRayTraceR2R
 from . import algebraicPropagation
 from . import pyTorchAlgebraicPropagation
+from . import pyTorchAlgebraicPropagationR2R
+from . import transformationR2R

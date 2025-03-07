@@ -325,6 +325,70 @@ class Volume:
         self.coord_vec_list = [xv, yv, zv]
         return self.coord_vec_list
 
+class TargetGeometryR2R(Volume):
+    def __init__(self,target=None,r_i=None,tau=None,spatial_sampling_rate_rho=None,spatial_sampling_rate_l=None,options=None,**kwargs):
+        
+
+        super().__init__(array=target,
+        options=options,
+        file_extension=".target",
+        vol_type="target",
+        **kwargs
+        )
+
+        self.transform = vamtoolbox.projector.transformationR2R.WrapTransformation(r_i,tau,spatial_sampling_rate_rho,spatial_sampling_rate_l,self.array.shape[2])
+
+        # wrapped domain dimensions
+        self.nX = self.transform.N_x_w
+        self.nY = self.transform.N_y_w
+        self.nZ = self.transform.N_z
+
+        # unwrapped domain dimensions (only the size of the moving window)
+        self.nRho = self.transform.N_rho_uw
+        self.nL = self.transform.N_l_uw
+
+        # unwrapped domain dimensions (size of the entire target array)
+        self.nRho_total = self.array.shape[0]
+        self.nL_total = self.array.shape[1]
+
+        # fold/unfold stride
+        self.folding_stride = 1
+        
+    def constructCoordVec(self, spatial_sampling_rate = None, device = None):
+        '''
+        Get coordinate vectors centered around the object (target/recon) in physical length unit using spatial_sampling_rate.
+        Unit of spatial_samplign_rate is voxel/cm
+        '''
+        # ###=============== This part accommodate the cases where sampling rate to be either predefined, supplied, or neither.
+        # if spatial_sampling_rate is not None:
+        #     self.spatial_sampling_rate = spatial_sampling_rate  #Allow the input to override the original sampling rate
+        
+        # if self.spatial_sampling_rate is None: #if the provided and the original are both None, assume sampling rate is 1
+        #     self.spatial_sampling_rate = 500 #the assumed 500 voxel/cm correspond to 20 micron per voxel
+        # ###===============
+
+        #New implementation. The length of the output list stay constant. The extra vec/grid in 2D case can simply be ignored.
+        xv = self.transform.x_v_w.cpu().numpy()
+        yv = self.transform.y_v_w.cpu().numpy()
+        if self.n_dim == 2:
+            zv = np.atleast_1d(0.0) #we can't use the same expression as in 3D case because self.nZ is defined as 0 =/= 1 for 2D case.
+        elif self.n_dim == 3:
+            # zv = np.linspace(-(self.nZ-1)/(2*self.spatial_sampling_rate), (self.nZ-1)/(2*self.spatial_sampling_rate), self.nZ)
+            zv = self.transform.z_v.cpu().numpy()
+        zv = zv.astype(np.float32)
+
+        #If device is specified, the vectors are provided as tensor. Otherwise, numpy array are provided.
+        #Providing tensor directly at this level facilitate data sharing and avoid storing duplicates unnecessarily.
+        # if device is not None:
+        #     xv = torch.as_tensor(xv, device=device)
+        #     yv = torch.as_tensor(yv, device=device)
+        #     zv = torch.as_tensor(zv, device=device)
+
+        self.coord_vec_list = [xv, yv, zv]
+        return self.coord_vec_list
+    
+    
+
 
 class TargetGeometry(Volume):
     def __init__(self,target=None,stlfilename=None,resolution=None,imagefilename=None,pixels=None,rot_angles=[0,0,0],bodies='all',binarize_image=True, clip_to_circle = True, options=None):
@@ -359,7 +423,6 @@ class TargetGeometry(Volume):
         """
         self.insert = None
         self.zero_dose = None
-
         if target is not None:
             array = np.atleast_3d(target) #Adapt to new practice of treating both 2D and 3D targets in 3D array.
 

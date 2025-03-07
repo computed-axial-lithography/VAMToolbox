@@ -4,3 +4,4 @@ from . import matplotlib
 from . import thresholding
 from . import timing
 from . import build_sparse_matrix
+from . import buildtargetsR2R

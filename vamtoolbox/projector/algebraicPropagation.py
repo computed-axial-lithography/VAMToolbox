@@ -1,6 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the GNU GPLv3 license.
-
 from scipy import sparse
 import time
 import numpy as np
@@ -108,7 +105,7 @@ class AlgebraicPropagator(sparse.linalg.LinearOperator):
         return self._rmatvec(b)
     
 
-    def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=10, show=True, x0=None, **kwargs):
+    def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=50, show=True, x0=None):
         '''
         #Currently only works for one 2D slice.
 

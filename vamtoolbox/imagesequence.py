@@ -2,7 +2,7 @@ from ctypes import ArgumentError
 import numpy as np
 import dill
 import cv2
-from scipy import ndimage
+from scipy import ndimage, interpolate
 from PIL import Image
 import os
 import matplotlib.pyplot as plt
@@ -41,14 +41,14 @@ class ImageConfig:
         normalization_percentile : float, optional
             normalize the intensity values with this percentile
 
-        bit_depth : int, optional
-            bit depth of the resulting image sequence
-
         intensity_scale : float, optional
             intensity scale factor
 
         size_scale : float, optional
             size scale factor
+
+        mask : ndarray, optional
+            spatial intensity scaling
         """
         self.N_u, self.N_v = image_dims
 
@@ -70,6 +70,8 @@ class ImageConfig:
         self.bit_depth = 8 if 'bit_depth' not in kwargs else kwargs['bit_depth']
 
         self.size_scale = 1.0 if 'size_scale' not in kwargs else kwargs['size_scale']
+        
+        self.mask = None if 'mask' not in kwargs else kwargs['mask']
 
 class ImageSeq:
     def __init__(self,image_config,sinogram):
@@ -116,13 +118,6 @@ class ImageSeq:
         
         max_output_value = 2**self.image_config.bit_depth - 1
 
-        if self.image_config.normalization_percentile != None:
-            normalization_value = np.percentile(mod_sinogram, self.image_config.normalization_percentile)
-            mod_sinogram = mod_sinogram/normalization_value*max_output_value
-
-        if self.image_config.intensity_scale != 1.0:
-            mod_sinogram = _scaleIntensity(mod_sinogram,self.image_config.intensity_scale)
-        
         if self.image_config.bit_depth <= 8:
             dtype = np.uint8
         elif self.image_config.bit_depth > 8 and self.image_config.bit_depth <= 16:
@@ -132,7 +127,15 @@ class ImageSeq:
         else:
             raise Exception('Bit depth higher than 32-bit is not supported.')
 
-        mod_sinogram = _truncateIntensity(mod_sinogram,max_output_value).astype(dtype) #The truncation is trivial if normalization_percentile is specified.
+        if self.image_config.normalization_percentile != None:
+            normalization_value = np.percentile(mod_sinogram, self.image_config.normalization_percentile)
+            mod_sinogram = mod_sinogram/normalization_value*max_output_value
+
+        # if self.image_config.intensity_scale != 1.0:
+        #     mod_sinogram = _scaleIntensity(mod_sinogram,self.image_config.intensity_scale)
+        
+
+        # mod_sinogram = _truncateIntensity(mod_sinogram,max_output_value).astype(dtype) #The truncation is trivial if normalization_percentile is specified.
 
 
         images = list()
@@ -140,15 +143,28 @@ class ImageSeq:
 
         for j in range(N_angles):
 
-            image_out = np.zeros((self.image_config.N_v,self.image_config.N_u),dtype=np.uint8)
+            image_out = np.zeros((self.image_config.N_v,self.image_config.N_u))
             
             if self.image_config.array_num != 1:
                 image = _arrayInsertImage(mod_sinogram[:,j,:].T,image_out,self.image_config)
-                images.append(image)
 
             else:
                 image = _insertImage(mod_sinogram[:,j,:].T,image_out,self.image_config)
-                images.append(image)
+            
+
+            if self.image_config.normalization_percentile != None:
+                normalization_value = np.percentile(image, self.image_config.normalization_percentile)
+                image = image/normalization_value*max_output_value
+
+            if type(self.image_config.mask) == np.ndarray:
+                image = _applyMask(image,self.image_config.mask)
+
+            if self.image_config.intensity_scale != 1.0:
+                image = _scaleIntensity(image,self.image_config.intensity_scale)
+          
+            image = _truncateIntensity(image,max_output_value) #The truncation is trivial if normalization_percentile is specified.
+
+            images.append(image.astype(dtype))
 
         self.images = images
 
@@ -250,7 +266,7 @@ def loadImageSeq(file_name:str):
     return A
 
 
-def _insertImage(image,image_out,image_config,v_offset,**kwargs):
+def _insertImage(image,image_out,image_config,additional_offset=[0,0],**kwargs):
 
     N_u = image_config.N_u
     N_v = image_config.N_v
@@ -258,8 +274,8 @@ def _insertImage(image,image_out,image_config,v_offset,**kwargs):
     S_u = image.shape[1]
     S_v = image.shape[0]
   
-    u1, u2 = int(N_u/2 - image_config.u_offset - S_u/2), int(N_u/2 - image_config.u_offset + S_u/2)
-    v1, v2 = int(N_v/2 - image_config.v_offset - v_offset - S_v/2), int(N_v/2 - image_config.v_offset - v_offset + S_v/2)
+    u1, u2 = int(N_u/2 - image_config.u_offset - additional_offset[0] - S_u/2), int(N_u/2 - image_config.u_offset - additional_offset[0] + S_u/2)
+    v1, v2 = int(N_v/2 - image_config.v_offset - additional_offset[1] - S_v/2), int(N_v/2 - image_config.v_offset - additional_offset[1] + S_v/2)
 
     if u1 < 0 or u2 > image_config.N_u:
         raise Exception("Image could not be inserted because it is either too large in the u-dimension or the offset causes it to extend out of the input screen size")
@@ -273,18 +289,32 @@ def _insertImage(image,image_out,image_config,v_offset,**kwargs):
 
 def _arrayInsertImage(image,image_out,image_config):  
 
-    for k in range(image_config.array_num):
-        if image_config.array_num % 2 == 0:
-            # if array number is even distribute evenly over image height centered at midheight
-            a = k + 1
-            array_dir = int(np.ceil(a/2)*(-1)**(k)) # sequence 1, -1, 2, -2, 3, -3,...
-            tmp_v_offset = int(image_config.array_offset*array_dir/2 + image_config.v_offset)
-        else:
-            # if array number is odd distribute around the middle element of the array of images
-            array_dir = int(0 + np.ceil(k/2)*(-1)**(k+1)) # sequence 0, 1, -1, 2, -2, 3, -3,...
-            tmp_v_offset = int(image_config.array_offset*array_dir + image_config.v_offset)
     
-        image_out = _insertImage(image,image_out,image_config,v_offset=tmp_v_offset)
+    if image_config.array_offset.shape[0] == 1:
+        v_offset_vector =  np.linspace(-1,1,image_config.array_num)*image_config.array_offset[0]*(image_config.array_num-1)/2
+
+    for k in range(image_config.array_num):
+        if image_config.array_offset.shape[0] >= 1: # number of rows > 2 means the offset depends on the element
+            tmp_u_offset = image_config.array_offset[k,0]
+            tmp_v_offset = image_config.array_offset[k,1]
+        else:
+            tmp_u_offset = image_config.array_offset[1]
+            tmp_v_offset = v_offset_vector[k]
+
+        additional_offset = [tmp_u_offset,tmp_v_offset]
+        image_out = _insertImage(image,image_out,image_config,additional_offset=additional_offset)
+        # if preview:
+        # cv2.imshow('Preview',image_out)
+        # cv2.waitKey(20)
+        # if image_config.array_num % 2 == 0:
+        #     # if array number is even distribute evenly over image height centered at midheight
+        #     a = k + 1
+        #     array_dir = int(np.ceil(a/2)*(-1)**(k)) # sequence 1, -1, 2, -2, 3, -3,...
+        #     tmp_v_offset = int(image_config.array_offset*array_dir/2 + image_config.v_offset)
+        # else:
+        #     # if array number is odd distribute around the middle element of the array of images
+        #     array_dir = int(0 + np.ceil(k/2)*(-1)**(k+1)) # sequence 0, 1, -1, 2, -2, 3, -3,...
+        #     tmp_v_offset = int(image_config.array_offset*array_dir + image_config.v_offset)
 
     return image_out
 
@@ -307,6 +337,11 @@ def _scaleSize(sinogram,scale_factor):
 
     return mod_sinogram
 
+def _rotate(sinogram,angle_deg):
+    mod_sinogram = ndimage.rotate(sinogram,angle_deg,axes=(0,2),reshape=True,order=1)
+
+    return mod_sinogram
+
 def _scaleIntensity(sinogram,intensity_scalar):
     mod_sinogram = sinogram*intensity_scalar
     return mod_sinogram
@@ -314,9 +349,8 @@ def _scaleIntensity(sinogram,intensity_scalar):
 def _truncateIntensity(sinogram,maximum_intensity):
     mod_sinogram = np.minimum(sinogram,maximum_intensity)
     return mod_sinogram
+
+def _applyMask(image,mask):
+    mod_image = image*mask
+    return mod_image
     
-
-def _rotate(sinogram,angle_deg):
-    mod_sinogram = ndimage.rotate(sinogram,angle_deg,axes=(0,2),reshape=True,order=1)
-
-    return mod_sinogram

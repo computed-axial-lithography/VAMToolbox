@@ -1,0 +1,35 @@
+vamtoolbox\data\CC\Gyroidsheet\Histogram.csv
+Mean (mu) [mm]: 0.0988
+Standard Deviation (sigma) [mm]: 0.2001
+2*sigma [mm]: 0.4001
+R^2: 0.8951
+
+
+vamtoolbox\data\CC\Gyroidskel\Histogram.csv
+Mean (mu) [mm]: 0.0714
+Standard Deviation (sigma) [mm]: 0.2063
+2*sigma [mm]: 0.4127
+R^2: 0.9753
+
+
+vamtoolbox\data\CC\Schwarzp\Histogram.csv
+Mean (mu) [mm]: 0.1415
+Standard Deviation (sigma) [mm]: 0.2292
+2*sigma [mm]: 0.4584
+R^2: 0.8930
+
+
+vamtoolbox\data\CC\Diamondskel\Histogram.csv
+Mean (mu) [mm]: 0.2285
+Standard Deviation (sigma) [mm]: 0.3065
+2*sigma [mm]: 0.6129
+R^2: 0.9825
+
+
+vamtoolbox\data\CC\Octettruss\Histogram.csv
+Mean (mu) [mm]: 0.1475
+Standard Deviation (sigma) [mm]: 0.2045
+2*sigma [mm]: 0.4090
+R^2: 0.9928
+
+

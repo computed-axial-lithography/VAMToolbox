@@ -1,6 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the GNU GPLv3 license.
-
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -117,7 +114,7 @@ class PyTorchRayTracingPropagator():
             return np.squeeze(deposition_grid.cpu().numpy()) 
 
     @torch.inference_mode()
-    def inverseBackward(self, f, filter_option = 'ram-lak', **kwargs):
+    def inverseBackward(self, f, filter_option = 'ram-lak'):
         '''This function compute the inverse of backpropagation. Similar to forward propagation, this function maps from a spatial quantity to a sinogram quantity.'''
         #Convert the input to a torch tensor if it is not
         if ~isinstance(f, torch.Tensor): #attempt to convert input to tensor
@@ -646,7 +643,7 @@ class RayTraceSolver():
 
         voxel_idx_select = torch.cat((voxel_idx_x[:,0, above_x][:,None], voxel_idx_x[:,1, above_y][:,None], voxel_idx_x[:,2, above_z][:,None]), dim = 1)
 
-        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, ignore it
+        #Valid VOXEL INDEX: filter out combination that falls out of grid, if any indices are out of the grid, igore it
         valid_idx = (voxel_idx_select[:,0] >= 0) & (voxel_idx_select[:,0] < self.index_model.xv.numel()) #Check x index
         valid_idx = valid_idx & (voxel_idx_select[:,1] >= 0) & (voxel_idx_select[:,1] < self.index_model.yv.numel()) #Check y index
         valid_idx = valid_idx & (voxel_idx_select[:,2] >= 0) & (voxel_idx_select[:,2] < self.index_model.zv.numel()) #Check z index

@@ -1,11 +1,10 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed according to the GNU GPLv3 license.
-
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.ndimage
 import time
 import logging
 import torch
+import torchvision.transforms
 
 class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationModel
 
@@ -35,7 +34,7 @@ class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationMo
         self.yv = torch.as_tensor(coord_vec[1], device = self.device)
         self.zv = torch.as_tensor(coord_vec[2], device = self.device)
         self.xg, self.yg, self.zg = torch.meshgrid(self.xv, self.yv, self.zv, indexing = 'ij') #This grid is to be used for interpolation, simulation
-        
+                
         #Max min of grid coordinate
         self.xv_yv_zv_max = torch.tensor([torch.amax(self.xv), torch.amax(self.yv), torch.amax(self.zv)], device = self.device)
         self.xv_yv_zv_min = torch.tensor([torch.amin(self.xv), torch.amin(self.yv), torch.amin(self.zv)], device = self.device)
@@ -43,6 +42,11 @@ class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationMo
             self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], torch.inf], device = self.device) #Sampling rate [voxel/cm] along z is 0, therefore voxel size is inf to stay consistent
         else:
             self.voxel_size = torch.tensor([self.xv[1]-self.xv[0], self.yv[1]-self.yv[0], self.zv[1]-self.zv[0]], device = self.device) #Only valid when self.zv.size > 1
+
+
+        # self.position_normalization_factor = torch.abs(torch.stack((1.0/self.xv_yv_zv_min,1.0/self.xv_yv_zv_max),dim=0))
+        # if torch.isinf(self.position_normalization_factor[0,2]): #In 2D case, the z span is 0. The above line evaluate as 2.0/0 which yields inf
+        #     self.position_normalization_factor[:,2] = 0.0 #If inf, clamp the z position down back to 0
 
         self.grid_span = self.xv_yv_zv_max - self.xv_yv_zv_min
         self.position_normalization_factor = 2.0/self.grid_span #normalize physical location by 3D volume half span, such that values are between [-1, +1]
@@ -173,11 +177,11 @@ class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationMo
         
 
 class IndexModel(MediumModel):
-    _default_analytical = {'R': 1.0, 'length_unit_of_R': 'fractional_domain_radius', 'p': 2.0, 'n_sur' : 1.0} #default arguments for **kwargs
+    _default_analytical = {'R': 1.0, 'length_unit_of_R': 'fractional_domain_radius', 'p': 2.0, 'n_sur' : 1.0, 'n' : 1.45} #default arguments for **kwargs
     _default_interpolation = {'interpolation_padding_mode': 'border'}
 
     @torch.inference_mode()
-    def __init__(self, coord_vec : np.ndarray, type : str = 'analytical', form :str = 'homogeneous', **kwargs):
+    def __init__(self, coord_vec : np.ndarray, type : str = 'analytical', form :str = 'luneburg_lens', **kwargs):
         '''
         Analytical and interpolated decription of index distribution of the simulation domain.
         Internally implemented with pyTorch tensor for GPU computation and compatibility with pyTorchRayTrace.
@@ -283,11 +287,11 @@ class IndexModel(MediumModel):
             self.n = self._scalar_field_interp
             self.grad_n = self._vector_field_interp
             self.interpolation_padding_mode = self.params['interpolation_padding_mode'] #This setting is used in _scalar_field_interp and _vector_field_interp.
-            self.presampled_x = self.getPositionVectorsAtGridPoints()
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous':
                 #build interpolant arrays
+                self.presampled_x = self.getPositionVectorsAtGridPoints()
                 self.presampled_scalar_field_3D = self._n_homo(self.presampled_x).reshape(self.xg.shape)
                 grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
@@ -295,6 +299,7 @@ class IndexModel(MediumModel):
 
             elif self.form == 'luneburg_lens':
                 #build interpolant arrays
+                self.presampled_x = self.getPositionVectorsAtGridPoints()
                 self.presampled_scalar_field_3D = self._n_lune(self.presampled_x).reshape(self.xg.shape) #Save as a 3D tensor
                 grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
@@ -302,6 +307,7 @@ class IndexModel(MediumModel):
 
             elif self.form == 'maxwell_lens':
                 #build interpolant arrays
+                self.presampled_x = self.getPositionVectorsAtGridPoints()
                 self.presampled_scalar_field_3D = self._n_maxwell(self.presampled_x).reshape(self.xg.shape)
                 grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
@@ -309,6 +315,7 @@ class IndexModel(MediumModel):
 
             elif self.form == 'eaton_lens':
                 #build interpolant arrays
+                self.presampled_x = self.getPositionVectorsAtGridPoints()
                 self.presampled_scalar_field_3D = self._n_eaton(self.presampled_x).reshape(self.xg.shape)
                 grad_n_shape = list(self.xg.shape)
                 grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
@@ -317,6 +324,13 @@ class IndexModel(MediumModel):
             elif self.form == 'freeform': #Directly import data instead of generating.
                 self.presampled_scalar_field_3D = self.params.get('n_x',None)  #Input data points are designated with sample subscript
                 self.presampled_vector_field_4D = self.params.get('grad_n_x',None) 
+            
+            elif self.form == 'homogeneous_r2r':
+                self.presampled_scalar_field_3D = self._n_r2r()
+                grad_n_shape = list(self.xg.shape)
+                grad_n_shape.append(3) #in-place modification. (This function call return None.) Gradient has additional dimension of 3 at each sampling position
+                self.presampled_vector_field_4D = self._grad_n_r2r(self.presampled_scalar_field_3D) #Save as a 4D tensor
+                
 
             else:
                 raise Exception('Other interpolation functions are not supported yet.')                
@@ -336,6 +350,46 @@ class IndexModel(MediumModel):
     @torch.inference_mode()
     def _grad_n_homo(self, x : torch.Tensor):
         return torch.zeros_like(x)
+
+    #=================================Analytic: Homogeneous medium================================================
+    @torch.inference_mode()
+    def _n_r2r(self,):
+        '''Constant index in the wrapped domain. Outside the domain, index is 1. Domain bounds are determined by the kwargs on initialization.'''
+        rho_grid = self.params['rho_grid']
+        if not isinstance(rho_grid, torch.Tensor):
+            rho_grid = torch.as_tensor(rho_grid, device = self.device)
+
+        n = torch.ones_like(self.xg[:,:,0])*self.params['n'] # using grid rather than vector in order to mask regions easier
+        n[rho_grid[:,:,0]>(self.params['r_mid']+self.params['tau']/2)] = self.params['n_sur']
+        
+        # n[rho_grid[:,:,0]<(self.params['r_mid']-self.params['tau']/2)] = -self.params['n_sur']
+        # n[torch.logical_and(rho_grid[:,:,0]<(self.params['r_mid']-self.params['tau']/2),self.yg[:,:,0]>self.params['tau']/2)] = self.params['n']
+        # n[torch.sqrt(self.yg[:,:,0]**2+self.xg[:,:,0]**2)<(self.params['r_mid']-self.params['tau']/1.6)] = -self.params['n_sur']
+
+        pad = 51
+        n_pad = torch.nn.functional.pad(n,(pad,pad,pad,pad),value=self.params['n_sur'])
+        blurrer = torchvision.transforms.GaussianBlur(kernel_size=(51, 51),sigma=12)
+        n_pad = blurrer.forward(n_pad[None,:,:])
+        
+        n_pad = n_pad[:,pad:-pad,pad:-pad]
+        n = n_pad.squeeze()[:,:,None].expand(-1,-1,self.zv.numel())
+
+        # n_blur = scipy.ndimage.gaussian_filter(n.cpu().numpy(),sigma=31,mode='constant',cval=self.params['n_sur'])
+        # n = torch.as_tensor(n_blur,dtype=n.dtype,device=self.device)
+        # n = n.squeeze()[:,:,None].expand(-1,-1,self.zv.numel())
+
+        # blurrer = torchvision.transforms.GaussianBlur(kernel_size=(21, 21),sigma=50)
+        # n = blurrer.forward(n[None,:,:])
+        # n = n.squeeze()[:,:,None].expand(-1,-1,self.zv.numel())
+
+        return n
+    
+    @torch.inference_mode()
+    def _grad_n_r2r(self,n):
+        grad_n = torch.gradient(n[:,:,0],spacing=self.xv[1]-self.xv[0])
+        grad_n = torch.stack((grad_n[0],grad_n[1],torch.zeros_like(grad_n[0])),dim=2)[:,:,None,:]
+        return grad_n.expand(-1,-1,self.zv.numel(),-1)
+
 
     #=================================Analytic: Luneburg lens=====================================================
     @torch.inference_mode()
@@ -403,7 +457,7 @@ class IndexModel(MediumModel):
     def _grad_n_eaton(self):
         raise Exception('To be implemented.')
     #=================================Utilities==========================================================================
-    def plotIndex(self, fig = None, ax = None, block=False):
+    def plotIndex(self, fig = None, ax = None, block=False, show = True):
         '''
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
@@ -428,14 +482,14 @@ class IndexModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            fig.show() #does not block. This function does not accept block argument.
-        else:
-            plt.show(block=True)
+            plt.ion()
+        if show == True:
+            plt.show()
 
         return fig, ax
 
 
-    def plotGradNMag(self, fig = None, ax = None, block=False):
+    def plotGradNMag(self, fig = None, ax = None, block=False, show = True):
         '''
         Plot a 2D slice of index gradient. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
@@ -478,16 +532,16 @@ class IndexModel(MediumModel):
         plt.colorbar(plt_z)
 
         if block == False:
-            fig.show() #does not block. This function does not accept block argument.
-        else:
-            plt.show(block=True)
+            plt.ion()
+        if show == True:
+            plt.show()
         
         return fig, ax
 
-    # def plotGradNArrow(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False):
-    #     '''
-    #     Plot a 2D slice of index gradient in sampled arrow plot. Currently only for real part. Future extenstion: for both its real and imaginary parts
-    #     '''
+    def plotGradNArrow(self, fig = None, ax = None, lb = 0, ub = 1, n_pts=512, block=False, show = True):
+        '''
+        Plot a 2D slice of index gradient in sampled arrow plot. Currently only for real part. Future extenstion: for both its real and imaginary parts
+        '''
 
         # grad_n_slice = self.presampled_vector_field_4D[:,:,self.presampled_vector_field_4D.shape[2]//2,:].cpu().numpy()
 
@@ -512,13 +566,13 @@ class IndexModel(MediumModel):
         # # plt.colorbar(mappable)
 
         # if block == False:
-        #     fig.show() #does not block. This function does not accept block argument.
-        # else:
-        #     plt.show(block=True)
+        #     plt.ion()
+        # if show == True:
+        #     plt.show()
         
-        # return fig, ax
+        return fig, ax
 
-    def plotRandomlySampledIndex(self, pts = 500, fig = None, ax = None, block=False):
+    def plotRandomlySampledIndex(self, pts = 500, fig = None, ax = None, block=False, show = True):
         '''
         Create a scatter plot of index at random positions. Color value is proportional to index.
         '''
@@ -528,10 +582,10 @@ class IndexModel(MediumModel):
         random_position[:,1] = (random_position[:,1]-0.5)*2*torch.amax(self.yv)
         random_position[:,2] = (random_position[:,2]-0.5)*2*torch.amax(self.zv)
 
-        self.plotIndexAtPosition(x = random_position, fig = fig, ax = ax, block = block)
+        self.plotIndexAtPosition(x = random_position, fig = fig, ax = ax, block = block, show = show)
 
 
-    def plotIndexAtPosition(self, x, fig = None, ax = None, block=False, cmap = 'viridis', marker = 'o'):
+    def plotIndexAtPosition(self, x, fig = None, ax = None, block=False, show = True, cmap = 'viridis', marker = 'o'):
         '''
         Create a scatter plot of index at specified positions x. Color value is proportional to index.
         '''
@@ -555,9 +609,9 @@ class IndexModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            fig.show() #does not block. This function does not accept block argument.
-        else:
-            plt.show(block=True)
+            plt.ion()
+        if show == True:
+            plt.show()
 
 
 class AttenuationModel(MediumModel):
@@ -630,11 +684,11 @@ class AttenuationModel(MediumModel):
                 R_domain_min = min(R_domain_0, R_domain_1, R_domain_2)
             self.params['R_physical'] = self.params['R']*R_domain_min
 
-        elif self.params['length_unit_of_R'] == 'physical_coordinate':
+        elif self.params['length_unit_of_R'] == 'physical':
             self.params['R_physical'] = self.params['R']
 
         else:
-            raise Exception('"length_unit" should be either "fractional_domain_radius" or "physical_coordinate"')
+            raise Exception('"length_unit" should be either "fractional_domain_radius" or "physical"')
             
         #==========================Setup index query functions according to type and form================================
         if self.type == 'analytical':
@@ -655,16 +709,25 @@ class AttenuationModel(MediumModel):
             #function alias
             self.alpha = self._scalar_field_interp
             self.interpolation_padding_mode = self.params['interpolation_padding_mode'] #This setting is used in _scalar_field_interp and _vector_field_interp.
-            self.presampled_x = self.getPositionVectorsAtGridPoints()
 
             #build or import interpolant dataset 
             if self.form == 'homogeneous_cylinder':
                 #build interpolant arrays
+                self.presampled_x = self.getPositionVectorsAtGridPoints()
                 self.presampled_scalar_field_3D = self._alpha_homo_cylinder(self.presampled_x).reshape(self.xg.shape)
 
             elif self.form == 'homogeneous_ball':
                 #build interpolant arrays
+                self.presampled_x = self.getPositionVectorsAtGridPoints()
                 self.presampled_scalar_field_3D = self._alpha_homo_ball(self.presampled_x).reshape(self.xg.shape) #Save as a 3D tensor
+
+            elif self.form == 'homogeneous_r2r':
+                #build interpolant arrays
+                self.presampled_scalar_field_3D = self._alpha_homo_r2r()
+                
+            elif self.form == 'compressed_r2r':
+                #build interpolant arrays
+                self.presampled_scalar_field_3D = self._alpha_compressed_r2r()
 
             elif self.form == 'freeform': #Directly import data instead of generating.
                 self.presampled_scalar_field_3D = self.params.get('alpha_x',None)  #Input data points are designated with sample subscript
@@ -695,9 +758,41 @@ class AttenuationModel(MediumModel):
         alpha = torch.zeros_like(r) #1D tensor, numel = x.size[0]
         alpha[r < self.params['R_physical']] = self.params['alpha_internal']  #Inside the cylinder
         return alpha
+    
+    #=================================Interpolation: Homogeneous R2R================================================
+    @torch.inference_mode()
+    def _alpha_homo_r2r(self,):
+        '''Constant absorption coefficient in the wrapped domain. Outside the domain, alpha is 0. Domain bounds are determined by the kwargs on initialization.'''
+        rho_grid = self.params['rho_grid']
+        if not isinstance(rho_grid, torch.Tensor):
+            rho_grid = torch.as_tensor(rho_grid, device = self.device)
+
+        alpha = torch.ones_like(self.xg[:,:,0])*self.params['alpha_internal'] # using grid rather than vector in order to mask regions easier
+        
+        alpha[rho_grid[:,:,0]<(self.params['r_mid']-self.params['tau']/2)] = 0
+        alpha[rho_grid[:,:,0]>(self.params['r_mid']+self.params['tau']/2)] = 0
+        alpha = alpha[:,:,None].expand(-1,-1,self.zv.numel())
+        return alpha
+    
+    #=================================Interpolation: Compressed R2R================================================
+    @torch.inference_mode()
+    def _alpha_compressed_r2r(self,):
+        '''Nonhomogeneous absorption coefficient due to strain in the wrapped domain. Outside the domain, alpha is 0. Domain bounds are determined by the kwargs on initialization.'''
+        rho_grid = self.params['rho_grid']
+        if not isinstance(rho_grid, torch.Tensor):
+            rho_grid = torch.as_tensor(rho_grid, device = self.device)
+
+        alpha = torch.zeros_like(self.xg[:,:,0]) # using grid rather than vector in order to mask regions easier
+        strain = -(self.params['rho_grid']-self.params['r_mid'])/self.params['rho_grid']
+        alpha[self.yg>=0] = self.params['alpha_internal']
+        alpha[self.yg<0] = self.params['alpha_internal']*(1+strain[self.yg<=0])
+        alpha[rho_grid<(self.params['r_mid']-self.params['tau']/2)] = 0
+        alpha[rho_grid>(self.params['r_mid']+self.params['tau']/2)] = 0
+        alpha = alpha[:,:,None].expand(-1,-1,self.zv.numel())
+        return alpha
 
     #=================================Utilities==========================================================================
-    def plotAlpha(self, fig = None, ax = None, block=False):
+    def plotAlpha(self, fig = None, ax = None, block=False, show = True):
         '''
         Plot a 2D slice of index. Currently only for real part. Future extenstion: for both its real and imaginary parts
         '''
@@ -722,14 +817,14 @@ class AttenuationModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            fig.show() #does not block. This function does not accept block argument.
-        else:
-            plt.show(block=True)
+            plt.ion()
+        if show == True:
+            plt.show()
 
         return fig, ax
 
 
-    def plotRandomlySampledAlpha(self, pts = 500, fig = None, ax = None, block=False):
+    def plotRandomlySampledAlpha(self, pts = 500, fig = None, ax = None, block=False, show = True):
         '''
         Create a scatter plot of index at random positions. Color value is proportional to alpha.
         '''
@@ -739,10 +834,10 @@ class AttenuationModel(MediumModel):
         random_position[:,1] = (random_position[:,1]-0.5)*2*torch.amax(self.yv)
         random_position[:,2] = (random_position[:,2]-0.5)*2*torch.amax(self.zv)
 
-        self.plotAlphaAtPosition(x = random_position, fig = fig, ax = ax, block = block)
+        self.plotAlphaAtPosition(x = random_position, fig = fig, ax = ax, block = block, show = show)
 
 
-    def plotAlphaAtPosition(self, x, fig = None, ax = None, block=False, cmap = 'viridis', marker = 'o'):
+    def plotAlphaAtPosition(self, x, fig = None, ax = None, block=False, show = True, cmap = 'viridis', marker = 'o'):
         '''
         Create a scatter plot of index at specified positions x. Color value is proportional to index.
         '''
@@ -754,6 +849,7 @@ class AttenuationModel(MediumModel):
         x = x.cpu().numpy()
 
         if ax == None:
+            # fig, ax =  plt.subplots()
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
 
@@ -765,9 +861,9 @@ class AttenuationModel(MediumModel):
         plt.colorbar(mappable)
 
         if block == False:
-            fig.show() #does not block. This function does not accept block argument.
-        else:
-            plt.show(block=True)
+            plt.ion()
+        if show == True:
+            plt.show()
 
 class AbsorptionModel(AttenuationModel):
     def __init__(self, *args, **kwargs):
@@ -778,3 +874,75 @@ class ScatteringModel(AttenuationModel):
     def __init__(self, *args, **kwargs):
         '''Subclass of AttenuationModel. Reserved for future development.'''
         super().__init__(*args, **kwargs)
+
+
+def fresnelMask(n_mat,n_sur,r_i,tau,N_r,N_z,pixel_size,maximum):
+    '''
+    Parameters
+    ----------
+    n_mat : float
+        refractive index of photoresist
+    n_sur : float
+        refractive index of immersion medium
+    r_i : float
+        radius of the exposure roller
+    tau : float
+        thickness of photoresist
+    N_r : int
+        number of pixels in a projection image in the radial direction 
+    N_z : int
+        number of pixels in a projection image in the z direction
+    pixel_size : float
+        size of pixel in same units as r_i and tau
+    maximum : float
+        value at which to truncate the mask
+
+    Returns
+    -------
+    mask : ndarray
+        
+    '''
+    
+    total_radial_dim = N_r*pixel_size
+    total_z_dim = N_z*pixel_size
+
+    radius = np.linspace(-total_radial_dim/2,total_radial_dim/2,N_r)
+    z = np.linspace(-total_z_dim/2,total_z_dim/2,N_z)
+    
+    _R, _Z = np.meshgrid(radius,z,indexing='ij')
+
+    incidence_angle = np.arcsin(_R/(r_i+tau))
+
+    cos_i = np.cos(incidence_angle)
+    sin_i = np.sin(incidence_angle)
+    
+    Rs_numer = (n_sur*cos_i-n_mat*np.sqrt(1-(n_sur/n_mat*sin_i)**2))
+    Rs_denom = (n_sur*cos_i+n_mat*np.sqrt(1-(n_sur/n_mat*sin_i)**2))
+    Rs = np.abs( Rs_numer/Rs_denom )**2
+
+    Rp_numer = (n_sur*np.sqrt(1-(n_sur/n_mat*sin_i)**2)-n_mat*cos_i)
+    Rp_denom = (n_sur*np.sqrt(1-(n_sur/n_mat*sin_i)**2)+n_mat*cos_i)
+    Rp = np.abs( Rp_numer/Rp_denom )**2
+
+    Ts = 1-Rs
+    Tp = 1-Rp
+    Teff = 0.5*(Ts+Tp)
+
+    Teff /= np.nanmax(Teff)
+    mask = 1/Teff
+    mask[mask>maximum] = maximum
+    mask[np.isnan(mask)] = 1.0
+
+    # fig, axs = plt.subplots(1,1)
+    # axs.imshow(mask,cmap='gray')
+    # fig.tight_layout()
+    # plt.show()
+
+    # mask[] = 
+
+    return mask
+
+## Test
+
+if __name__ == '__main__':
+    input()
