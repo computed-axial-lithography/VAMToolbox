@@ -81,7 +81,7 @@ For more information, refer to the `installation documentation <https://vamtoolb
 Getting started
 ---------------
 
-For `roll-to-roll test scripts <https://github.com/computed-axial-lithography/VAMToolbox/tree/devR2R/vamtoolbox/scripts>`, these can be run independently as demos. Running them will save data to a `data directory <https://github.com/computed-axial-lithography/VAMToolbox/tree/devR2R/vamtoolbox/data>`. The expected data that will be output from running these scripts is already saved in this directory. Running them will simply overwrite the data. 
+For `roll-to-roll test scripts <https://github.com/computed-axial-lithography/VAMToolbox/tree/devR2R/vamtoolbox/scripts>`_, these can be run independently as demos. Running them will save data to a `data directory <https://github.com/computed-axial-lithography/VAMToolbox/tree/devR2R/vamtoolbox/data>`_. The expected data that will be output from running these scripts is already saved in this directory. Running them will simply overwrite the data. 
 
 Resources
 ---------
