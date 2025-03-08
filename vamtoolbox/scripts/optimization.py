@@ -114,46 +114,6 @@ directory = rf"vamtoolbox\data\optimization_output\{config}"
 if not os.path.exists(directory):
     os.makedirs(directory)
 
-if os.path.exists(rf"{directory}\sinogram.npy"):
-    # array_num = 3
-    base_u_offset = -100
-
-    sinogram = np.load(rf"{directory}\sinogram.npy")
-    # sinogram = sinogram[41:sinogram.shape[0]-41,:,:]
-    fresnel_mask = vam.medium.fresnelMask(config.n_mat,config.n_sur,config.r_i,config.tau,N_r=sinogram.shape[0],N_z=sinogram.shape[2],pixel_size=10.8*1.33*1e-4,maximum=2)
-    sinogram = sinogram*fresnel_mask[:,None,:]
-
-    dmd_nonhomogeneous_mask = np.load(rf"C:\Users\Administrator\Documents\members\Joe\dmdIntensityMask\intensity_mask.npy")
-
-    avg = np.average(sinogram[sinogram>0])
-    perc_99 = np.percentile(sinogram,99)
-    print(avg)
-    print(perc_99)
-    z_length = sinogram.shape[2]
-    # array_offset = np.stack((np.linspace(0,0,array_num,dtype=int),np.linspace(-1,1,array_num)*z_length*(array_num-1)/2),axis=1)
-    image_config = vam.imagesequence.ImageConfig(image_dims=(1920,1080),
-                                                u_offset=base_u_offset,
-                                                array_num=array_num,
-                                                array_offset=array_offset,
-                                                intensity_scale=1,
-                                                normalization_percentile=99.5,
-                                                bit_depth=8,
-                                                mask=dmd_nonhomogeneous_mask,
-                                                )
-    image_seq = vam.imagesequence.ImageSeq(image_config,sinogram)
-
-    image_seq.saveAsVideo(rf"D:\Joe\test_images\{config}_imageseq_offset={array_offset[:,0]+base_u_offset}_masked.mp4",rot_vel=3.01,num_loops=1,mode='prescribed',angle_increment_per_image=0.5,preview=False)
-    np.save(rf"D:\Joe\test_images\{config}_imageseq_offset={array_offset[:,0]+base_u_offset}_masked.npy",image_seq.images)
-
-
-    if continuous:= True:
-        num_images_per_period = int(config.tau/config.r_i *180/np.pi / config.deg_inc) #assuming length of repeating unit cell is equal to tau
-        image_range = [np.floor(len(image_seq.images)//2-num_images_per_period//2).astype(int),np.ceil(len(image_seq.images)//2+num_images_per_period//2).astype(int)+1]
-        np.save(rf"D:\Joe\test_images\{config}_imageseq_offset={array_offset[:,0]+base_u_offset}_masked_continuous.npy",image_seq.images[image_range[0]:image_range[1]])
-
-    sys.exit()
-
-
 target_geo = vam.geometry.TargetGeometryR2R(target=a,r_i=config.r_i,tau=config.tau,spatial_sampling_rate_rho=config.f_rho,spatial_sampling_rate_l=config.f_l)
 coord_vec = target_geo.constructCoordVec()
 
