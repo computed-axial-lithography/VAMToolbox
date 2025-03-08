@@ -87,7 +87,7 @@ The `optimization <https://github.com/computed-axial-lithography/VAMToolbox/blob
 
 The `mesh comparison <https://github.com/computed-axial-lithography/VAMToolbox/blob/devR2R/vamtoolbox/scripts/mesh_comparison_histograms.py>`_ script shows the process of computing statistics on the mesh comparison signed distance error (from xray CT isosurface to target isosurface).
 
-The `spiral decomposition `<https://github.com/computed-axial-lithography/VAMToolbox/blob/devR2R/vamtoolbox/scripts/spiral_decomposition.py>`_ script shows how a large target can be decomposed into a long flattened target.
+The `spiral decomposition <https://github.com/computed-axial-lithography/VAMToolbox/blob/devR2R/vamtoolbox/scripts/spiral_decomposition.py>`_ script shows how a large target can be decomposed into a long flattened target.
 
 Resources
 ---------
