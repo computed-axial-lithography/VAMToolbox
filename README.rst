@@ -83,6 +83,12 @@ Getting started
 
 For `roll-to-roll test scripts <https://github.com/computed-axial-lithography/VAMToolbox/tree/devR2R/vamtoolbox/scripts>`_, these can be run independently as demos. Running them will save data to a `data directory <https://github.com/computed-axial-lithography/VAMToolbox/tree/devR2R/vamtoolbox/data>`_. The expected data that will be output from running these scripts is already saved in this directory. Running them will simply overwrite the data. 
 
+The `optimization <https://github.com/computed-axial-lithography/VAMToolbox/blob/devR2R/vamtoolbox/scripts/optimization.py>`_ script steps through the process of choosing a target geometry, setting up the projector parameters, and optimizing the sinograms for projection. 
+
+The `mesh comparison <https://github.com/computed-axial-lithography/VAMToolbox/blob/devR2R/vamtoolbox/scripts/mesh_comparison_histograms.py>`_ script shows the process of computing statistics on the mesh comparison signed distance error (from xray CT isosurface to target isosurface).
+
+The `spiral decomposition `<https://github.com/computed-axial-lithography/VAMToolbox/blob/devR2R/vamtoolbox/scripts/spiral_decomposition.py>`_ script shows how a large target can be decomposed into a long flattened target.
+
 Resources
 ---------
 View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.
