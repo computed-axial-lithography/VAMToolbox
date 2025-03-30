@@ -160,3 +160,37 @@ class PyTorchAlgebraicPropagator:
     #         raise Exception('Specificed method is not supported.')
 
     #     return b
+
+    def inverseBackward(self, x, method='lsqr', atol=1e-6, btol=1e-6, iter_lim=50, show=True, x0=None):
+        '''
+        (Approximate) inverse of backpropagation operator
+        In x = (A^T)b, for a given x, find approximate solution b .
+        In f = (P^T)g, for a given f, find approximate solution g.
+
+        #Options
+        LSQR: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsqr.html
+        LSMR: https://docs.scipy.org/doc/scipy-1.9.1/reference/generated/scipy.sparse.linalg.lsmr.html#scipy.sparse.linalg.lsmr
+        #TODO: This might not work with sparse tensor
+        #TODO: Get it working for multiple layers. Also test if optimization works for linear model and zero initialization.
+        '''
+        print('Computing inverse of backpropagation...')
+        
+        if not isinstance(x, torch.Tensor):
+            x = torch.as_tensor(x, device=self.device, dtype=self.dtype)
+        
+        if x.ndimension() > 1:
+            x = x.flatten()
+
+        AT = self.propagation_matrix_H
+
+        if method == 'lsqr':
+            b, istop, itn = torch.linalg.lstsq(AT, x, rcond=None)[:3]
+        elif method == 'zeros':
+            b = torch.zeros(self.internal_matrix_shape[0] * self.z_tiling, device=self.device, dtype=self.dtype)
+        else:
+            raise Exception('Specified method is not supported.')
+
+        if self.output_torch_tensor:
+            return b
+        else:
+            return b.cpu().numpy()

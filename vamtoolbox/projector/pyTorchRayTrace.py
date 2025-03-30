@@ -155,7 +155,8 @@ class PyTorchRayTracingPropagator():
                                                             )
 
         propagation_matrix_coo.coalesce()
-
+        torch.cuda.empty_cache()
+        
         #Output as a torch sparse tensor
         if self.output_torch_tensor == True:
             return propagation_matrix_coo
@@ -444,8 +445,9 @@ class RayTraceSolver():
             # if self.surface_intersection_check: #Placeholder: Exception handling for discrete surfaces (This feature is to be implemented)
             #     self.discreteSurfaceIntersectionCheck(ray_state)
             propagation_matrix += self.record(ray_state, step_size, propagation_matrix_shape) #record function returns the ray contribution in current step only
-            if self.step_counter % 50 == 0:
+            if self.step_counter % 10 == 0:
                 propagation_matrix = propagation_matrix.coalesce() #coalesce to remove redundent indices and values
+                torch.cuda.empty_cache()
 
             if tracker_on:
                 tracker_active = ray_state.active[::track_every] #tracker_active.numel = ray_tracker.shape[0]

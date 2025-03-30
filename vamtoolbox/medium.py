@@ -118,7 +118,7 @@ class MediumModel(): #Abstract class. Superclass of IndexModel and AttenuationMo
                                         )
         #Sometimes, the grid_sample function returns nan when interpolating between inf and non-inf values
         #The issue is now resolved with the following hot fix. But the root cause is not yet identified.
-        scalar_val[torch.isnan(scalar_val)]=0 #TAG:HOT_FIX, TODO
+        scalar_val[torch.isnan(scalar_val)]=torch.inf #TAG:HOT_FIX, TODO
         return scalar_val[0,0,0,0,:] #scalar_val originally has shape [N, C, D_out, H_out, W_out], where W_out = number of samples
 
     @torch.inference_mode()
