@@ -1,2 +1,0 @@
-For development
-run ```conda env create -f conda/environment.yaml```
