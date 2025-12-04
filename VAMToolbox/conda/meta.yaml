@@ -1,0 +1,47 @@
+{% set setup_data = load_setup_py_data() %}
+package:
+  name: vamtoolbox
+  version: {{ setup_data['version'] }}
+
+source:
+  path: ..
+
+build:
+  script: {{ PYTHON }} setup.py install
+
+requirements:
+  build:
+    - python=3.12
+    - setuptools
+    - ipykernel
+  run:
+    - astra-toolbox
+    - colorama
+    - dill
+    - docutils
+    - ffmpeg-python
+    - imageio
+    - matplotlib
+    - numba
+    - numpy>=2.0
+    - opencv
+    - pyglet
+    - pyopengl
+    - pytorch>=2.1
+    - pyvista
+    - scikit-image
+    - tqdm
+    - trimesh
+    - vedo
+
+  test:
+    imports:
+      - {{ setup_data['name'] }}
+     
+  about:
+    home: "https://github.com/computed-axial-lithography/VAMToolbox"
+    doc_url: "https://vamtoolbox.readthedocs.io/"
+    dev_url: "https://github.com/computed-axial-lithography/VAMToolbox"
+    license: "GNU GPLv3"
+    license_family: "GNU GPL"
+    summary: "Python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing."

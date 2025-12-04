@@ -1,0 +1,28 @@
+name: vamtoolbox
+channels:
+  - conda-forge
+dependencies:
+  - astra-toolbox
+  - colorama
+  - dill
+  - docutils
+  - ffmpeg-python
+  - imageio
+  - ipykernel
+  - ipython
+  - matplotlib
+  - numba
+  - numpy>=2.0
+  - opencv
+  - pillow
+  - pyglet
+  - pyopengl
+  - python>=3.12
+  - pytorch>=2.1
+  - pyvista
+  - scikit-image
+  - scipy
+  - setuptools
+  - tqdm
+  - trimesh
+  - vedo
