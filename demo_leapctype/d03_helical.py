@@ -17,13 +17,14 @@ https://github.com/LLNL/LEAP/blob/main/documentation/LEAP.pdf
 
 # Specify the number of detector columns which is used below
 # Scale the number of angles and the detector pixel size with N
-numCols = 512
-numTurns = 10
-numAngles = 2*2*int(360*numCols/1024)*numTurns
-pixelSize = 0.65*512/numCols
+numCols = 512 # Number of detector columns
+numTurns = 10 # Number of full helical rotations (affects scan length)
+numAngles = 2*2*int(360*numCols/1024)*numTurns # Total number of projection angles; scales with resolution for sufficient sampling
+pixelSize = 0.65*512/numCols # Detector pixel size in mm; scaled according to resolution
 
 # Set the number of detector rows
 numRows = numCols//4
+
 
 # Set the scanner geometry
 leapct.set_conebeam(numAngles, numRows, numCols, pixelSize, pixelSize, 0.5*(numRows-1), 0.5*(numCols-1), leapct.setAngleArray(numAngles, 360.0*numTurns), 1100, 1400)

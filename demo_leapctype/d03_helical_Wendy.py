@@ -51,7 +51,7 @@ g = leapct.allocateProjections()
 f = leapct.allocateVolume()
 
 # Load STL file and convert to volume using vamtoolbox (same method as projections.py)
-stl_path = os.environ.get('LEAP_STL_PATH', '/Users/wendylin/Desktop/Helical/models/thinker/thinker.stl')
+stl_path = os.environ.get('LEAP_STL_PATH', r'/Users/wendylin/Desktop/Helical/models/thinker/thinker.stl')
 
 # Calculate resolution based on volume voxel size (matching projections.py approach)
 mm_per_voxel = leapct.get_voxelWidth()  # Get LEAP voxel size in mm
@@ -102,6 +102,7 @@ else:
 
 #leapct.display(f)
 
+print("== Finished voxelization, starting forward projection ==")
 
 # "Simulate" projection data
 startTime = time.time()
