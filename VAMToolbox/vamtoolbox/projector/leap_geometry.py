@@ -2,27 +2,71 @@ import numpy as np
 
 def convert_geometry_to_leap_format(geometry, params):
     """
-    Computes all geometric parameters required by LEAP and returns them as a dictionary.
-    These values are used to call LEAP's tomographicModels.set_*() methods for different
-    geometry types such as modular, parallel, and cone.
+    Convert high-level LEAPGeometry object into arrays required by LEAP.
 
-    Parameters:
-        geometry (object): Your geometry definition (angles, radii, pitch, etc.).
-        params (dict): Dictionary of parameters including pixel sizes, volume shape, etc.
+    geometry:
+        .angles (radians)
+        .source_radius
+        .detector_distance
+        .helical_pitch
 
-    Returns:
-        dict: Dictionary containing all needed inputs for LEAP geometry setup.
+    params:
+        "geometry_type"
+        "num_rows"
+        "num_cols"
+        "pixel_width"
     """
-    geom_type = params.get('geometry_type', 'modular')
 
-    if geom_type == 'modular':
-        return build_modular_geometry(geometry, params)
-    elif geom_type == 'parallel':
-        return build_parallel_geometry(geometry, params)
-    elif geom_type == 'cone':
-        return build_cone_geometry(geometry, params)
-    else:
-        raise ValueError(f"Unsupported geometry type: {geom_type}")
+    geom_type = params.get("geometry_type", "modular")
+    angles = np.asarray(geometry.angles).ravel()
+    n = len(angles)
+
+    src_R = float(geometry.source_radius)
+    det_R = float(geometry.detector_distance)
+    pitch = float(getattr(geometry, "helical_pitch", 0.0))
+
+    # allocate arrays
+    source_positions = np.zeros((n, 3), dtype=np.float32)
+    detector_centers = np.zeros((n, 3), dtype=np.float32)
+    rowVectors = np.zeros((n, 3), dtype=np.float32)
+    colVectors = np.zeros((n, 3), dtype=np.float32)
+
+    for i, theta in enumerate(angles):
+
+        z = pitch * theta / (2*np.pi)  # helical height
+
+        # source
+        sx = src_R * np.cos(theta)
+        sy = src_R * np.sin(theta)
+        source_positions[i] = [sx, sy, z]
+
+        # detector center (opposite direction)
+        dx = -det_R * np.cos(theta)
+        dy = -det_R * np.sin(theta)
+        detector_centers[i] = [dx, dy, z]
+
+        # detector axes
+        # horizontal axis (u direction): tangent
+        col = np.array([-np.sin(theta), np.cos(theta), 0], dtype=np.float32)
+        col /= np.linalg.norm(col)
+        colVectors[i] = col
+
+        # vertical axis (v direction)
+        rowVectors[i] = [0, 0, 1]
+
+    return {
+        "geometry_type": geom_type,
+        "angles": angles,
+        "source_positions": source_positions,
+        "detector_centers": detector_centers,
+        "rowVectors": rowVectors,
+        "colVectors": colVectors,
+        "num_rows": params["num_rows"],
+        "num_cols": params["num_cols"],
+        "pixel_width": params["pixel_width"],
+        "pitch": pitch
+    }
+
 
 def build_modular_geometry(geometry, params):
     """
