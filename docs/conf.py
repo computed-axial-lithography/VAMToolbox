@@ -14,8 +14,20 @@
 import os
 import sys
 import codecs
-import mock
-MOCK_MODULES = ['numpy','scipy','matplotlib','matplotlib.pyplot','scipy.interpolate','skimage','cv2','PIL','imageio','dill']
+from unittest import mock
+
+MOCK_MODULES = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "matplotlib.pyplot",
+    "scipy.interpolate",
+    "skimage",
+    "cv2",
+    "PIL",
+    "imageio",
+    "dill",
+]
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 
@@ -27,27 +39,32 @@ sys.path.insert(0, target_dir)
 
 import os.path
 
+
 def read(rel_path):
     here = os.path.abspath(os.path.dirname(__file__))
-    with codecs.open(os.path.join(here, rel_path), 'r') as fp:
+    with codecs.open(os.path.join(here, rel_path), "r") as fp:
         return fp.read()
+
 
 def get_version(rel_path):
     for line in read(rel_path).splitlines():
-        if line.startswith('__version__'):
+        if line.startswith("__version__"):
             delim = '"' if '"' in line else "'"
             return line.split(delim)[1]
     else:
         raise RuntimeError("Unable to find version string.")
+
 
 # sys.path.insert(0, os.path.abspath(os.path.join('..', 'VAMToolbox')))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'VAMToolbox'
-copyright = '2022, Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal'
-author = 'Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal'
+project = "VAMToolbox"
+copyright = "2022, Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal"
+author = (
+    "Joseph Toombs, Chi Chung Li, Charlie Rackson, Indrasen Bhattacharya, Vishal Bansal"
+)
 
 # The full version, including alpha/beta/rc tags
 release = get_version("../vamtoolbox/__init__.py")
@@ -59,26 +76,26 @@ release = get_version("../vamtoolbox/__init__.py")
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx_rtd_theme',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx_panels',
-    'sphinx_copybutton',
-    'autoapi.extension',
-    'sphinxcontrib.bibtex',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.autodoc',
-    'autoapi.extension',
-    'sphinx.ext.doctest',
-    'sphinx.ext.inheritance_diagram',
+    "sphinx_rtd_theme",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx_panels",
+    "sphinx_copybutton",
+    "autoapi.extension",
+    "sphinxcontrib.bibtex",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.autodoc",
+    "autoapi.extension",
+    "sphinx.ext.doctest",
+    "sphinx.ext.inheritance_diagram",
 ]
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # # Bibtex
@@ -87,10 +104,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # from pybtex.style.template import words
 
 # extensions = ['sphinxcontrib.bibtex']
-exclude_patterns = ['_build']
-bibtex_reference_style = 'author_year'
-bibtex_bibfiles = ['refs.bib']
-
+exclude_patterns = ["_build"]
+bibtex_reference_style = "author_year"
+bibtex_bibfiles = ["refs.bib"]
 
 
 # class NoWebRefStyle(UnsrtStyle):
@@ -103,11 +119,9 @@ bibtex_bibfiles = ['refs.bib']
 
 
 # AutoAPI
-autoapi_type = 'python'
-autoapi_dirs = ['../vamtoolbox']
+autoapi_type = "python"
+autoapi_dirs = ["../vamtoolbox"]
 # autoapi_add_toctree_entry = False
-
-
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -115,7 +129,7 @@ autoapi_dirs = ['../vamtoolbox']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'pydata_sphinx_theme'
+html_theme = "pydata_sphinx_theme"
 html_logo = "_static/logos/logo_bone.png"
 html_theme_options = {
     "icon_links": [
@@ -131,5 +145,4 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
-
+html_static_path = ["_static"]

@@ -1,0 +1,21 @@
+To develop or use a local environment:
+
+If your system includes an Nvidia GPU:
+
+```
+conda env create -f conda/one_channel_env.yaml
+```
+
+If your system does not have an Nvidia GPU, you may try the above install, but it is possible that it will not work properly.
+In that case, run the following instead:
+
+```
+conda env create -f conda/multi_channel_env.yaml
+```
+
+For development purposes, it is helpful to then run the following, which allows for live editing of the library, without need for re-installation.
+```
+python -m pip install -e .
+```
+
+Please create an issue on this repository if neither of these methods work for successfully creating and running the environment. 

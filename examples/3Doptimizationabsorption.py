@@ -1,7 +1,9 @@
 import vamtoolbox as vam
 import numpy as np
 
-target_geo = vam.geometry.TargetGeometry(stlfilename=vam.resources.load("bear.stl"), resolution=250, rot_angles=[90, 0, 0])
+target_geo = vam.geometry.TargetGeometry(
+    stlfilename=vam.resources.load("bear.stl"), resolution=250, rot_angles=[90, 0, 0]
+)
 # target_geo.show()
 
 num_angles = 360
@@ -19,7 +21,9 @@ optimizer_params = vam.optimize.Options(
     units="normalized",
     verbose="plot",
 )
-opt_sino, opt_recon, error = vam.optimize.optimize(target_geo, proj_geo, optimizer_params)
+opt_sino, opt_recon, error = vam.optimize.optimize(
+    target_geo, proj_geo, optimizer_params
+)
 opt_recon.show(savepath="noabs_recon.jpg", dpi=300)
 opt_sino.show(savepath="noabs_sino", dpi=300)
 
@@ -32,7 +36,7 @@ proj_geo = vam.geometry.ProjectionGeometry(
     absorption_coeff=1,
     container_radius=1,
     n_rot=3,
-    rot_vel=24
+    rot_vel=24,
 )
 
 optimizer_params = vam.optimize.Options(

@@ -1,7 +1,14 @@
 from scipy import io
+
 import vamtoolbox
 
-def saveMatData(filepath : str,target_geo : vamtoolbox.geometry.TargetGeometry=None,sinogram :  vamtoolbox.geometry.Sinogram=None,reconstruction :  vamtoolbox.geometry.Reconstruction=None):
+
+def saveMatData(
+    filepath: str,
+    target_geo: vamtoolbox.geometry.TargetGeometry | None = None,
+    sinogram: vamtoolbox.geometry.Sinogram | None = None,
+    reconstruction: vamtoolbox.geometry.Reconstruction | None = None,
+):
     """
     Saves VAM toolbox (Python) objects to Matlab formats
 
@@ -14,7 +21,7 @@ def saveMatData(filepath : str,target_geo : vamtoolbox.geometry.TargetGeometry=N
 
     sinogram : geometry.Sinogram
 
-    reconstruction : geometry.Reconstruction 
+    reconstruction : geometry.Reconstruction
 
 
     Usage
@@ -27,21 +34,20 @@ def saveMatData(filepath : str,target_geo : vamtoolbox.geometry.TargetGeometry=N
     save_dict = dict()
 
     if isinstance(sinogram, vamtoolbox.geometry.Sinogram):
-        save_dict['opt_proj'] = sinogram.array
+        save_dict["opt_proj"] = sinogram.array
     elif sinogram is not None:
         raise Exception("sinogram argument must be of type geometry.Sinogram")
-    
+
     if isinstance(reconstruction, vamtoolbox.geometry.Reconstruction):
-        save_dict['opt_recon'] = reconstruction.array
+        save_dict["opt_recon"] = reconstruction.array
     elif reconstruction is not None:
-        raise Exception("reconstruction argument must be of type geometry.Reconstruction")
+        raise Exception(
+            "reconstruction argument must be of type geometry.Reconstruction"
+        )
 
     if isinstance(target_geo, vamtoolbox.geometry.TargetGeometry):
-        save_dict['target'] = target_geo.array
+        save_dict["target"] = target_geo.array
     elif target_geo is not None:
         raise Exception("target_geo argument must be of type geometry.TargetGeometry")
-    
-    io.savemat(filepath,save_dict)
 
-
-
+    io.savemat(filepath, save_dict)

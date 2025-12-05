@@ -1,9 +1,6 @@
 
-Must run in environment to add the astra-toolbox channel to the search list for dependencies before building.
->>> conda config --add channels astra-toolbox
->>> conda config --add channels conda-forge
+Now only depends on the conda-forge channel.
 
-conda config --add channels pytorch numba nvidia anaconda conda-forge astra-toolbox
 
 meta.yaml 
 - conda recipe is in ../conda so the source path is "source: .."

@@ -39,40 +39,43 @@ from pyglet.image import ImageData
 import numpy as np
 import ctypes
 
-__version__ = '1.0' # keep in sync with ../setup.py
-__all__ = ['ArrayInterfaceImage']
+__version__ = "1.0"  # keep in sync with ../setup.py
+__all__ = ["ArrayInterfaceImage"]
+
 
 def is_c_contiguous(inter):
-    strides = inter.get('strides')
-    shape = inter.get('shape')
+    strides = inter.get("strides")
+    shape = inter.get("shape")
     if strides is None:
         return True
     else:
         test_strides = strides[-1]
         N = len(strides)
-        for i in range(N-2):
-            test_strides *= test_strides * shape[N-i-1]
-            if test_strides == strides[N-i-2]:
+        for i in range(N - 2):
+            test_strides *= test_strides * shape[N - i - 1]
+            if test_strides == strides[N - i - 2]:
                 continue
             else:
                 return False
         return True
 
+
 def get_stride0(inter):
-    strides = inter.get('strides')
+    strides = inter.get("strides")
     if strides is not None:
         return strides[0]
     else:
         # C contiguous
-        shape = inter.get('shape')
+        shape = inter.get("shape")
         cumproduct = 1
-        for i in range(1,len(shape)):
+        for i in range(1, len(shape)):
             cumproduct *= shape[i]
         return cumproduct
 
-def idleImage(size:tuple,color:tuple=None):
+
+def idleImage(size: tuple, color: tuple = None):
     """Creates solid color image
-    
+
     Creates an image to be displayed during paused playback of a sequence or video. Color may be specified
 
     Parameters
@@ -83,19 +86,20 @@ def idleImage(size:tuple,color:tuple=None):
         RGB color of the image (R,G,B) [0-255]. Default is (0,0,0) black
     """
     if color is None:
-        color = (0,0,0)
-    array = np.ascontiguousarray(np.zeros((size[0],size[1],3),dtype=np.uint8))
-    array[:,:,0] = color[0]
-    array[:,:,1] = color[1]
-    array[:,:,2] = color[2]
+        color = (0, 0, 0)
+    array = np.ascontiguousarray(np.zeros((size[0], size[1], 3), dtype=np.uint8))
+    array[:, :, 0] = color[0]
+    array[:, :, 1] = color[1]
+    array[:, :, 2] = color[2]
 
     aii = ArrayInterfaceImage(array)
     pyglet_image = aii.texture
     return pyglet_image
 
+
 class ArrayInterfaceImage(ImageData):
-    def __init__(self,arr,format=None,allow_copy=True):
-        '''Initialize image data from the numpy array interface
+    def __init__(self, arr, format=None, allow_copy=True):
+        """Initialize image data from the numpy array interface
         :Parameters:
             `arr` : array
                 data supporting the __array_interface__ protocol. If
@@ -112,56 +116,57 @@ class ArrayInterfaceImage(ImageData):
                 unsuitable. In particular, the data must be C
                 contiguous in this case. If True (default), the data
                 may be copied to avoid such exceptions.
-        '''
+        """
 
         self.inter = arr.__array_interface__
         self.allow_copy = allow_copy
         self.data_ptr = ctypes.c_void_p()
         self.data_ptr.value = 0
 
-        if len(self.inter['shape'])==2:
-            height,width = self.inter['shape']
+        if len(self.inter["shape"]) == 2:
+            height, width = self.inter["shape"]
             if format is None:
-                format = 'L'
-        elif len(self.inter['shape'])==3:
-            height,width,depth = self.inter['shape']
+                format = "L"
+        elif len(self.inter["shape"]) == 3:
+            height, width, depth = self.inter["shape"]
             if format is None:
-                if depth==3:
-                    format = 'RGB'
-                elif depth==4:
-                    format = 'RGBA'
-                elif depth==1:
-                    format = 'L'
+                if depth == 3:
+                    format = "RGB"
+                elif depth == 4:
+                    format = "RGBA"
+                elif depth == 1:
+                    format = "L"
                 else:
-                    raise ValueError("could not determine a format for "
-                                     "depth %d"%depth)
+                    raise ValueError(
+                        "could not determine a format for " "depth %d" % depth
+                    )
         else:
             raise ValueError("arr must have 2 or 3 dimensions")
         data = None
         pitch = get_stride0(self.inter)
         super(ArrayInterfaceImage, self).__init__(
-            width, height, format, data, pitch=pitch)
+            width, height, format, data, pitch=pitch
+        )
 
-        self.view_new_array( arr )
+        self.view_new_array(arr)
 
     def get_data(self):
         if self._real_string_data is not None:
             return self._real_string_data
 
         if not self.allow_copy:
-            raise ValueError("cannot get a view of the data without "
-                             "allowing copy")
+            raise ValueError("cannot get a view of the data without " "allowing copy")
 
         # create a copy of the data in a Python str
-        shape = self.inter['shape']
+        shape = self.inter["shape"]
         nbytes = 1
         for i in range(len(shape)):
             nbytes *= shape[i]
-        mydata = ctypes.create_string_buffer( nbytes )
-        ctypes.memmove( mydata, self.data_ptr, nbytes)
+        mydata = ctypes.create_string_buffer(nbytes)
+        ctypes.memmove(mydata, self.data_ptr, nbytes)
         return mydata.value
 
-    data = property(get_data,None,"string view of data")
+    data = property(get_data, None, "string view of data")
 
     def _convert(self, format, pitch):
         if format == self._current_format and pitch == self._current_pitch:
@@ -175,8 +180,9 @@ class ArrayInterfaceImage(ImageData):
             if self.allow_copy:
                 raise NotImplementedError("XXX")
             else:
-                raise ValueError("cannot convert to desired "
-                                 "format/pitch without copying")
+                raise ValueError(
+                    "cannot convert to desired " "format/pitch without copying"
+                )
 
     def _ensure_string_data(self):
         if self.allow_copy:
@@ -185,16 +191,16 @@ class ArrayInterfaceImage(ImageData):
             raise ValueError("cannot create string data without copying")
 
     def dirty(self):
-        '''Force an update of the texture data.
-        '''
+        """Force an update of the texture data."""
 
         self.texture = self.get_texture()
         internalformat = None
         self.blit_to_texture(
-            self.texture.target, self.texture.level, 0, 0, 0, internalformat )
+            self.texture.target, self.texture.level, 0, 0, 0, internalformat
+        )
 
-    def view_new_array(self,arr):
-        '''View a new array of the same shape.
+    def view_new_array(self, arr):
+        """View a new array of the same shape.
         The same texture will be kept, but the data from the new array
         will be loaded.
         :Parameters:
@@ -203,7 +209,7 @@ class ArrayInterfaceImage(ImageData):
                 rank 2, the shape must be (height, width). If rank 3,
                 the shape is (height, width, depth). Typestr must be
                 '|u1' (uint8).
-        '''
+        """
 
         inter = arr.__array_interface__
 
@@ -213,30 +219,33 @@ class ArrayInterfaceImage(ImageData):
                 # case. POSSIBLY TODO: re-implement copying into
                 # string buffer so that numpy is not required.
                 import numpy
-                arr = numpy.array( arr, copy=True, order='C' )
+
+                arr = numpy.array(arr, copy=True, order="C")
                 inter = arr.__array_interface__
             else:
-                raise ValueError('copying is not allowed but data is not '
-                                 'C contiguous')
+                raise ValueError(
+                    "copying is not allowed but data is not " "C contiguous"
+                )
 
-        if inter['typestr'] != '|u1':
+        if inter["typestr"] != "|u1":
             raise ValueError("data is not type uint8 (typestr=='|u1')")
 
-        if inter['shape'] != self.inter['shape']:
+        if inter["shape"] != self.inter["shape"]:
             raise ValueError("shape changed!")
 
         self._real_string_data = None
         self.data_ptr.value = 0
 
-        idata = inter['data']
-        if isinstance(idata,tuple):
-            data_ptr_int,readonly = idata
+        idata = inter["data"]
+        if isinstance(idata, tuple):
+            data_ptr_int, readonly = idata
             self.data_ptr.value = data_ptr_int
-        elif isinstance(idata,str):
+        elif isinstance(idata, str):
             self._real_string_data = idata
         else:
-            raise ValueError("__array_interface__ data attribute was not "
-                             "tuple or string")
+            raise ValueError(
+                "__array_interface__ data attribute was not " "tuple or string"
+            )
 
         # maintain references so they're not de-allocated
         self.inter = inter
