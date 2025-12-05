@@ -152,29 +152,74 @@ def build_parallel_geometry(geometry, params):
         'pixel_width': params['detector_pixel_width']
     }
 
-def build_cone_geometry(geometry, params):
+def _build_cone_geometry(geometry, params):
     """
-    Returns geometry parameters for LEAP's cone-beam configuration.
-
-    Parameters:
-        geometry (object): Contains projection angles and system distances.
-        params (dict): Pixel and detector specifications.
-
-    Returns:
-        dict: {
-            'geometry_type': 'cone',
-            'angles': list or np.ndarray,
-            'source_to_detector': float,
-            'num_rows': int,
-            'num_cols': int,
-            'pixel_width': float
-        }
+    Build cone-beam geometry for LEAP.
+    This assumes a circular cone-beam trajectory (like standard CT),
+    optionally with helical motion.
     """
-    return {
-        'geometry_type': 'cone',
-        'angles': geometry.angles,
-        'source_to_detector': geometry.source_to_detector,
-        'num_rows': params['num_rows'],
-        'num_cols': params['num_cols'],
-        'pixel_width': params['detector_pixel_width']
+
+    angles = np.asarray(geometry.angles).ravel()
+    n_views = len(angles)
+
+    src_R = float(geometry.source_radius)
+    det_R = float(geometry.detector_distance)
+    pitch = float(getattr(geometry, "helical_pitch", 0.0))
+
+    # allocate
+    source_positions = np.zeros((n_views, 3), dtype=np.float32)
+    detector_centers = np.zeros((n_views, 3), dtype=np.float32)
+    rowVectors = np.zeros((n_views, 3), dtype=np.float32)
+    colVectors = np.zeros((n_views, 3), dtype=np.float32)
+
+    for i, theta in enumerate(angles):
+
+        # helical z
+        z = pitch * theta / (2 * np.pi)
+
+        # source circular path
+        sx = src_R * np.cos(theta)
+        sy = src_R * np.sin(theta)
+
+        # detector opposite side
+        dx = -det_R * np.cos(theta)
+        dy = -det_R * np.sin(theta)
+
+        source_positions[i] = [sx, sy, z]
+        detector_centers[i] = [dx, dy, z]
+
+        # detector coordinate system
+        # column (u direction): tangent
+        col = np.array([-np.sin(theta), np.cos(theta), 0], dtype=np.float32)
+        col /= np.linalg.norm(col)
+        colVectors[i] = col
+
+        # row (v direction): vertical axis
+        rowVectors[i] = [0.0, 0.0, 1.0]
+
+    geom = {
+        "geometry_type": "cone",
+        "source_positions": source_positions,
+        "detector_centers": detector_centers,
+        "rowVectors": rowVectors,
+        "colVectors": colVectors,
+        "num_rows": int(params["num_rows"]),
+        "num_cols": int(params["num_cols"]),
+        "pixel_width": float(params["pixel_width"]),
+        "pixel_height": float(params.get("pixel_height", params["pixel_width"])),
     }
+    return geom
+
+
+    # Set volume geometry in LEAP: expects (X, Y, Z)
+    leapct.set_volume(*volume.shape[::-1])
+
+    # Allocate sinogram & set volume copy
+    g = leapct.allocateProjections()
+    f = np.copy(volume)
+
+    # Perform forward projection
+    leapct.project(g, f)
+
+    return g
+

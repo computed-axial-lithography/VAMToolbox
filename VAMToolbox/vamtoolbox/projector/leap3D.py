@@ -1,6 +1,6 @@
 import numpy as np
 from leapctype import *
-from vamtoolbox.projector.leap_geometry import convert_geometry_to_leap_format
+from vamtoolbox.projector.leap_geometry import _build_cone_geometry, convert_geometry_to_leap_format
 
 def forward_project(volume, geometry, params):
     """
@@ -28,8 +28,8 @@ def forward_project(volume, geometry, params):
         leapct.set_modularbeam(
             geom["source_positions"],
             geom["detector_centers"],
-            geom["u_vectors"],
-            geom["v_vectors"],
+            geom["rowVectors"],
+            geom["colVectors"],
             geom["num_rows"],
             geom["num_cols"],
             geom["pixel_width"]
@@ -48,26 +48,22 @@ def forward_project(volume, geometry, params):
             geom["pixel_width"]
         )
 
-    # CONE-BEAM (not fully implemented in your geometry builder yet)
+        # CONE-BEAM
     elif geom_type == "cone":
-        raise NotImplementedError(
-            "Cone-beam geometry is not fully implemented in this LEAP wrapper."
-        )
+        geom = _build_cone_geometry(geometry, params)
 
-    else:
-        raise ValueError(f"Unsupported geometry type: {geom_type}")
+        leapct.set_conebeam(
+            geom["source_positions"],
+            geom["detector_centers"],
+            geom["rowVectors"],
+            geom["colVectors"],
+            geom["num_rows"],
+            geom["num_cols"],
+            geom["pixel_width"],
+            geom["pixel_height"],
+    )
 
-    # Set volume geometry in LEAP: expects (X, Y, Z)
-    leapct.set_volume(*volume.shape[::-1])
 
-    # Allocate sinogram & set volume copy
-    g = leapct.allocateProjections()
-    f = np.copy(volume)
-
-    # Perform forward projection
-    leapct.project(g, f)
-
-    return g
 
 
 
@@ -99,8 +95,8 @@ def back_project(sinogram, geometry, params):
         leapct.set_modularbeam(
             geom["source_positions"],
             geom["detector_centers"],
-            geom["u_vectors"],
-            geom["v_vectors"],
+            geom["rowVectors"],
+            geom["colVectors"],
             geom["num_rows"],
             geom["num_cols"],
             geom["pixel_width"]
@@ -118,12 +114,17 @@ def back_project(sinogram, geometry, params):
         )
 
     elif geom_type == "cone":
-        raise NotImplementedError(
-            "Cone-beam reconstruction is not implemented in this wrapper."
+        geom = _build_cone_geometry(geometry, params)
+        leapct.set_conebeam(
+            geom["source_positions"],
+            geom["detector_centers"],
+            geom["rowVectors"],
+            geom["colVectors"],
+            geom["num_rows"],
+            geom["num_cols"],
+            geom["pixel_width"],
+            geom["pixel_height"],
         )
-
-    else:
-        raise ValueError(f"Unsupported geometry type: {geom_type}")
 
     # --------------------------------------------------------
     # Volume setup: LEAP expects (X, Y, Z)
