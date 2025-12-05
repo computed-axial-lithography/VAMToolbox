@@ -6,3 +6,5 @@ from . import Projector3DParallelCUDA
 from . import pyTorchRayTrace
 from . import algebraicPropagation
 from . import pyTorchAlgebraicPropagation
+from . import leap3D
+from . import leap_geometry
