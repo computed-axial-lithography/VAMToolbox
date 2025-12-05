@@ -62,6 +62,7 @@ class FileSpecs:
         self.v_offset = v_offset
 
 
+
 # File specifications
 files = list()
 
@@ -282,7 +283,7 @@ for file in files:
                 "num_cols": 512,
                 "voxel_size": 0.1,
                 "volume_shape": volume.shape,
-                "detector_pixel_width": 0.1,         # usually same as voxel_size
+                "pixel_width": 0.1,         # usually same as voxel_size
             }
 
             sino_array = projector.forward_project(volume, proj_geo, params)
