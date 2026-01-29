@@ -28,7 +28,7 @@ Table of Contents
 1. Introduction
 2. VAMToolbox 2.0.0 Release Notes
 3. Installation
-4. Resources
+4. Documentation
 5. License
 
 
@@ -90,7 +90,7 @@ To install VAMToolbox, enter the command below in the `Anaconda <https://www.ana
 For more information, refer to the `installation documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/gettingstarted.html>`_.
 
 
-Resources
+Documentation
 ---------
 View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.
 
