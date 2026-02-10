@@ -6,7 +6,7 @@ import numpy as np
 import vamtoolbox
 
 
-def minimizeFBP(target_geo, proj_geo, options):
+def minimizeFBP(target_geo, proj_geo, options, projector):
     """
     Filtered backprojection (no optimization, only filtered)
 
@@ -28,7 +28,7 @@ def minimizeFBP(target_geo, proj_geo, options):
 
     """
 
-    A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
+    # A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
     _error = np.zeros(options.n_iter)
     _error[:] = np.nan
     iter_times = np.zeros(options.n_iter)
@@ -40,7 +40,8 @@ def minimizeFBP(target_geo, proj_geo, options):
     t0 = time.perf_counter()
 
     # initialize sinogram with selected filter
-    b = A.forward(target_geo.array)
+    # b = A.forward(target_geo.array)
+    b = projector.forward(target_geo.array)
     b = vamtoolbox.util.data.filterSinogram(b, options.filter)
 
     if options.offset == True:
@@ -56,7 +57,8 @@ def minimizeFBP(target_geo, proj_geo, options):
     if options.bit_depth is not None:
         b = vamtoolbox.util.data.discretize(b, options.bit_depth, [0.0, np.max(b)])
 
-    x = A.backward(b)
+    # x = A.backward(b)
+    x = projector.backward(b)
     x = x / np.max(x)
 
     # Calculate current error

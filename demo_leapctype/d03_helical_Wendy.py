@@ -4,6 +4,12 @@ import time
 import numpy as np
 from leapctype import *
 import vamtoolbox.geometry
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    _TK_AVAILABLE = True
+except Exception:
+    _TK_AVAILABLE = False
 leapct = tomographicModels()
 # Make sure you add: .../LEAP/src to your python path
 
@@ -51,7 +57,21 @@ g = leapct.allocateProjections()
 f = leapct.allocateVolume()
 
 # Load STL file and convert to volume using vamtoolbox (same method as projections.py)
-stl_path = os.environ.get('LEAP_STL_PATH', r'/Users/wendylin/Desktop/Helical/models/thinker/thinker.stl')
+# Try a GUI file chooser when available; otherwise use env var or default.
+stl_path = None
+if _TK_AVAILABLE:
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        stl_path = filedialog.askopenfilename(title='Select STL file', filetypes=[('STL files','*.stl'),('All files','*.*')])
+        root.destroy()
+    except Exception:
+        stl_path = None
+
+if not stl_path:
+    stl_path = os.environ.get('LEAP_STL_PATH', r'/Users/wendylin/Desktop/Helical/models/thinker/thinker.stl')
+    if not stl_path:
+        raise FileNotFoundError('No STL file selected and LEAP_STL_PATH is not set.')
 
 # Calculate resolution based on volume voxel size (matching projections.py approach)
 mm_per_voxel = leapct.get_voxelWidth()  # Get LEAP voxel size in mm
@@ -65,39 +85,54 @@ print(f'Resolution: {res}, voxel size: {mm_per_voxel} mm')
 target_geo = vamtoolbox.geometry.TargetGeometry(stlfilename=stl_path, resolution=res)
 
 # Copy voxelized volume into LEAP array
-if target_geo.volume is not None:
-    # Ensure dimensions match
-    stl_volume = target_geo.volume
+# VAMToolbox TargetGeometry stores the voxel data in `array` (Volume.array).
+if hasattr(target_geo, 'array') and target_geo.array is not None:
+    stl_volume = target_geo.array
     print(f'STL volume shape: {stl_volume.shape}, LEAP volume shape: {f.shape}')
-    
-    # Center the STL volume in LEAP volume if sizes differ
+
+    # If shapes don't match, try permutations of axes to find a matching orientation
+    if stl_volume.shape != f.shape:
+        from itertools import permutations
+
+        matched = False
+        for perm in permutations((0, 1, 2)):
+            perm_vol = np.transpose(stl_volume, perm)
+            if perm_vol.shape == f.shape:
+                stl_volume = perm_vol
+                matched = True
+                print(f'Applied axis permutation {perm} to match LEAP volume ordering')
+                break
+
+        if not matched:
+            # No exact match; proceed with center-crop/pad using the best overlapping orientation (no transpose)
+            print('No exact axis-permutation match found; proceeding with centered crop/pad')
+
+    # Center the STL volume in LEAP volume (crop or pad) to match dimensions
     if stl_volume.shape == f.shape:
         f[:, :, :] = stl_volume
     else:
-        # Crop or pad to match LEAP volume dimensions
         min_x = min(stl_volume.shape[0], f.shape[0])
         min_y = min(stl_volume.shape[1], f.shape[1])
         min_z = min(stl_volume.shape[2], f.shape[2])
-        
-        # Center alignment
+
         x_offset_stl = (stl_volume.shape[0] - min_x) // 2
         y_offset_stl = (stl_volume.shape[1] - min_y) // 2
         z_offset_stl = (stl_volume.shape[2] - min_z) // 2
-        
+
         x_offset_leap = (f.shape[0] - min_x) // 2
         y_offset_leap = (f.shape[1] - min_y) // 2
         z_offset_leap = (f.shape[2] - min_z) // 2
-        
-        f[x_offset_leap:x_offset_leap+min_x, 
-          y_offset_leap:y_offset_leap+min_y, 
+
+        f[x_offset_leap:x_offset_leap+min_x,
+          y_offset_leap:y_offset_leap+min_y,
           z_offset_leap:z_offset_leap+min_z] = stl_volume[
               x_offset_stl:x_offset_stl+min_x,
               y_offset_stl:y_offset_stl+min_y,
               z_offset_stl:z_offset_stl+min_z]
-    
+
     print('STL volume loaded successfully')
 else:
-    print('Warning: Failed to load STL, using FORBILD phantom as fallback')
+    print('Warning: Failed to load STL (no `array`), using FORBILD phantom as fallback')
     leapct.set_FORBILD(f, True)
 
 #leapct.display(f)

@@ -153,7 +153,7 @@ class BCLPNorm:
         The material response is denoted as mapped dose.
     """
 
-    def __init__(self, target_geo, proj_geo, options):
+    def __init__(self, target_geo, proj_geo, options, projector):
         self.logger = logging.getLogger(__name__)
 
         self.target_geo = target_geo
@@ -228,9 +228,11 @@ class BCLPNorm:
             )
 
         # Setup projector
-        self.P = vamtoolbox.projectorconstructor.projectorconstructor(
-            self.target_geo, self.proj_geo
-        )
+        # self.P = vamtoolbox.projectorconstructor.projectorconstructor(
+        #     self.target_geo, self.proj_geo
+        # )
+        self.P = projector 
+
 
         # self.custom_fig1, self.custom_ax1 = plt.subplots()
         # self.custom_fig2, self.custom_ax2 = plt.subplots()
@@ -590,7 +592,7 @@ class BCLPNorm:
         return is_converged or is_loss_zero
 
 
-def minimizeBCLP(target_geo, proj_geo, options, output="packaged"):
+def minimizeBCLP(target_geo, proj_geo, options, projector, output="packaged"):
     """
     Band constraint Lp norm minimization.
 
@@ -617,7 +619,7 @@ def minimizeBCLP(target_geo, proj_geo, options, output="packaged"):
 
     # Initialize norm class
 
-    bclp = BCLPNorm(target_geo, proj_geo, options)
+    bclp = BCLPNorm(target_geo, proj_geo, options, projector)
     g_opt = bclp.gradientDescent()
     g_opt = bclp.checkSinogramShape(g_opt, desired_shape="cylindrical")
 

@@ -112,9 +112,7 @@ def build_modular_geometry(geometry, params):
 
     for i, theta in enumerate(angles):
 
-        # -----------------------------
-        # 1) SOURCE POSITION (helical)
-        # -----------------------------
+        # SOURCE POSITION (helical)
         # LEAP uses gantry rotation around z-axis
         # pitch grows linearly with angle
         z = pitch_per_radian * theta
@@ -124,9 +122,7 @@ def build_modular_geometry(geometry, params):
         sz = z
         source = np.array([sx, sy, sz])
 
-        # -----------------------------
-        # 2) DETECTOR CENTER POSITION
-        # -----------------------------
+        # DETECTOR CENTER POSITION
         # Detector lies along the *opposite direction* from rotation center
         # pointing outward along the x-y plane.
         #
@@ -139,9 +135,7 @@ def build_modular_geometry(geometry, params):
             sz
         ])
 
-        # -----------------------------
-        # 3) DETECTOR AXES (u and v)
-        # -----------------------------
+        # DETECTOR AXES (u and v)
         # v-axis is ALWAYS the rotation axis (z-direction)
         v = np.array([0, 0, 1])
 
@@ -253,17 +247,4 @@ def _build_cone_geometry(geometry, params):
         "pixel_height": float(params.get("pixel_height", params["pixel_width"])),
     }
     return geom
-
-
-    # Set volume geometry in LEAP: expects (X, Y, Z)
-    leapct.set_volume(*volume.shape[::-1])
-
-    # Allocate sinogram & set volume copy
-    g = leapct.allocateProjections()
-    f = np.copy(volume)
-
-    # Perform forward projection
-    leapct.project(g, f)
-
-    return g
 

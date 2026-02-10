@@ -22,7 +22,7 @@ class LogError:
         self.iter_times[i] = time.perf_counter() - self.t0
 
 
-def minimizePM(target_geo, proj_geo, _options):
+def minimizePM(target_geo, proj_geo, _options, projector):
     """
     Quasi-Newton projection optimization via L-BFGS-B algorithm.
 
@@ -80,7 +80,7 @@ def minimizePM(target_geo, proj_geo, _options):
         b_iter = np.reshape(b_iter, b0_shape)
 
         global dose_3D_iter
-        dose_3D_iter = A.backward(b_iter)
+        dose_3D_iter = projector.backward(b_iter)
         dose_3D_iter = dose_3D_iter * np.pi / 180
 
         log_error.error_iter = vamtoolbox.metrics.calcVER(target_geo, dose_3D_iter)
@@ -124,7 +124,7 @@ def minimizePM(target_geo, proj_geo, _options):
             _options.d_h - dose_3D_iter, _options.p - 1
         )
 
-        grad_iter = A.forward(grad_dose_iter)
+        grad_iter = projector.forward(grad_dose_iter)
 
         grad_iter = np.reshape(grad_iter, np.product(b0_shape)).astype("double")
 
@@ -151,7 +151,7 @@ def minimizePM(target_geo, proj_geo, _options):
 
         log_error.curr_iter += 1
 
-    A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
+    # A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
 
     if _options.verbose == "plot":
         dp = vamtoolbox.display.EvolvingPlot(target_geo, _options.n_iter + 1)
@@ -165,7 +165,7 @@ def minimizePM(target_geo, proj_geo, _options):
     t0 = time.perf_counter()
 
     # initialize sinogram with selected filter
-    b0 = A.forward(target_geo.array)
+    b0 = projector.forward(target_geo.array)
     b0_shape = b0.shape
     b0 = vamtoolbox.util.data.filterSinogram(b0, _options.filter)
     b0 = np.clip(b0, a_min=0, a_max=None)
@@ -184,7 +184,7 @@ def minimizePM(target_geo, proj_geo, _options):
     global log_error
     log_error = LogError(_options)
 
-    x0 = A.backward(b0)
+    x0 = projector.backward(b0)
     x0 = x0 / np.max(x0)
     log_error.error[0] = vamtoolbox.metrics.calcVER(target_geo, x0)
 
@@ -217,7 +217,7 @@ def minimizePM(target_geo, proj_geo, _options):
         b_opt = vamtoolbox.util.data.discretize(
             b_opt, _options.bit_depth, [0.0, np.max(b_opt)]
         )
-    x_opt = A.backward(b_opt)
+    x_opt = projector.backward(b_opt)
     x_opt = x_opt * np.pi / 180
     if _options.verbose == "plot":
         dp.ioff()

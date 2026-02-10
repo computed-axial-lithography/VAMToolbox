@@ -7,7 +7,7 @@ import numpy as np
 import vamtoolbox
 
 
-def minimizeCAL(target_geo, proj_geo, options):
+def minimizeCAL(target_geo, proj_geo, options, projector):
     """
     Gradient-descent sinogram optimization.
 
@@ -113,7 +113,7 @@ def minimizeCAL(target_geo, proj_geo, options):
 
         return thresholded_reconstruction, threshold
 
-    A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
+    # A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
     _error = np.zeros(options.n_iter)
     _error[:] = np.nan
     iter_times = np.zeros(options.n_iter)
@@ -124,12 +124,14 @@ def minimizeCAL(target_geo, proj_geo, options):
     t0 = time.perf_counter()
 
     # Initialize sinogram with selected filter
-    b = A.forward(target_geo.array)
+    # b = A.forward(target_geo.array)
+    b = projector.forward(target_geo.array)
     b = vamtoolbox.util.data.filterSinogram(b, options.filter)
     b = np.clip(b, a_min=0, a_max=None)
     b0 = b
     delta_b_prev = np.zeros_like(b)
-    x0 = A.backward(b0)
+    # x0 = A.backward(b0)
+    x0 = projector.backward(b0)
     x0 = x0 / np.max(x0)
 
     x = x0
@@ -157,7 +159,8 @@ def minimizeCAL(target_geo, proj_geo, options):
         delta_x = x_thresh - opt_target
 
         # Transform error into projection space
-        delta_b = A.forward(delta_x)
+        # delta_b = A.forward(delta_x)
+        delta_b = projector.forward(delta_x)
 
         # Update projections
         grad = delta_b * (1 - options.momentum) + delta_b_prev * options.momentum / (
@@ -173,7 +176,8 @@ def minimizeCAL(target_geo, proj_geo, options):
             b = vamtoolbox.util.data.discretize(b, options.bit_depth, [0.0, np.max(b)])
 
         # Reconstruct using current projections
-        x = A.backward(b)
+        # x = A.backward(b)
+        x = projector.backward(b)
         x = x / np.amax(x)
 
         delta_b_prev = delta_b
@@ -202,7 +206,7 @@ def minimizeCAL(target_geo, proj_geo, options):
     # if options.bit_depth is not None:
     #     b_opt = vamtoolbox.util.data.discretize(b_opt,options.bit_depth,[0.0,np.max(b)])
 
-    x_opt = A.backward(
+    x_opt = projector.backward(
         b_opt
     )  # reconstruct the optimal positivity constrained projections
     x_opt = x_opt / np.amax(x_opt)

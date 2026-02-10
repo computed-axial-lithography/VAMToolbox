@@ -173,8 +173,10 @@ class Options:
 
 def optimize(
     target_geo: vamtoolbox.geometry.TargetGeometry,
-    proj_geo: vamtoolbox.geometry.ProjectionGeometry,
+    # proj_geo: vamtoolbox.geometry.ProjectionGeometry,
+    proj_geo, # Supports both ASTRA and LEAP-style projection geometries
     options: Options,
+    projector,
     output="packaged",
 ):
     """
@@ -196,22 +198,23 @@ def optimize(
 
     """
 
-    if options.units != "normalized" or proj_geo.absorption_coeff is not None:
-        proj_geo.calcAbsorptionMask(target_geo)
+    if options.units != "normalized" or getattr(proj_geo, 'absorption_coeff', None) is not None:
+        if hasattr(proj_geo, 'calcAbsorptionMask'):
+            proj_geo.calcAbsorptionMask(target_geo)
 
     if options.method == "FBP":
-        return vamtoolbox.optimizer.FBP.minimizeFBP(target_geo, proj_geo, options)
+        return vamtoolbox.optimizer.FBP.minimizeFBP(target_geo, proj_geo, options, projector)
 
     elif options.method == "CAL":
-        return vamtoolbox.optimizer.CAL.minimizeCAL(target_geo, proj_geo, options)
+        return vamtoolbox.optimizer.CAL.minimizeCAL(target_geo, proj_geo, options, projector)
 
     elif options.method == "PM":
-        return vamtoolbox.optimizer.PM.minimizePM(target_geo, proj_geo, options)
+        return vamtoolbox.optimizer.PM.minimizePM(target_geo, proj_geo, options, projector)
 
     elif options.method == "OSMO":
-        return vamtoolbox.optimizer.OSMO.minimizeOSMO(target_geo, proj_geo, options)
+        return vamtoolbox.optimizer.OSMO.minimizeOSMO(target_geo, proj_geo, options, projector)
 
     elif options.method == "BCLP":
         return vamtoolbox.optimizer.BCLP.minimizeBCLP(
-            target_geo, proj_geo, options, output
+            target_geo, proj_geo, options, projector, output
         )

@@ -6,7 +6,7 @@ import numpy as np
 import vamtoolbox
 
 
-def minimizeOSMO(target_geo, proj_geo, options):
+def minimizeOSMO(target_geo, proj_geo, options, projector):
     """
     Sinogram optimization via object-space model optimization (OSMO).
 
@@ -56,7 +56,8 @@ def minimizeOSMO(target_geo, proj_geo, options):
         void_diff[void_diff < 0] = 0
         xm[target_geo.void_inds] = xm[target_geo.void_inds] - void_diff
 
-        b = A.forward(xm)
+        # b = A.forward(xm)
+        b = projector.forward(xm)
         b = b / np.amax(b)
         if options.bit_depth is not None:
             b = vamtoolbox.util.data.discretize(
@@ -64,7 +65,8 @@ def minimizeOSMO(target_geo, proj_geo, options):
             )
         b[b < min_proj_val] = min_proj_val
 
-        x_update = A.backward(b)
+        # x_update = A.backward(b)
+        x_update = projector.backward(b)
         x_update = x_update / np.amax(x_update)
         x_update[x_update < 0] = 0
 
@@ -94,7 +96,9 @@ def minimizeOSMO(target_geo, proj_geo, options):
         gel_diff[gel_diff < 0] = 0
         xm[target_geo.gel_inds] = xm[target_geo.gel_inds] + gel_diff
 
-        b = A.forward(xm)
+        # b = A.forward(xm)
+        b = projector.forward(xm)
+
         b = b / np.amax(b)
         if options.bit_depth is not None:
             b = vamtoolbox.util.data.discretize(
@@ -102,13 +106,14 @@ def minimizeOSMO(target_geo, proj_geo, options):
             )
         b[b < min_proj_val] = min_proj_val
 
-        x_update = A.backward(b)
+        # x_update = A.backward(b)
+        x_update = projector.backward(b)
         x_update = x_update / np.amax(x_update)
         x_update[x_update < 0] = 0
 
         return x_update, b, xm
 
-    A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
+    # A = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
     _error = np.zeros(options.n_iter)
     _error[:] = np.nan
     iter_times = np.zeros(options.n_iter)
@@ -130,9 +135,11 @@ def minimizeOSMO(target_geo, proj_geo, options):
     x_model = np.real(target_filtered)
 
     # the initial sinogram is just the forward projection of the model
-    b = A.forward(x_model)
+    # b = A.forward(x_model)
+    b = projector.forward(x_model)
     b = np.clip(b, 0, None)
-    x = A.backward(b)
+    # x = A.backward(b)
+    x = projector.backward(b)
     x = x / np.amax(x)
 
     _error[0] = vamtoolbox.metrics.calcVER(target_geo, x)

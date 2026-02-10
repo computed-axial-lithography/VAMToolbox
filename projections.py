@@ -103,7 +103,7 @@ files = list()
 #  Thinker
 files.append(
     FileSpecs(
-        dir=r"/Users/wendylin/Desktop/Helical/models/thinker/",
+        dir=r"C:\Users\yichu\LEAP\models\thinker\\",
         stl_name=r"thinker.stl",
         sino_name="thinker",
         rot_vel=20,
