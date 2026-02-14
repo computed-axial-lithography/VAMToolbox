@@ -83,9 +83,9 @@ def _prompt_stl_path_with_dialog():
 
 def append_user_selected_filespec(
     default_rot_vel=20,
-    default_height=10 / 2,
+    default_height=30,
     default_intensity_scales=None,
-    default_size_scale=2,
+    default_size_scale=1,
     default_resin="LVUDMA",
 ):
     """Prompt (GUI) for an STL path and append a FileSpecs using its directory."""
@@ -208,12 +208,12 @@ for file in files:
             # Parameter dictionary for LEAP conversion
             params = {
                 "geometry_type": "cone",             # helical needs cone/cone-parallel
-                "num_rows": 400,                    # detector rows 400
-                "num_cols": 512,                  # detector columns 512
-                "voxel_size": 0.1,
+                "num_rows": 1000,                    # detector rows 400
+                "num_cols": 2000,                  # detector columns 512
+                "voxel_size": 0.05,
                 "volume_shape": volume.shape,
-                "pixel_width": 0.1,         # usually same as voxel_size
-                "pixel_height": 0.1,
+                "pixel_width": 0.05,         # usually same as voxel_size
+                "pixel_height": 0.05,
             }
 
             # Wrapper class to make LEAP compatible with optimizer interface
@@ -276,21 +276,23 @@ for file in files:
 projector_output_dir = os.path.join(file.dir, "projection_output")
 
 # Convert physical pitch (mm / rev) → pixels / frame
-mm_per_pixel = 0.1                     # must match ImageConfig scale
+mm_per_pixel = 0.05                     # must match ImageConfig scale
 pixels_per_rev = file.height / mm_per_pixel
 helical_pitch_pixels = pixels_per_rev / sino.shape[0]
 
 export_sinogram_to_images(
     sinogram=sino,
     output_dir=projector_output_dir,
-    # image_size=(3840, 2160),            # projector resolution
-    image_size=(2000, 1000),                
+    image_size=(3840, 2160),            # projector resolution
+    # image_size=(2000, 1000),                
     bit_depth=8,
     normalization_percentile=99.9,
     rotate_angle=90.0,             
     invert_u=False,
     invert_v=file.invert_v,
-    helical_pitch_pixels=helical_pitch_pixels,
+    # helical_pitch_pixels=helical_pitch_pixels,
+    helical_pitch_pixels=0,
+    # start_v_offset=0,
     start_v_offset=0,
 )
 
@@ -302,7 +304,7 @@ output_video = os.path.join(input_dir, "helical_crop_video.mp4")
 
 # CROP SETTINGS
 crop_height = 100  # height of the cropped band (pixels)
-start_row = (1000 - crop_height) // 2    # vertical start row of the crop (top of band)
+start_row = (2160 - crop_height) // 2    # vertical start row of the crop (top of band)
 
 # Collect sorted image list
 file_list = sorted([f for f in os.listdir(input_dir) if f.endswith(".png")])
