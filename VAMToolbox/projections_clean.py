@@ -290,10 +290,10 @@ export_sinogram_to_images(
     rotate_angle=90.0,             
     invert_u=False,
     invert_v=file.invert_v,
-    # helical_pitch_pixels=helical_pitch_pixels,
-    helical_pitch_pixels=0,
+    helical_pitch_pixels=helical_pitch_pixels,
+    # helical_pitch_pixels=0,
     # start_v_offset=0,
-    start_v_offset=0,
+    start_v_offset=200,
 )
 
 # Crop + Make Helical Video

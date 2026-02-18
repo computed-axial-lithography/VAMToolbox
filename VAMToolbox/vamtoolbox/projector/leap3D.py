@@ -30,6 +30,8 @@ def forward(volume, geometry, params):
     sod = float(getattr(geometry, "source_radius", 100.0))
     sdd = sod + float(getattr(geometry, "detector_distance", 200.0))
 
+    volume = np.rot90(volume, k=1, axes=(0, 2))
+    vol = np.transpose(volume, (2, 1, 0)).copy()
     vol = np.ascontiguousarray(volume, dtype=np.float32)
 
     if geom_type == "modular":
@@ -197,5 +199,9 @@ def back(sinogram, geometry, params):
 
     else:
         leapct.FBP(g, f)
+    
+    f = np.transpose(f, (2, 1, 0)).copy()
+
+    f = np.rot90(f, k=-1, axes=(0, 2))
 
     return f

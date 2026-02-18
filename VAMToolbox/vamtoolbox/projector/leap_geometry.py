@@ -233,7 +233,9 @@ def _build_cone_geometry(geometry, params):
         colVectors[i] = col
 
         # row (v direction): vertical axis
-        rowVectors[i] = [0.0, 0.0, 1.0]
+        # rowVectors[i] = [0.0, 0.0, 1.0]
+        rowVectors[i] = [0.0, 1.0, 0.0]
+
 
     geom = {
         "geometry_type": "cone",
