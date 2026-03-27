@@ -3,13 +3,8 @@ import os
 import time
 import tkinter as tk
 from tkinter import filedialog
-import cv2
-
-import matplotlib.pyplot as plt
 import numpy as np
-
 import vamtoolbox.geometry
-import vamtoolbox.imagesequence
 from vamtoolbox.optimize import optimize
 from vamtoolbox.util.export_projection import export_sinogram_to_images
 from leapctype import *
@@ -23,8 +18,10 @@ RI["UW"] = 1.5
 RI["GELMA"] = 1.34
 RI["242N"] = 1.5
 
-# Choose projection backend: "leap" for LEAP projector, "astra" for ASTRA toolbox
-projection_backend = "leap" 
+# Choose projection backend: "leap" for LEAP projector, "astra" for ASTRA toolbox, "cbi" for CBI toolbox
+projection_backend = "leap"
+cbi_mode = "fps_opt"       # "fps_opt" or "spim"
+# cbi_focal_offset = 0    # 0=center, int(radius*0.5)=50%, int(radius)=edge
 
 class FileSpecs:
     def __init__(
@@ -88,7 +85,8 @@ def append_user_selected_filespec(
     default_size_scale=1,
     default_resin="LVUDMA",
 ):
-    """Prompt (GUI) for an STL path and append a FileSpecs using its directory."""
+
+# GUI) for an STL path and append a FileSpecs using its directory
 
     if default_intensity_scales is None:
         default_intensity_scales = [1, 2]
@@ -146,14 +144,16 @@ for file in files:
         mm_per_pix = 50 / 1000
         res = round(file.height / mm_per_pix)
         print("Resolution: %d" % res)
+
         # target_geo = vamtoolbox.geometry.TargetGeometry(stlfilename=file.stl_name,resolution=res,bodies={'print':[2],'insert':[1]})
         
+        print("file height:", file.height)
         target_geo = vamtoolbox.geometry.TargetGeometry(
             stlfilename=file.stl_name, resolution=res
         )
 
         target_geo.show(show_bodies=True)
-
+        print("target_geo shape:", target_geo.array.shape)  
         # target_geo.save(file.sino_name)
 
         # Setup projection geometry
@@ -162,11 +162,15 @@ for file in files:
         # Reverse rotation direction (clockwise)
         angles = -angles
 
+        # Define pitch in pixels for helical motion
+        pixels_per_rev = 596.8 # pixel per rotation
+        helical_pitch_pixels = pixels_per_rev / N_angles # pitch per degree
+
         # Configure optimization
 
         options = vamtoolbox.optimize.Options(
             method="OSMO",
-            n_iter=40,
+            n_iter=4,
             d_h=0.85,
             d_l=0.65,
             learning_rate=0.005,
@@ -200,49 +204,54 @@ for file in files:
             # Create LEAP geometry instance
             proj_geo = LEAPGeometry(
                 angles=np.radians(angles),    # degrees → radians
-                source_radius=100.0,          # TODO: tune to match your setup
-                detector_distance=200.0,      # TODO: tune to match your setup
-                helical_pitch=file.height     # axial distance per full rotation (example)
+                source_radius=200.0,          # source to object distance, measured in mm; this can also be viewed as the source to center of rotation distance
+                detector_distance=400.0,      # source to detector distance, measured in mm
+                helical_pitch=helical_pitch_pixels    # axial distance per full rotation (example)
             )
-
+            
+            detector_size = round(volume.shape[0] / 3) 
             # Parameter dictionary for LEAP conversion
             params = {
                 "geometry_type": "cone",             # helical needs cone/cone-parallel
-                "num_rows": 1000,                    # detector rows 400
-                "num_cols": 2000,                  # detector columns 512
-                "voxel_size": 0.05,
+                "num_rows": detector_size,                    # detector rows
+                "num_cols": detector_size,                  # detector columns
+                "voxel_size": mm_per_pix,
                 "volume_shape": volume.shape,
-                "pixel_width": 0.05,         # usually same as voxel_size
-                "pixel_height": 0.05,
+                "pixel_width": mm_per_pix, 
+                "pixel_height": mm_per_pix,
             }
-
-            # Wrapper class to make LEAP compatible with optimizer interface
-            class LEAPProjectorWrapper:
-                def __init__(self, leap_module, geometry, params):
-                    self.leap = leap_module
-                    self.geometry = geometry
-                    self.params = params
-                
-                def forward(self, volume):
-                    return self.leap.forward(volume, self.geometry, self.params)
-                
-                def backward(self, sinogram):
-                    return self.leap.back(sinogram, self.geometry, self.params)
             
-            projector = LEAPProjectorWrapper(leap3D, proj_geo, params)
-
-
-
+            projector = leap3D.LEAPProjectorWrapper(proj_geo, params)
 
         elif projection_backend == "astra":            
-            proj_geo = vamtoolbox.geometry.ProjectionGeometry(
-                angles=angles, ray_type="parallel", CUDA=False
-            )
+            proj_geo = vamtoolbox.geometry.ProjectionGeometry(angles=angles, ray_type="parallel", CUDA=True)
+
             projector = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
 
+        elif projection_backend == "cbi":
+            from vamtoolbox.projector import cbi3D
+
+            proj_geo = vamtoolbox.geometry.ProjectionGeometry(angles=angles, ray_type="parallel", CUDA=True)
+            
+            vial_diameter_mm = 100
+            radius = int((vial_diameter_mm / 2) / mm_per_pix)
+
+            cbi_focal_offset = 0                      # center
+            # cbi_focal_offset = int(radius * 0.5)   # 50% radius
+            # cbi_focal_offset = int(radius)         # edge
+
+            projector = cbi3D.CBIProjectorWrapper(
+                angles_deg=angles,
+                npix_axial=31,     
+                npix_lateral=31,
+                circle=False,
+                mode=cbi_mode,
+                focal_offset=cbi_focal_offset,
+            )
+            print(f"CBI mode: {cbi_mode}, focal_offset: {cbi_focal_offset}, radius: {radius}")
 
         else:
-            raise ValueError("Unsupported projection backend. Choose 'leap' or 'astra'.")
+            raise ValueError("Unsupported projection backend. Choose 'leap', 'astra', or 'cbi'.")
 
         # Time only the optimizer execution
         print("\n--- Starting Optimizer ---")
@@ -275,56 +284,20 @@ for file in files:
 
 projector_output_dir = os.path.join(file.dir, "projection_output")
 
-# Convert physical pitch (mm / rev) → pixels / frame
-mm_per_pixel = 0.05                     # must match ImageConfig scale
-pixels_per_rev = file.height / mm_per_pixel
-helical_pitch_pixels = pixels_per_rev / sino.shape[0]
+image_size = (2560, 4800)
+print("sino.shape:", sino.shape)
+
+size_scale = image_size[1] / sino.shape[2]
 
 export_sinogram_to_images(
     sinogram=sino,
     output_dir=projector_output_dir,
-    image_size=(3840, 2160),            # projector resolution
-    # image_size=(2000, 1000),                
+    image_size= image_size, # 3X height of the projetor resolution                         
     bit_depth=8,
     normalization_percentile=99.9,
     rotate_angle=90.0,             
     invert_u=False,
     invert_v=file.invert_v,
-    helical_pitch_pixels=helical_pitch_pixels,
-    # helical_pitch_pixels=0,
-    # start_v_offset=0,
-    start_v_offset=200,
+    v_offset=0,
+    size_scale = size_scale
 )
-
-# Crop + Make Helical Video
-print("Creating cropped helical video...")
-
-input_dir = projector_output_dir  
-output_video = os.path.join(input_dir, "helical_crop_video.mp4")
-
-# CROP SETTINGS
-crop_height = 100  # height of the cropped band (pixels)
-start_row = (2160 - crop_height) // 2    # vertical start row of the crop (top of band)
-
-# Collect sorted image list
-file_list = sorted([f for f in os.listdir(input_dir) if f.endswith(".png")])
-if not file_list:
-    raise RuntimeError("No PNG files found in projection stack output folder.")
-
-# Read the first image to get image dimensions
-first_image = cv2.imread(os.path.join(input_dir, file_list[0]), cv2.IMREAD_GRAYSCALE)
-height, width = first_image.shape
-
-# Set up video writer (MP4 format)
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter(output_video, fourcc, 30, (width, crop_height), isColor=False)
-
-# Loop through each PNG image and crop
-for fname in file_list:
-    img_path = os.path.join(input_dir, fname)
-    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    cropped = img[start_row:start_row + crop_height, :]
-    out.write(cropped)
-
-out.release()
-print(f"Saved cropped helical video to: {output_video}")

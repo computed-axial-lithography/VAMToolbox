@@ -27,8 +27,8 @@ def forward(volume, geometry, params):
     center_row = (num_rows - 1) / 2.0
     center_col = (num_cols - 1) / 2.0
     phis_deg = np.ascontiguousarray(np.degrees(geom.get("angles", np.arange(num_angles))), dtype=np.float32)
-    sod = float(getattr(geometry, "source_radius", 100.0))
-    sdd = sod + float(getattr(geometry, "detector_distance", 200.0))
+    sod = float(getattr(geometry, "source_radius", 200.0)) # source to object distance, measured in mm; this can also be viewed as the source to center of rotation distance
+    sdd = sod + float(getattr(geometry, "detector_distance", 400.0)) # source to detector distance, measured in mm
 
     volume = np.rot90(volume, k=1, axes=(0, 2))
     vol = np.transpose(volume, (2, 1, 0)).copy()
@@ -39,7 +39,7 @@ def forward(volume, geometry, params):
             num_angles,
             num_rows,
             num_cols,
-            pixel_width,
+            pixel_width, 
             pixel_width,
             np.ascontiguousarray(geom["source_positions"], dtype=np.float32),
             np.ascontiguousarray(geom["detector_centers"], dtype=np.float32),
@@ -70,6 +70,8 @@ def forward(volume, geometry, params):
         center_row = (num_rows - 1) / 2.0
         center_col = (num_cols - 1) / 2.0
         phis_deg = np.ascontiguousarray(np.degrees(geometry.angles), dtype=np.float32)
+        if geom.get("pitch", 0.0) != 0.0:
+           pitch = leapct.set_normalizedHelicalPitch(geom["pitch"])
 
         leapct.set_conebeam(
             num_angles,
@@ -79,12 +81,12 @@ def forward(volume, geometry, params):
             pixel_width,
             center_row,
             center_col,
-            phis_deg,
+            phis_deg, # phis (float32 numpy array):  a numpy array for specifying the angles of each projection, measured in degrees
             sod,
             sdd,
-            0.0,
-            geom.get("pitch", 0.0),
-            0.0,
+            0.0, # tau (float): center of rotation offset
+            pitch if "pitch" in geom else 0.0, # helicalPitch (float): the helical pitch (mm/radians)
+            0.0, # tiltAngle (float) the rotation of the detector around the optical axis (degrees)
         )
 
     else:
@@ -202,6 +204,7 @@ def back(sinogram, geometry, params):
     
     f = np.transpose(f, (2, 1, 0)).copy()
 
-    f = np.rot90(f, k=-1, axes=(0, 2))
+    # f = np.rot90(f, k=1, axes=(0, 2))
+    print(f"[back] leap_shape: {leap_shape} → output: {f.shape}")
 
     return f
