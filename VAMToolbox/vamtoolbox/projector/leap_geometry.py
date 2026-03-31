@@ -210,10 +210,16 @@ def _build_cone_geometry(geometry, params):
     rowVectors = np.zeros((n_views, 3), dtype=np.float32)
     colVectors = np.zeros((n_views, 3), dtype=np.float32)
 
+    # Compute z positions using |theta| so z increases regardless of rotation direction.
+    # Center the z range on the volume origin (z=0).
+    abs_thetas = np.abs(angles)
+    z_total = pitch * abs_thetas[-1] / (2 * np.pi)   # total axial travel
+    z_offset = -z_total / 2                            # shift so scan spans [-z_total/2, +z_total/2]
+
     for i, theta in enumerate(angles):
 
-        # helical z
-        z = pitch * theta / (2 * np.pi)
+        # helical z: monotonically increasing, centered on volume
+        z = pitch * abs(theta) / (2 * np.pi) + z_offset
 
         # source circular path
         sx = src_R * np.cos(theta)

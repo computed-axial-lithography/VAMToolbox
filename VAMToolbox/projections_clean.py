@@ -79,8 +79,8 @@ def _prompt_stl_path_with_dialog():
         return input("Enter path to STL file (press Enter to skip): ").strip()
 
 def append_user_selected_filespec(
-    default_rot_vel=20,
-    default_height=30,
+    default_rot_vel=60,
+    default_height=89.52,
     default_intensity_scales=None,
     default_size_scale=1,
     default_resin="LVUDMA",
@@ -152,25 +152,42 @@ for file in files:
             stlfilename=file.stl_name, resolution=res
         )
 
-        target_geo.show(show_bodies=True)
+        # target_geo.show(show_bodies=True)
         print("target_geo shape:", target_geo.array.shape)  
         # target_geo.save(file.sino_name)
 
         # Setup projection geometry
-        N_angles = 360
-        angles = np.linspace(0, 360 - 360 / N_angles, N_angles)
-        # Reverse rotation direction (clockwise)
-        angles = -angles
+        sod = 200.0                     # source to object distance (mm)
+        sdd = 600.0                     # source to detector distance (mm)
+        magnification = sdd / sod       # = 3.0
+        detector_pixel_mm = mm_per_pix * magnification  # 0.15 mm — physical detector pixel
 
-        # Define pitch in pixels for helical motion
-        pixels_per_rev = 596.8 # pixel per rotation
-        helical_pitch_pixels = pixels_per_rev / N_angles # pitch per degree
+        # PITCH SETTING (pixels/rev)
+        # Set to 0 for standard projection (post-processed by crop_video.py)
+        # Set to pixels/rev for helical projection (images played directly)
+
+        helical_pitch_pix = 1600 
+        
+        pixels_per_rev = helical_pitch_pix
+        helical_pitch_mm = helical_pitch_pix * mm_per_pix
+
+        if helical_pitch_mm > 0:
+            # Helical mode: N_rev rotations needed to cover full object height
+            N_rev = int(np.ceil(res * mm_per_pix / helical_pitch_mm))
+            N_angles = N_rev * 360
+            angles = np.linspace(0, N_rev * 360 - 360 / N_angles, N_angles)
+            projector_image_size = (2560, 1600)   # one band per frame, play directly
+        else:
+            # Standard mode: 360 projections, each shows full object — crop_video.py slides
+            N_angles = 360
+            angles = np.linspace(0, 359, N_angles)
+            projector_image_size = (2560, 4800)   # tall image for crop_video.py window
 
         # Configure optimization
 
         options = vamtoolbox.optimize.Options(
             method="OSMO",
-            n_iter=4,
+            n_iter=40,
             d_h=0.85,
             d_l=0.65,
             learning_rate=0.005,
@@ -203,22 +220,36 @@ for file in files:
 
             # Create LEAP geometry instance
             proj_geo = LEAPGeometry(
-                angles=np.radians(angles),    # degrees → radians
-                source_radius=200.0,          # source to object distance, measured in mm; this can also be viewed as the source to center of rotation distance
-                detector_distance=400.0,      # source to detector distance, measured in mm
-                helical_pitch=helical_pitch_pixels    # axial distance per full rotation (example)
+                angles=np.radians(angles),
+                source_radius=sod,
+                detector_distance=sdd - sod,          # = 400 mm
+                # helical_pitch=helical_pitch_mm,
+                helical_pitch=file.height/3,
             )
-            
-            detector_size = round(volume.shape[0] / 3) 
-            # Parameter dictionary for LEAP conversion
+
+            # opt_scale reduces detector resolution for faster optimization
+            # Pixel size scales inversely so the detector still covers the full object
+            opt_scale = 0.5
+            if helical_pitch_mm > 0:
+                # Helical: detector rows cover one pitch-band of height
+                pitch_voxels = helical_pitch_mm / mm_per_pix  # e.g. 596.8 voxels
+                num_rows = round(pitch_voxels * opt_scale * 1.05)  # 5% margin
+            else:
+                # Standard: detector rows cover full object height + 5% margin
+                num_rows = round(volume.shape[2] * opt_scale * 1.05)  # ≈ 940 rows
+            # Detector cols: covers full object diameter (nx), scaled
+            num_cols = round(volume.shape[0] * opt_scale)  # ≈ 191 cols
+            # Pixel must be larger so fewer pixels still span the whole FOV
+            pixel_size_opt = detector_pixel_mm / opt_scale  # = 0.30 mm
+
             params = {
-                "geometry_type": "cone",             # helical needs cone/cone-parallel
-                "num_rows": detector_size,                    # detector rows
-                "num_cols": detector_size,                  # detector columns
+                "geometry_type": "cone",
+                "num_rows": num_rows,
+                "num_cols": num_cols,
                 "voxel_size": mm_per_pix,
                 "volume_shape": volume.shape,
-                "pixel_width": mm_per_pix, 
-                "pixel_height": mm_per_pix,
+                "pixel_width": pixel_size_opt,
+                "pixel_height": pixel_size_opt,
             }
             
             projector = leap3D.LEAPProjectorWrapper(proj_geo, params)
@@ -260,7 +291,7 @@ for file in files:
         optimizer_end = time.time()
         print(f"--- Optimizer Runtime: {optimizer_end - optimizer_start:.2f} seconds ---\n")
 
-        recon = target_geo # reuse
+        # recon = target_geo # reuse
         recon.show()
 
         if hasattr(sino, "save"):
@@ -284,20 +315,26 @@ for file in files:
 
 projector_output_dir = os.path.join(file.dir, "projection_output")
 
-image_size = (2560, 4800)
+image_size = projector_image_size
 print("sino.shape:", sino.shape)
+print("image_size:", image_size)
 
-size_scale = image_size[1] / sino.shape[2]
+# Flip z-axis (rows) so base of object is at top of image (crop_video.py scrolls from top down)
+sino = sino[:, ::-1, :]
+
+# After 90° rotation: sino rows (axis 1) → v/height, sino cols (axis 2) → u/width
+# Scale must fit both: cols×sf ≤ image_size[0] (width) AND rows×sf ≤ image_size[1] (height)
+size_scale = min(image_size[0] / sino.shape[2], image_size[1] / sino.shape[1])
 
 export_sinogram_to_images(
     sinogram=sino,
     output_dir=projector_output_dir,
-    image_size= image_size, # 3X height of the projetor resolution                         
+    image_size=image_size,
     bit_depth=8,
     normalization_percentile=99.9,
-    rotate_angle=90.0,             
+    rotate_angle=90.0,
     invert_u=False,
-    invert_v=file.invert_v,
+    invert_v=False,
     v_offset=0,
-    size_scale = size_scale
+    size_scale=size_scale,
 )

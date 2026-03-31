@@ -89,8 +89,12 @@ def filterTargetOSMO(x: np.ndarray, filter_name: str):
         # hamming_ = scipy.fft.fftshift(fft2(hamming_window_2D,axes=(0,1)),axes=(0,1))
         fourier_filter *= np.abs(hamming_window_2D)
     elif filter_name == "hanning":
-        hanning_window = np.abs(np.hanning(n_x))
-        hanning_window_2D = np.sqrt(np.outer(hanning_window, hanning_window))
+        # hanning_window = np.abs(np.hanning(n_x))
+        # hanning_window_2D = np.sqrt(np.outer(hanning_window, hanning_window))
+        
+        hanning_y = np.abs(np.hanning(n_y))   # (1790,)
+        hanning_x = np.abs(np.hanning(n_x))   # (382,)
+        hanning_window_2D = np.sqrt(np.outer(hanning_y, hanning_x))  # (1790, 382)
         # hanning_ = scipy.fft.fftshift(fft2(hanning_window_2D,axes=(0,1)),axes=(0,1))
         fourier_filter *= np.abs(hanning_window_2D)
     elif filter_name is None:
