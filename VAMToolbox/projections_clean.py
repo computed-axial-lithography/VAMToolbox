@@ -4,10 +4,12 @@ import time
 import tkinter as tk
 from tkinter import filedialog
 import numpy as np
+import trimesh
 import vamtoolbox.geometry
 from vamtoolbox.optimize import optimize
 from vamtoolbox.util.export_projection import export_sinogram_to_images
 from leapctype import *
+from cbi_toolbox import splineradon as spl
 
 # Refractive indices (RI) for various resin materials
 RI = dict()
@@ -20,8 +22,7 @@ RI["242N"] = 1.5
 
 # Choose projection backend: "leap" for LEAP projector, "astra" for ASTRA toolbox, "cbi" for CBI toolbox
 projection_backend = "leap"
-cbi_mode = "fps_opt"       # "fps_opt" or "spim"
-# cbi_focal_offset = 0    # 0=center, int(radius*0.5)=50%, int(radius)=edge
+cbi_mode = "fps_opt"               # "opt", "fps_opt", or "spim"
 
 class FileSpecs:
     def __init__(
@@ -79,8 +80,8 @@ def _prompt_stl_path_with_dialog():
         return input("Enter path to STL file (press Enter to skip): ").strip()
 
 def append_user_selected_filespec(
-    default_rot_vel=60,
-    default_height=89.52,
+    default_rot_vel=54,
+    default_height=70, # building: 89.52
     default_intensity_scales=None,
     default_size_scale=1,
     default_resin="LVUDMA",
@@ -148,9 +149,32 @@ for file in files:
         # target_geo = vamtoolbox.geometry.TargetGeometry(stlfilename=file.stl_name,resolution=res,bodies={'print':[2],'insert':[1]})
         
         print("file height:", file.height)
+
+        # slow: pyvista select_enclosed_points, O(N^3) ray-casts)
         target_geo = vamtoolbox.geometry.TargetGeometry(
             stlfilename=file.stl_name, resolution=res
         )
+
+        # # Fast voxelization with trimesh
+        # mesh = trimesh.load(file.stl_name)
+        # xmin, ymin, zmin = mesh.bounds[0]
+        # xmax, ymax, zmax = mesh.bounds[1]
+        # pitch = (zmax - zmin) / res
+
+        # vox = mesh.voxelized(pitch).fill()
+        # arr = np.asarray(vox.matrix, dtype=np.uint8)
+
+        # # pad xy to a square large enough for the bounding circle (matches legacy layout)
+        # d = np.sqrt((xmax - xmin) ** 2 + (ymax - ymin) ** 2)
+        # N = int(np.ceil(d / pitch))
+        # px = max(0, N - arr.shape[0])
+        # py = max(0, N - arr.shape[1])
+        # arr = np.pad(
+        #     arr,
+        #     ((px // 2, px - px // 2), (py // 2, py - py // 2), (0, 0)),
+        # )
+
+        # target_geo = vamtoolbox.geometry.TargetGeometry(target=arr)
 
         # target_geo.show(show_bodies=True)
         print("target_geo shape:", target_geo.array.shape)  
@@ -166,7 +190,7 @@ for file in files:
         # Set to 0 for standard projection (post-processed by crop_video.py)
         # Set to pixels/rev for helical projection (images played directly)
 
-        helical_pitch_pix = 1600 
+        helical_pitch_pix = 0
         
         pixels_per_rev = helical_pitch_pix
         helical_pitch_mm = helical_pitch_pix * mm_per_pix
@@ -187,7 +211,7 @@ for file in files:
 
         options = vamtoolbox.optimize.Options(
             method="OSMO",
-            n_iter=40,
+            n_iter=3,
             d_h=0.85,
             d_l=0.65,
             learning_rate=0.005,
@@ -260,26 +284,53 @@ for file in files:
             projector = vamtoolbox.projectorconstructor.projectorconstructor(target_geo, proj_geo)
 
         elif projection_backend == "cbi":
+            import copy
             from vamtoolbox.projector import cbi3D
+            from scipy.ndimage import zoom as _zoom
+
+            cbi_scale = 0.3   # downsample; adjust: 0.1=38px, 0.3=114px, 0.5=191px
+
+            # Pre-compute zoomed arrays from originals (no padding)
+            arr = _zoom(target_geo.array, cbi_scale).astype(np.float32)
+            zoomed_attrs = {}
+            for _attr in ("void_inds", "gel_inds"):
+                if getattr(target_geo, _attr, None) is not None:
+                    zoomed_attrs[_attr] = _zoom(getattr(target_geo, _attr).astype(np.float32), cbi_scale) > 0.5
+
+            # Temporarily null large arrays so deepcopy is fast
+            _saved = {a: getattr(target_geo, a, None) for a in ["array", "void_inds", "gel_inds"]}
+            for a in _saved: setattr(target_geo, a, None)
+            target_geo_cbi = copy.deepcopy(target_geo)
+            for a, v in _saved.items(): setattr(target_geo, a, v)  # restore originals
+
+            # Assign small downsampled arrays to cbi copy
+            target_geo_cbi.array = arr
+            for _attr, m in zoomed_attrs.items():
+                setattr(target_geo_cbi, _attr, m)
+            print(f"CBI: downsampled+padded volume to {target_geo_cbi.array.shape}")
 
             proj_geo = vamtoolbox.geometry.ProjectionGeometry(angles=angles, ray_type="parallel", CUDA=True)
-            
-            vial_diameter_mm = 100
-            radius = int((vial_diameter_mm / 2) / mm_per_pix)
 
-            cbi_focal_offset = 0                      # center
-            # cbi_focal_offset = int(radius * 0.5)   # 50% radius
+            vial_diameter_mm = 100
+            radius = int((vial_diameter_mm / 2) / mm_per_pix * cbi_scale)
+
+            # cbi_focal_offset = 0                      # center
+            cbi_focal_offset = int(radius * 0.5)   # 50% radius
             # cbi_focal_offset = int(radius)         # edge
 
+            zx_size = target_geo_cbi.array.shape[0]
+            # opt() requires PSF axial >= ZX size; fps_opt sums PSF along Z so 31 is fine
+            psf_axial = (zx_size if zx_size % 2 == 1 else zx_size + 1) if cbi_mode == "opt" else 31
             projector = cbi3D.CBIProjectorWrapper(
                 angles_deg=angles,
-                npix_axial=31,     
+                npix_axial=psf_axial,
                 npix_lateral=31,
                 circle=False,
                 mode=cbi_mode,
                 focal_offset=cbi_focal_offset,
             )
             print(f"CBI mode: {cbi_mode}, focal_offset: {cbi_focal_offset}, radius: {radius}")
+            target_geo = target_geo_cbi  # use downsampled copy for optimizer
 
         else:
             raise ValueError("Unsupported projection backend. Choose 'leap', 'astra', or 'cbi'.")
@@ -290,6 +341,16 @@ for file in files:
         sino, recon, error = optimize(target_geo, proj_geo, options, projector)
         optimizer_end = time.time()
         print(f"--- Optimizer Runtime: {optimizer_end - optimizer_start:.2f} seconds ---\n")
+
+        # if projection_backend == "cbi":
+        #     from cbi_toolbox import splineradon as spl
+        #     clean_sino = spl.radon(
+        #         recon.array if hasattr(recon, 'array') else recon,
+        #         theta=angles,
+        #         circle=False,
+        #     )
+        #     clean_sino = np.clip(clean_sino, 0, None)
+        #     sino = clean_sino
 
         # recon = target_geo # reuse
         recon.show()
@@ -322,9 +383,18 @@ print("image_size:", image_size)
 # Flip z-axis (rows) so base of object is at top of image (crop_video.py scrolls from top down)
 sino = sino[:, ::-1, :]
 
-# After 90° rotation: sino rows (axis 1) → v/height, sino cols (axis 2) → u/width
-# Scale must fit both: cols×sf ≤ image_size[0] (width) AND rows×sf ≤ image_size[1] (height)
-size_scale = min(image_size[0] / sino.shape[2], image_size[1] / sino.shape[1])
+# export_sinogram_to_images expects (T, rows, cols) with T in axis 0
+# CBI sino is (T, Y=height, P=diameter) — swap rows/cols to (T, P, Y) so that
+# after internal .T in _insertImage, S_v=Y (tall) and S_u=P (narrow)
+if projection_backend == "cbi":
+    sino = sino.transpose(0, 2, 1)  # (T, Y, P) → (T, P, Y)
+
+# CBI (no rotate): S_v = sino.shape[2]=Y → v, S_u = sino.shape[1]=P → u
+# LEAP (rotate 90°): S_v = sino.shape[0], S_u = sino.shape[2]
+if projection_backend == "cbi":
+    size_scale = min(image_size[0] / sino.shape[1], image_size[1] / sino.shape[2])
+else:
+    size_scale = min(image_size[0] / sino.shape[2], image_size[1] / sino.shape[1])
 
 export_sinogram_to_images(
     sinogram=sino,
@@ -332,7 +402,7 @@ export_sinogram_to_images(
     image_size=image_size,
     bit_depth=8,
     normalization_percentile=99.9,
-    rotate_angle=90.0,
+    rotate_angle=0.0 if projection_backend == "cbi" else 90.0,
     invert_u=False,
     invert_v=False,
     v_offset=0,

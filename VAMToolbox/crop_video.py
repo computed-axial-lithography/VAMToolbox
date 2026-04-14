@@ -35,7 +35,7 @@ IMAGE_HEIGHT = IMAGE_HEIGHT_ORIG + 2 * BLACK_PAD
 CROP_WIDTH   = 2560
 CROP_HEIGHT  = 1600
 TOTAL_DEGREE = 360
-PITCH        = 800
+PITCH        = 1600 # change the helical pitch here
 
 STEP_SIZE   = PITCH / TOTAL_DEGREE
 Y_START_MAX  = IMAGE_HEIGHT - CROP_HEIGHT
@@ -152,7 +152,7 @@ print("\nDone! All crops saved to:", output_dir)
 # print("\nDone! All crops saved to:", output_dir)
 
 # Assemble video
-VIDEO_FPS  = 60
+VIDEO_FPS  = 54
 VIDEO_NAME = "cropped_video.mp4"
 FFMPEG_PATH = r"C:\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe"
 
