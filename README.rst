@@ -89,7 +89,7 @@ Copyright © 2026 The Regents of the University of California. All Rights Reserv
 This software is source-available under a custom academic license developed by UC Berkeley. It is not OSI-approved open source.
 Free use is permitted for:
 
-Educational, research, and non-profit entities (including distribution of modifications) for noncommercial purposes
+Educational, research, and non-profit entities for noncommercial purposes, including distribution of modifications — provided that any distributed modifications or derivative works are released under this same license, accompanied by source code, and marked with the changes made
 Commercial entities for internal use only (no distribution, no productization, no hosted/SaaS offerings)
 
 A commercial license is required for:
@@ -100,10 +100,18 @@ Offering the software as a hosted or SaaS service
 Any other use whose value derives substantially from this software
 
 No patent rights are granted under the source-available license; patent rights are licensed separately as part of a commercial license.
+Redistribution and Modifications
+If you redistribute this software, or distribute modifications or derivative works of it, under the noncommercial terms above, you must:
+
+License your modifications under this same license. Modified or derivative works must carry the same terms; you may not relicense them under a different license, including more permissive ones.
+Include the complete source code of your modifications alongside any distribution.
+Mark your changes. Modified files must carry prominent notices stating that you changed the file and the date of the change.
+Preserve this license. The original copyright notice and the full text of this LICENSE file must be included in every copy and modification.
+Stay within the noncommercial scope. Redistribution is permitted only by educational, research, and non-profit entities for noncommercial purposes. Any commercial redistribution — including bundling into a commercial product or offering as a hosted/SaaS service — requires a commercial license from OTL.
+
+Commercial entities operating under the internal-use terms may modify the software for their own internal evaluation and use, but may not distribute the original software, modified versions, or derivative works in any form without first obtaining a commercial license.
 Commercial Licensing
 Commercial licensing for this software is administered by UC Berkeley's Office of Technology Licensing (OTL) at the Berkeley Intellectual Property & Industry Research Alliances (IPIRA).
 
 Email: otl@berkeley.edu
 Web: https://ipira.berkeley.edu
-
-See LICENSE for the full license text.
