@@ -85,5 +85,25 @@ View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro
 
 
 License
-------------
-This repository is licensed under GNU General Public License v3. Please see LICENSE.txt for details.
+Copyright © 2026 The Regents of the University of California. All Rights Reserved.
+This software is source-available under a custom academic license developed by UC Berkeley. It is not OSI-approved open source.
+Free use is permitted for:
+
+Educational, research, and non-profit entities (including distribution of modifications) for noncommercial purposes
+Commercial entities for internal use only (no distribution, no productization, no hosted/SaaS offerings)
+
+A commercial license is required for:
+
+Incorporating this software into a commercial product
+Distributing the software commercially
+Offering the software as a hosted or SaaS service
+Any other use whose value derives substantially from this software
+
+No patent rights are granted under the source-available license; patent rights are licensed separately as part of a commercial license.
+Commercial Licensing
+Commercial licensing for this software is administered by UC Berkeley's Office of Technology Licensing (OTL) at the Berkeley Intellectual Property & Industry Research Alliances (IPIRA).
+
+Email: otl@berkeley.edu
+Web: https://ipira.berkeley.edu
+
+See LICENSE for the full license text.
