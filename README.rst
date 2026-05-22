@@ -21,6 +21,17 @@
 
 VAMToolbox is a Python library to support the generation of the light projections and the control of a DLP projector for tomographic volumetric additive manufacturing. It provides visualization, various optimization techniques, and flexible projection geometries to assist in the creation of sinograms and reconstructions for simulated VAM.
 
+
+Table of Contents
+------------
+
+1. Introduction
+2. VAMToolbox 2.0.0 Release Notes
+3. Installation
+4. Documentation
+5. License
+
+
 VAMToolbox 2.0.0 Release Notes:
 ------------
 This major release includes a number of new features and improvements. The major changes are listed below. For more details, please refer to the documentation.
@@ -79,7 +90,7 @@ To install VAMToolbox, enter the command below in the `Anaconda <https://www.ana
 For more information, refer to the `installation documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/gettingstarted.html>`_.
 
 
-Resources
+Documentation
 ---------
 View the `documentation <https://vamtoolbox.readthedocs.io/en/latest/_docs/intro.html>`_ site.
 
