@@ -10,6 +10,8 @@ from vamtoolbox.optimize import optimize
 from vamtoolbox.util.export_projection import export_sinogram_to_images
 from leapctype import *
 from cbi_toolbox import splineradon as spl
+from deconv_corr import blur_ker, correct_blurring
+from voxelize_backends import voxelize
 
 # Refractive indices (RI) for various resin materials
 RI = dict()
@@ -23,6 +25,21 @@ RI["242N"] = 1.5
 # Choose projection backend: "leap" for LEAP projector, "astra" for ASTRA toolbox, "cbi" for CBI toolbox
 projection_backend = "leap"
 cbi_mode = "fps_opt"               # "opt", "fps_opt", or "spim"
+
+# Z-padding fraction (each side). Only applied in non-helical mode —
+# in helical mode pre-pad just lengthens the scan trajectory (black frames + truncated top).
+Z_PAD_FRAC = 0.30
+
+# Number of revolutions for helical scan. Set to 0 for standard (non-helical) projection.
+# 240mm object + 2×80mm padding = 400mm; pitch=20mm/rev → 20 revs
+N_REV = 0
+
+# Physical projector vertical resolution (rows per frame). Used as detector num_rows in helical mode.
+PROJECTOR_ROWS = 1600
+
+# Total volume height (mm) for helical mode. Object is padded symmetrically with zeros to reach this height. Set to 0 to disable (use object's own height).
+HELICAL_VOLUME_HEIGHT_MM = 310.0   # 240mm object + 80mm padding each side
+
 
 class FileSpecs:
     def __init__(
@@ -81,7 +98,7 @@ def _prompt_stl_path_with_dialog():
 
 def append_user_selected_filespec(
     default_rot_vel=54,
-    default_height=70, # building: 89.52
+    default_height=89.52, # building: 89.52
     default_intensity_scales=None,
     default_size_scale=1,
     default_resin="LVUDMA",
@@ -150,137 +167,51 @@ for file in files:
         
         print("file height:", file.height)
 
-        # slow: pyvista select_enclosed_points, O(N^3) ray-casts)
-        target_geo = vamtoolbox.geometry.TargetGeometry(
-            stlfilename=file.stl_name, resolution=res
-        )
+        # "optimize" = run OSMO optimization, "direct" = forward projection only
+        projection_mode = "optimize"
 
-        elif voxelize_backend == "trimesh":
-            mesh = trimesh.load(file.stl_name)
-            mesh.apply_translation(-mesh.centroid)
-            xmin, ymin, zmin = mesh.bounds[0]
-            xmax, ymax, zmax = mesh.bounds[1]
+        # Voxelization backend: "pyvista" (legacy, memory-heavy),
+        # "trimesh" (fast CPU, fails on dense meshes with many faces),
+        # "voxelizer" (VAMToolbox OpenGL slicer, best for angular/complex meshes)
+        voxelize_backend = "voxelizer"
 
-            vox = mesh.voxelized(mm_per_pix).fill()
-            arr = np.asarray(vox.matrix, dtype=np.float32)
-
-            d = np.sqrt((xmax - xmin) ** 2 + (ymax - ymin) ** 2)
-            N = int(np.ceil(d / mm_per_pix))
-            px = max(0, N - arr.shape[0])
-            py = max(0, N - arr.shape[1])
-            arr = np.pad(
-                arr,
-                ((px // 2, px - px // 2), (py // 2, py - py // 2), (0, 0)),
-            )
-            target_geo = vamtoolbox.geometry.TargetGeometry(target=arr)
-
-        elif voxelize_backend == "voxelizer":
-            import vamtoolbox.voxelize
-            voxelizer = vamtoolbox.voxelize.Voxelizer()
-            voxelizer.addMeshes({file.stl_name: "print"})
-            arr = voxelizer.voxelize(
-                body_name="print",
-                layer_thickness=mm_per_pix,
-                voxel_value=1.0,
-                voxel_dtype="float32",
-                square_xy=True,
-            )
-
-        elif voxelize_backend == "trimesh_ray":
-            # Ray-cast voxelization: watertight-safe, low memory
-            mesh = trimesh.load(file.stl_name)
-            # bbox center (not centroid — asymmetric meshes have centroid != bbox center)
-            mesh.apply_translation(-(mesh.bounds[0] + mesh.bounds[1]) / 2)
-            xmin, ymin, zmin = mesh.bounds[0]
-            xmax, ymax, zmax = mesh.bounds[1]
-
-            nx = int(np.ceil((xmax - xmin) / mm_per_pix))
-            ny = int(np.ceil((ymax - ymin) / mm_per_pix))
-            nz = int(np.ceil((zmax - zmin) / mm_per_pix))
-            # xy grid centers
-            xs = xmin + (np.arange(nx) + 0.5) * mm_per_pix
-            ys = ymin + (np.arange(ny) + 0.5) * mm_per_pix
-            X, Y = np.meshgrid(xs, ys, indexing="ij")
-            origins = np.stack(
-                [X.ravel(), Y.ravel(), np.full(X.size, zmin - 1.0)], axis=1
-            )
-            directions = np.tile([0.0, 0.0, 1.0], (origins.shape[0], 1))
-
-            # shoot one ray per (x,y) column, collect z-hits, fill between pairs
-            locs, ray_idx, _ = mesh.ray.intersects_location(
-                ray_origins=origins, ray_directions=directions, multiple_hits=True
-            )
-            arr = np.zeros((nx, ny, nz), dtype=np.float32)
-            order = np.argsort(ray_idx, kind="stable")
-            ray_idx = ray_idx[order]
-            z_hits = locs[order, 2]
-
-            # group hits per ray and fill even-odd intervals
-            starts = np.searchsorted(ray_idx, np.arange(nx * ny), side="left")
-            ends = np.searchsorted(ray_idx, np.arange(nx * ny), side="right")
-            for col, (s, e) in enumerate(zip(starts, ends)):
-                zs = np.sort(z_hits[s:e])
-                if zs.size < 2:
-                    continue
-                ix, iy = divmod(col, ny)
-                for k in range(0, zs.size - 1, 2):
-                    z0 = int(np.floor((zs[k] - zmin) / mm_per_pix))
-                    z1 = int(np.ceil((zs[k + 1] - zmin) / mm_per_pix))
-                    arr[ix, iy, max(0, z0):min(nz, z1)] = 1.0
-
-            # Tile object along z (for periodic structures)
-            if TILE_Z > 1:
-                arr = np.tile(arr, (1, 1, TILE_Z))
-                nz = arr.shape[2]
-                print(f"[tile] tiled z by {TILE_Z}, new shape: {arr.shape}")
-
-            # square xy pad + z padding
-            N = max(nx, ny)
-            px, py = N - nx, N - ny
+        if voxelize_backend == "trimesh_ray":
+            # z-padding policy lives here, not in the backend
+            nz_est = round(file.height / mm_per_pix)
             if N_REV == 0:
-                # Standard mode: symmetric Z_PAD_FRAC pad on each side
-                z_pad_lo = z_pad_hi = round(Z_PAD_FRAC * nz)
+                z_pad_lo = z_pad_hi = round(Z_PAD_FRAC * nz_est)
             elif HELICAL_VOLUME_HEIGHT_MM > 0:
-                # Helical: pad to target volume height (symmetric around object)
                 target_nz = round(HELICAL_VOLUME_HEIGHT_MM / mm_per_pix)
-                extra = max(0, target_nz - nz)
+                extra = max(0, target_nz - nz_est)
                 z_pad_lo = extra // 2
                 z_pad_hi = extra - z_pad_lo
             else:
                 z_pad_lo = z_pad_hi = 0
-            arr = np.pad(
-                arr,
-                ((px // 2, px - px // 2), (py // 2, py - py // 2),
-                 (z_pad_lo, z_pad_hi)),
+            target_geo = voxelize(
+                "trimesh_ray", file.stl_name, mm_per_pix,
+                z_pad_lo=z_pad_lo, z_pad_hi=z_pad_hi,
+                direct_mode=(projection_mode == "direct"),
             )
-            print(f"[voxelizer] arr shape={arr.shape}, sum={arr.sum()}, "
-                  f"nonzero={np.count_nonzero(arr)}, max={arr.max()}")
-            # per-z nonzero so we know where the part lives
-            nz_per_z = np.count_nonzero(arr, axis=(0, 1))
-            print(f"[voxelizer] nz_per_z samples: "
-                  f"z=0:{nz_per_z[0]}, z=200:{nz_per_z[200]}, z=500:{nz_per_z[500]}, "
-                  f"z=700:{nz_per_z[700]}, z=900:{nz_per_z[900]}, z=1399:{nz_per_z[-1]}")
-            print(f"[voxelizer] max per-z={nz_per_z.max()} at z={nz_per_z.argmax()}, "
-                  f"num z-slices with content={np.count_nonzero(nz_per_z)}")
-            import trimesh
-            _m = trimesh.load(file.stl_name)
-            print(f"[mesh] is_watertight={_m.is_watertight}, "
-                  f"is_winding_consistent={_m.is_winding_consistent}, "
-                  f"faces={len(_m.faces)}")
-            if projection_mode == "direct":
-                # Direct mode: skip TargetGeometry (avoids expensive circle mask)
-                target_geo = type('SimpleTarget', (), {'array': arr})()
-                print(f"[direct] arr shape={arr.shape}")
-            else:
-                target_geo = vamtoolbox.geometry.TargetGeometry(target=arr)
-                print(f"[target_geo] array shape={target_geo.array.shape}, "
-                      f"sum={target_geo.array.sum()}, "
-                      f"nonzero={np.count_nonzero(target_geo.array)}")
-
         else:
-            raise ValueError(f"Unknown voxelize_backend: {voxelize_backend}")
+            target_geo = voxelize(
+                voxelize_backend, file.stl_name, mm_per_pix, resolution=res,
+            )
+        
+        # Deconvolution correction 
+        APPLY_DECONV = True
 
-        print("target shape:", target_geo.array.shape)  
+        if APPLY_DECONV:
+            print("Calculating PSF kernel...")
+            dker = blur_ker(mm_per_pix, 0.000151, 60, file.rot_vel)
+
+            print("Running deconvolution...")
+            corrected_arr = correct_blurring(
+                dker, target_geo.array.astype(float), n=3
+            )
+            target_geo.array = np.clip(corrected_arr, 0, 1).astype(np.float32)
+            print(f"Deconv done. shape: {target_geo.array.shape}")
+
+        # print("target shape:", target_geo.array.shape)  
         # target_geo.save(file.sino_name)
 
         # Setup projection geometry
@@ -289,18 +220,25 @@ for file in files:
         magnification = sdd / sod       # = 3.0
         detector_pixel_mm = mm_per_pix * magnification  # 0.15 mm — physical detector pixel
 
-        # PITCH SETTING (pixels/rev)
-        # Set to 0 for standard projection (post-processed by crop_video.py)
-        # Set to pixels/rev for helical projection (images played directly)
+        # PITCH SETTING
+        # Option A: physical pitch from number of revolutions (recommended)
+        # Set N_REV = 0 (top of file) for standard (non-helical) projection
+        N_rev = N_REV
+        # Use actual mesh height (from voxelized array), not file.height
+        actual_height_mm = target_geo.array.shape[2] * mm_per_pix
+        helical_pitch_mm = actual_height_mm / N_rev if N_rev > 0 else 0.0
+        print(f"[helical] actual mesh height: {actual_height_mm:.1f}mm, "
+              f"pitch: {helical_pitch_mm:.1f}mm/rev, N_rev: {N_rev}")
 
-        helical_pitch_pix = 0
-        
-        pixels_per_rev = helical_pitch_pix
-        helical_pitch_mm = helical_pitch_pix * mm_per_pix
+        # # Option B (old): pitch in pixels, converted via voxel size
+        # # Set to 0 for standard projection (post-processed by crop_video.py)
+        # # Set to pixels/rev for helical projection (images played directly)
+        # helical_pitch_pix = 1600
+        # pixels_per_rev = helical_pitch_pix
+        # helical_pitch_mm = helical_pitch_pix * mm_per_pix
 
         if helical_pitch_mm > 0:
-            # Helical mode: N_rev rotations needed to cover full object height
-            N_rev = int(np.ceil(res * mm_per_pix / helical_pitch_mm))
+            # Helical mode
             N_angles = N_rev * 360
             angles = np.linspace(0, N_rev * 360 - 360 / N_angles, N_angles)
             projector_image_size = (2560, 1600)   # one band per frame, play directly
@@ -308,13 +246,13 @@ for file in files:
             # Standard mode: 360 projections, each shows full object — crop_video.py slides
             N_angles = 360
             angles = np.linspace(0, 359, N_angles)
-            projector_image_size = (2560, 4800)   # tall image for crop_video.py window
+            projector_image_size = (2560, 3000)   # tall image for crop_video.py window
 
         # Configure optimization
 
         options = vamtoolbox.optimize.Options(
             method="OSMO",
-            n_iter=3,
+            n_iter=50,
             d_h=0.85,
             d_l=0.65,
             learning_rate=0.005,
@@ -350,17 +288,16 @@ for file in files:
                 angles=np.radians(angles),
                 source_radius=sod,
                 detector_distance=sdd - sod,          # = 400 mm
-                # helical_pitch=helical_pitch_mm,
-                helical_pitch=file.height/3,
+                helical_pitch=helical_pitch_mm,
             )
 
             # opt_scale reduces detector resolution for faster optimization
             # Pixel size scales inversely so the detector still covers the full object
-            opt_scale = 0.5
+            opt_scale = 1
             if helical_pitch_mm > 0:
-                # Helical: detector rows cover one pitch-band of height
-                pitch_voxels = helical_pitch_mm / mm_per_pix  # e.g. 596.8 voxels
-                num_rows = round(pitch_voxels * opt_scale * 1.05)  # 5% margin
+                # Helical: detector size matches the physical projector. Source/detector
+                # together scroll through the volume; object slides within each frame.
+                num_rows = round(PROJECTOR_ROWS * opt_scale)
             else:
                 # Standard: detector rows cover full object height + 5% margin
                 num_rows = round(volume.shape[2] * opt_scale * 1.05)  # ≈ 940 rows
@@ -418,8 +355,8 @@ for file in files:
             radius = int((vial_diameter_mm / 2) / mm_per_pix * cbi_scale)
 
             # cbi_focal_offset = 0                      # center
-            cbi_focal_offset = int(radius * 0.5)   # 50% radius
-            # cbi_focal_offset = int(radius)         # edge
+            # cbi_focal_offset = int(radius * 0.5)   # 50% radius
+            cbi_focal_offset = int(radius)         # edge
 
             zx_size = target_geo_cbi.array.shape[0]
             # opt() requires PSF axial >= ZX size; fps_opt sums PSF along Z so 31 is fine
@@ -438,12 +375,23 @@ for file in files:
         else:
             raise ValueError("Unsupported projection backend. Choose 'leap', 'astra', or 'cbi'.")
 
-        # Time only the optimizer execution
-        print("\n--- Starting Optimizer ---")
-        optimizer_start = time.time()
-        sino, recon, error = optimize(target_geo, proj_geo, options, projector)
-        optimizer_end = time.time()
-        print(f"--- Optimizer Runtime: {optimizer_end - optimizer_start:.2f} seconds ---\n")
+        if projection_mode == "direct":
+            print("\n--- Direct Forward Projection (no optimization) ---")
+            proj_start = time.time()
+            sino = projector.forward(target_geo.array)
+            sino = np.clip(sino, 0, None)
+            proj_end = time.time()
+            print(f"--- Forward Projection Runtime: {proj_end - proj_start:.2f} seconds ---")
+            print(f"sino shape: {sino.shape}, max: {sino.max():.4f}, min: {sino.min():.4f}")
+            recon = target_geo
+            error = None
+        else:
+            # Time only the optimizer execution
+            print("\n--- Starting Optimizer ---")
+            optimizer_start = time.time()
+            sino, recon, error = optimize(target_geo, proj_geo, options, projector)
+            optimizer_end = time.time()
+            print(f"--- Optimizer Runtime: {optimizer_end - optimizer_start:.2f} seconds ---\n")
 
         # if projection_backend == "cbi":
         #     from cbi_toolbox import splineradon as spl
@@ -456,7 +404,8 @@ for file in files:
         #     sino = clean_sino
 
         # recon = target_geo # reuse
-        recon.show()
+        if hasattr(recon, 'show'):
+            recon.show()
 
         if hasattr(sino, "save"):
             sino.save(file.sino_name)
@@ -483,8 +432,61 @@ image_size = projector_image_size
 print("sino.shape:", sino.shape)
 print("image_size:", image_size)
 
+# Per-angle max to check which frames have content
+per_angle_max = np.array([sino[k].max() for k in range(sino.shape[0])])
+first_nonzero = np.argmax(per_angle_max > 0)
+last_nonzero = sino.shape[0] - 1 - np.argmax(per_angle_max[::-1] > 0)
+print(f"[sino diagnostic] per-angle max: first 10 = {per_angle_max[:10]}")
+print(f"[sino diagnostic] first nonzero frame: {first_nonzero}, last: {last_nonzero}, "
+      f"total with content: {np.count_nonzero(per_angle_max)}/{sino.shape[0]}")
+
+# Trim z-padding rows from sinogram so object fills full frame
+# In helical mode: trim based on actual helical padding amounts
+# In standard mode: trim based on Z_PAD_FRAC
+if N_REV > 0 and HELICAL_VOLUME_HEIGHT_MM > 0:
+    # # Helical mode: calculate trim from actual padding amounts
+    # # We padded the object from nz to target_nz pixels
+    # # The trim needs to match the padding amounts proportionally
+    # actual_height_mm = target_geo.array.shape[2] * mm_per_pix  # Should be HELICAL_VOLUME_HEIGHT_MM
+    # target_nz = round(HELICAL_VOLUME_HEIGHT_MM / mm_per_pix)
+    # object_nz = actual_height_mm / mm_per_pix if actual_height_mm < HELICAL_VOLUME_HEIGHT_MM else None
+    
+    # # Only trim if we have room to trim (sino.shape[1] should equal PROJECTOR_ROWS in helical)
+    # # In helical, rows represent the detector height (1600px), so minimal/no trimming needed
+    # trim_rows = 0
+    # print(f"[helical trim] sino.shape[1]={sino.shape[1]}, PROJECTOR_ROWS={PROJECTOR_ROWS}, "
+    #       f"HELICAL_VOLUME_HEIGHT_MM={HELICAL_VOLUME_HEIGHT_MM}, trim_rows={trim_rows}")
+    pass
+else:
+    # Standard mode: use Z_PAD_FRAC-based calculation
+    pad_frac = Z_PAD_FRAC / (1 + 2 * Z_PAD_FRAC)
+    trim_rows = round(pad_frac * sino.shape[1])
+    print(f"[standard trim] Z_PAD_FRAC={Z_PAD_FRAC}, pad_frac={pad_frac}, trim_rows={trim_rows}")
+
+# if trim_rows > 0:
+#     sino = sino[:, trim_rows:-trim_rows, :]
+#     print(f"[trim] removed {trim_rows} padding rows from each side, "
+#           f"sino now: {sino.shape}")
+
+# if trim_rows > 0:
+#     sino = sino[:, trim_rows:-trim_rows, :]
+#     print(f"[trim] removed {trim_rows} padding rows from each side, "
+#           f"sino now: {sino.shape}")
+
 # Flip z-axis (rows) so base of object is at top of image (crop_video.py scrolls from top down)
 sino = sino[:, ::-1, :]
+print(f"[after flip] sino.shape: {sino.shape}")
+
+# Diagnostic: show object position after flip
+nz_per_row_after_flip = np.count_nonzero(sino, axis=(0, 2))
+if np.max(nz_per_row_after_flip) > 0:
+    first_row_with_content = np.argmax(nz_per_row_after_flip > 0)
+    last_row_with_content = sino.shape[1] - 1 - np.argmax(nz_per_row_after_flip[::-1] > 0)
+    print(f"[after flip] Object rows: {first_row_with_content} to {last_row_with_content}, "
+          f"span={last_row_with_content - first_row_with_content + 1} rows")
+    print(f"[after flip] First frame sample max: {np.max(sino[0])}, "
+          f"Last frame sample max: {np.max(sino[-1])}")
+print()  # blank line for readability
 
 # export_sinogram_to_images expects (T, rows, cols) with T in axis 0
 # CBI sino is (T, Y=height, P=diameter) — swap rows/cols to (T, P, Y) so that
@@ -505,7 +507,7 @@ export_sinogram_to_images(
     image_size=image_size,
     bit_depth=8,
     normalization_percentile=99.9,
-    rotate_angle=0.0 if projection_backend == "cbi" else 90.0,
+    rotate_angle=90.0,
     invert_u=False,
     invert_v=False,
     v_offset=0,
