@@ -155,29 +155,132 @@ for file in files:
             stlfilename=file.stl_name, resolution=res
         )
 
-        # # Fast voxelization with trimesh
-        # mesh = trimesh.load(file.stl_name)
-        # xmin, ymin, zmin = mesh.bounds[0]
-        # xmax, ymax, zmax = mesh.bounds[1]
-        # pitch = (zmax - zmin) / res
+        elif voxelize_backend == "trimesh":
+            mesh = trimesh.load(file.stl_name)
+            mesh.apply_translation(-mesh.centroid)
+            xmin, ymin, zmin = mesh.bounds[0]
+            xmax, ymax, zmax = mesh.bounds[1]
 
-        # vox = mesh.voxelized(pitch).fill()
-        # arr = np.asarray(vox.matrix, dtype=np.uint8)
+            vox = mesh.voxelized(mm_per_pix).fill()
+            arr = np.asarray(vox.matrix, dtype=np.float32)
 
-        # # pad xy to a square large enough for the bounding circle (matches legacy layout)
-        # d = np.sqrt((xmax - xmin) ** 2 + (ymax - ymin) ** 2)
-        # N = int(np.ceil(d / pitch))
-        # px = max(0, N - arr.shape[0])
-        # py = max(0, N - arr.shape[1])
-        # arr = np.pad(
-        #     arr,
-        #     ((px // 2, px - px // 2), (py // 2, py - py // 2), (0, 0)),
-        # )
+            d = np.sqrt((xmax - xmin) ** 2 + (ymax - ymin) ** 2)
+            N = int(np.ceil(d / mm_per_pix))
+            px = max(0, N - arr.shape[0])
+            py = max(0, N - arr.shape[1])
+            arr = np.pad(
+                arr,
+                ((px // 2, px - px // 2), (py // 2, py - py // 2), (0, 0)),
+            )
+            target_geo = vamtoolbox.geometry.TargetGeometry(target=arr)
 
-        # target_geo = vamtoolbox.geometry.TargetGeometry(target=arr)
+        elif voxelize_backend == "voxelizer":
+            import vamtoolbox.voxelize
+            voxelizer = vamtoolbox.voxelize.Voxelizer()
+            voxelizer.addMeshes({file.stl_name: "print"})
+            arr = voxelizer.voxelize(
+                body_name="print",
+                layer_thickness=mm_per_pix,
+                voxel_value=1.0,
+                voxel_dtype="float32",
+                square_xy=True,
+            )
 
-        # target_geo.show(show_bodies=True)
-        print("target_geo shape:", target_geo.array.shape)  
+        elif voxelize_backend == "trimesh_ray":
+            # Ray-cast voxelization: watertight-safe, low memory
+            mesh = trimesh.load(file.stl_name)
+            # bbox center (not centroid — asymmetric meshes have centroid != bbox center)
+            mesh.apply_translation(-(mesh.bounds[0] + mesh.bounds[1]) / 2)
+            xmin, ymin, zmin = mesh.bounds[0]
+            xmax, ymax, zmax = mesh.bounds[1]
+
+            nx = int(np.ceil((xmax - xmin) / mm_per_pix))
+            ny = int(np.ceil((ymax - ymin) / mm_per_pix))
+            nz = int(np.ceil((zmax - zmin) / mm_per_pix))
+            # xy grid centers
+            xs = xmin + (np.arange(nx) + 0.5) * mm_per_pix
+            ys = ymin + (np.arange(ny) + 0.5) * mm_per_pix
+            X, Y = np.meshgrid(xs, ys, indexing="ij")
+            origins = np.stack(
+                [X.ravel(), Y.ravel(), np.full(X.size, zmin - 1.0)], axis=1
+            )
+            directions = np.tile([0.0, 0.0, 1.0], (origins.shape[0], 1))
+
+            # shoot one ray per (x,y) column, collect z-hits, fill between pairs
+            locs, ray_idx, _ = mesh.ray.intersects_location(
+                ray_origins=origins, ray_directions=directions, multiple_hits=True
+            )
+            arr = np.zeros((nx, ny, nz), dtype=np.float32)
+            order = np.argsort(ray_idx, kind="stable")
+            ray_idx = ray_idx[order]
+            z_hits = locs[order, 2]
+
+            # group hits per ray and fill even-odd intervals
+            starts = np.searchsorted(ray_idx, np.arange(nx * ny), side="left")
+            ends = np.searchsorted(ray_idx, np.arange(nx * ny), side="right")
+            for col, (s, e) in enumerate(zip(starts, ends)):
+                zs = np.sort(z_hits[s:e])
+                if zs.size < 2:
+                    continue
+                ix, iy = divmod(col, ny)
+                for k in range(0, zs.size - 1, 2):
+                    z0 = int(np.floor((zs[k] - zmin) / mm_per_pix))
+                    z1 = int(np.ceil((zs[k + 1] - zmin) / mm_per_pix))
+                    arr[ix, iy, max(0, z0):min(nz, z1)] = 1.0
+
+            # Tile object along z (for periodic structures)
+            if TILE_Z > 1:
+                arr = np.tile(arr, (1, 1, TILE_Z))
+                nz = arr.shape[2]
+                print(f"[tile] tiled z by {TILE_Z}, new shape: {arr.shape}")
+
+            # square xy pad + z padding
+            N = max(nx, ny)
+            px, py = N - nx, N - ny
+            if N_REV == 0:
+                # Standard mode: symmetric Z_PAD_FRAC pad on each side
+                z_pad_lo = z_pad_hi = round(Z_PAD_FRAC * nz)
+            elif HELICAL_VOLUME_HEIGHT_MM > 0:
+                # Helical: pad to target volume height (symmetric around object)
+                target_nz = round(HELICAL_VOLUME_HEIGHT_MM / mm_per_pix)
+                extra = max(0, target_nz - nz)
+                z_pad_lo = extra // 2
+                z_pad_hi = extra - z_pad_lo
+            else:
+                z_pad_lo = z_pad_hi = 0
+            arr = np.pad(
+                arr,
+                ((px // 2, px - px // 2), (py // 2, py - py // 2),
+                 (z_pad_lo, z_pad_hi)),
+            )
+            print(f"[voxelizer] arr shape={arr.shape}, sum={arr.sum()}, "
+                  f"nonzero={np.count_nonzero(arr)}, max={arr.max()}")
+            # per-z nonzero so we know where the part lives
+            nz_per_z = np.count_nonzero(arr, axis=(0, 1))
+            print(f"[voxelizer] nz_per_z samples: "
+                  f"z=0:{nz_per_z[0]}, z=200:{nz_per_z[200]}, z=500:{nz_per_z[500]}, "
+                  f"z=700:{nz_per_z[700]}, z=900:{nz_per_z[900]}, z=1399:{nz_per_z[-1]}")
+            print(f"[voxelizer] max per-z={nz_per_z.max()} at z={nz_per_z.argmax()}, "
+                  f"num z-slices with content={np.count_nonzero(nz_per_z)}")
+            import trimesh
+            _m = trimesh.load(file.stl_name)
+            print(f"[mesh] is_watertight={_m.is_watertight}, "
+                  f"is_winding_consistent={_m.is_winding_consistent}, "
+                  f"faces={len(_m.faces)}")
+            if projection_mode == "direct":
+                # Direct mode: skip TargetGeometry (avoids expensive circle mask)
+                target_geo = type('SimpleTarget', (), {'array': arr})()
+                print(f"[direct] arr shape={arr.shape}")
+            else:
+                target_geo = vamtoolbox.geometry.TargetGeometry(target=arr)
+                print(f"[target_geo] array shape={target_geo.array.shape}, "
+                      f"sum={target_geo.array.sum()}, "
+                      f"nonzero={np.count_nonzero(target_geo.array)}")
+
+        else:
+            raise ValueError(f"Unknown voxelize_backend: {voxelize_backend}")
+
+        print("target shape:", target_geo.array.shape)  
         # target_geo.save(file.sino_name)
 
         # Setup projection geometry

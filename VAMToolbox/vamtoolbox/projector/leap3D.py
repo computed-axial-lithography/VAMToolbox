@@ -44,12 +44,17 @@ def _setup_leap(leapct, geometry, params):
     nx, ny, nz = params["volume_shape"]   # VAMToolbox (nx, ny, nz)
     voxel_size = float(params.get("voxel_size", 1.0))
 
-    # LEAP z starts at 0 and goes to z_total = pitch × max_phi.
-    # Set offsetZ = +z_total/2 so the volume centre aligns with the scan midpoint.
-    # (offsetZ is the physical z of the volume centre; volume spans [0, z_total])
-    max_phi_rad = float(phis_deg[-1]) * np.pi / 180.0
-    z_total     = pitch_mm_per_rad * max_phi_rad
-    offset_z    = z_total / 2.0
+    obj_height = nz * voxel_size
+
+    if pitch_mm_per_rad > 0:
+        # Helical: place volume centre at midpoint of source z-trajectory.
+        # Source spans [0, z_total]; centring at z_total/2 keeps the scan symmetric
+        # (empty frames at both ends instead of one end).
+        max_phi_rad = float(phis_deg[-1]) * np.pi / 180.0
+        z_total = pitch_mm_per_rad * max_phi_rad
+        offset_z = z_total / 2.0
+    else:
+        offset_z = 0.0
 
     leapct.set_volume(nx, ny, nz, voxelWidth=voxel_size, offsetZ=offset_z)
 

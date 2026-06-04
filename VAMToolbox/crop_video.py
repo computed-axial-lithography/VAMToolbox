@@ -1,5 +1,6 @@
 import cv2
 import os
+import re
 import math
 import numpy as np
 import tkinter as tk
@@ -18,7 +19,60 @@ def pick_folder(title: str, initial_dir: str = ".") -> str:
         exit()
     return folder
 
-# Configuration
+# Mode selection
+# "crop"       : crop 360 images then assemble video (full pipeline)
+# "video_only" : skip cropping, just build video from existing frames in a folder
+MODE = "video_only"  
+
+# Video-only branch: pick a folder of pre-cropped frames and assemble a video
+if MODE == "video_only":
+    print("Select the folder containing already-cropped frames...")
+    frames_dir = pick_folder("Select FRAMES folder")
+
+    IMAGE_EXT  = ".png"
+    VIDEO_FPS  = 36
+    VIDEO_NAME = f"cropped_video_fps{VIDEO_FPS}.mp4"
+    FFMPEG_PATH = r"C:\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe"
+
+    # Pick up frames named like "frame_00001_imgXXXX_yYYYY.png" first;
+    # fall back to any image with the chosen extension if that pattern is empty.
+    pattern = re.compile(r"^frame_(\d+)_")
+    all_files = sorted(os.listdir(frames_dir))
+    matched = [f for f in all_files if pattern.match(f) and f.lower().endswith(IMAGE_EXT)]
+    if matched:
+        # Sort by the numeric frame index, not lexically
+        matched.sort(key=lambda f: int(pattern.match(f).group(1)))
+        frame_names = matched
+    else:
+        frame_names = [f for f in all_files if f.lower().endswith(IMAGE_EXT)]
+
+    if not frame_names:
+        raise FileNotFoundError(f"No {IMAGE_EXT} frames found in {frames_dir}")
+
+    video_path = os.path.join(frames_dir, VIDEO_NAME)
+    list_path  = os.path.join(frames_dir, "frame_list.txt")
+    with open(list_path, "w") as f:
+        for name in frame_names:
+            f.write(f"file '{os.path.join(frames_dir, name)}'\n")
+
+    print(f"\nAssembling video with ffmpeg ({len(frame_names)} frames @ {VIDEO_FPS} fps)...")
+    subprocess.run([
+        FFMPEG_PATH,
+        "-y",
+        "-r", str(VIDEO_FPS),
+        "-f", "concat",
+        "-safe", "0",
+        "-i", list_path,
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-crf", "18",
+        video_path,
+    ], check=True)
+
+    print(f"\nDone! Video saved to: {video_path}")
+    raise SystemExit(0)
+
+# Configuration (crop mode)
 print("Select the folder containing your 360 image set...")
 input_dir    = pick_folder("Select INPUT folder (360 images)")
 
@@ -29,13 +83,13 @@ IMAGE_EXT    = ".png"
 IMAGE_PREFIX = "proj"           # base name prefix
 
 IMAGE_WIDTH  = 2560
-IMAGE_HEIGHT_ORIG = 4800                       
+IMAGE_HEIGHT_ORIG = 3000                   
 BLACK_PAD = 1600                        
 IMAGE_HEIGHT = IMAGE_HEIGHT_ORIG + 2 * BLACK_PAD  
 CROP_WIDTH   = 2560
 CROP_HEIGHT  = 1600
 TOTAL_DEGREE = 360
-PITCH        = 1600 # change the helical pitch here
+PITCH        = 400 # change the helical pitch here
 
 STEP_SIZE   = PITCH / TOTAL_DEGREE
 Y_START_MAX  = IMAGE_HEIGHT - CROP_HEIGHT
@@ -152,8 +206,8 @@ print("\nDone! All crops saved to:", output_dir)
 # print("\nDone! All crops saved to:", output_dir)
 
 # Assemble video
-VIDEO_FPS  = 54
-VIDEO_NAME = "cropped_video.mp4"
+VIDEO_FPS  = 36
+VIDEO_NAME = "cropped_video_fps36.mp4"
 FFMPEG_PATH = r"C:\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe"
 
 video_path = os.path.join(output_dir, VIDEO_NAME)
