@@ -278,8 +278,14 @@ def optimizeSlabbed(
             print(f"  [slab {si + 1}/{n_slabs}] z {z0}:{z1} (+halo {z0 - h0}/{h1 - z1})")
         stg, spg = _subgeo(h0, h1)
         if _base_cb is not None:
-            options.iter_callback = (lambda i, n, loss, _si=si:
-                                     _base_cb(_si * n + i, n_slabs * n, loss))
+            def _slab_cb(i, n, loss, _si=si):
+                cum_i, cum_n = _si * n + i, n_slabs * n   # monotonic bar across slabs
+                try:
+                    _base_cb(cum_i, cum_n, loss,
+                             f"slab {_si + 1}/{n_slabs} · iter {i}/{n} · dose error {float(loss):.4g}")
+                except TypeError:
+                    _base_cb(cum_i, cum_n, loss)   # callback without the message arg
+            options.iter_callback = _slab_cb
         s_sino, _, _ = optimize(stg, spg, options)
         lo = z0 - h0
         out[:, :, z0:z1] = s_sino.array[:, :, lo:lo + (z1 - z0)]

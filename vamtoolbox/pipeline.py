@@ -244,13 +244,15 @@ class VAMPipeline:
     def _build_options(self):
         cfg = self.config
         # per-iteration progress -> GUI; raising PipelineCancelled aborts the run
-        def _iter_cb(i, n, loss):
+        def _iter_cb(i, n, loss, msg=None):
+            # `msg` lets the slabbed optimizer label progress "slab k/N · iter i/n"
+            # instead of a single doubled "iter i/(slabs*n)" that looks like extra iterations.
             try:
                 self.final_loss = float(loss)        # remembered for the Output page
                 self.loss_history.append([int(i), float(loss)])   # convergence graph
-                self._emit("optimize", i / max(n, 1), f"iter {i}/{n} · dose error {float(loss):.4g}")
+                self._emit("optimize", i / max(n, 1), msg or f"iter {i}/{n} · dose error {float(loss):.4g}")
             except Exception:
-                self._emit("optimize", i / max(n, 1), f"iter {i}/{n}")
+                self._emit("optimize", i / max(n, 1), msg or f"iter {i}/{n}")
 
         if cfg.method == "BCLP":
             model = vamtoolbox.response.ResponseModel(type="analytical", form="identity")
