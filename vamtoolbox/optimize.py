@@ -251,8 +251,15 @@ def optimizeSlabbed(
         _ker = getattr(_rm, "diffusion_kernel", None)
         z_halo = (_ker.shape[2] // 2) if _ker is not None else 0
 
+    # A grey-scale (diffusion-deconvolved) target is stored as uint8 [0,255] with a
+    # fixed dose_scale; normalize each slab to [0,1] float for the optimizer.  The
+    # scale is global (not per-slab), so every slab is normalized identically.
+    _dose_scale = float(getattr(target_geo, "dose_scale", 1.0))
+
     def _subgeo(z_a, z_b):
         sub = np.ascontiguousarray(arr[:, :, z_a:z_b])
+        if _dose_scale != 1.0:
+            sub = sub.astype(np.float32) / np.float32(_dose_scale)
         stg = vamtoolbox.geometry.TargetGeometry(target=sub, resolution=z_b - z_a)
         stg.insert = None
         spg = vamtoolbox.geometry.ProjectionGeometry(

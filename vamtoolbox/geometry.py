@@ -738,22 +738,17 @@ def getCircleMask(target: np.ndarray):
     circle_mask
         boolean mask where inscribed circle is True, outside the circle is False
     """
-    # Define void and gel indices for error and thresholding operations
+    # The inscribed-circle mask is purely radial in X-Y and INDEPENDENT of z, so build the
+    # 2D mask and broadcast over z.  The old 3D np.meshgrid built three FULL float64 grids
+    # (shape[0]*shape[1]*shape[2]*8 bytes EACH, plus R) — ~90 GB for a 2.8e9-voxel grid,
+    # including a z meshgrid that was discarded — which OOM'd the backend on big parts.
+    circle_y, circle_x = np.meshgrid(
+        np.linspace(-1, 1, target.shape[0]), np.linspace(-1, 1, target.shape[1])
+    )
+    mask2d = np.array(circle_x**2 + circle_y**2 <= 1**2, dtype=bool)
     if np.ndim(target) == 2:
-        circle_y, circle_x = np.meshgrid(
-            np.linspace(-1, 1, target.shape[0]), np.linspace(-1, 1, target.shape[1])
-        )
-
-    else:
-        circle_y, circle_x, _ = np.meshgrid(
-            np.linspace(-1, 1, target.shape[0]),
-            np.linspace(-1, 1, target.shape[1]),
-            np.linspace(-1, 1, target.shape[2]),
-        )
-    R = circle_x**2 + circle_y**2
-    circle_mask = np.array(R <= 1**2, dtype=bool)
-
-    return circle_mask
+        return mask2d
+    return np.broadcast_to(mask2d[:, :, np.newaxis], target.shape)
 
 
 def getInds(target: np.ndarray):
@@ -1219,6 +1214,19 @@ def rebinFanBeam(sinogram, vial_width, N_screen, n_write, throw_ratio):
         sinogram.array = np.pad(
             sinogram.array, ((pad_left, pad_right), (0, 0), (0, 0)), mode="constant"
         )
+    elif total_pad < 0:
+        # The part is WIDER than the apparent vial (its radial extent exceeds the
+        # projector's correctable region) — crop (cut off) the out-of-region edges,
+        # centered, so the rebin grid (xp, width=vial_width) matches the sinogram.
+        # The cut-off region can't be reached by the physical projector anyway.
+        crop = -total_pad
+        crop_left = crop // 2
+        crop_right = crop - crop_left
+        warning(
+            f"Part radial extent ({N_r} px) exceeds the vial's correctable region "
+            f"({vial_width} px); cropped {crop} px (±{crop_left}) before rebin.")
+        sinogram.array = sinogram.array[crop_left:N_r - crop_right, :, :]
+        N_r = vial_width
 
     sinogram_rs = np.zeros_like(
         sinogram.array
