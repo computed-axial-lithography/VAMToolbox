@@ -109,7 +109,9 @@ class ImageSeq:
         self.file_extension = ".imgseq"
         self.image_config = image_config
 
-        mod_sinogram = np.copy(sinogram)
+        # float32 copy: doses don't need float64, and at print resolution the array
+        # is GiB-scale — float64 doubles it and the normalization below would OOM.
+        mod_sinogram = np.array(sinogram, dtype=np.float32)
 
         if self.image_config.invert_u:
             mod_sinogram = _invertU(mod_sinogram)
@@ -126,10 +128,13 @@ class ImageSeq:
         max_output_value = 2**self.image_config.bit_depth - 1
 
         if self.image_config.normalization_percentile is not None:
-            normalization_value = np.percentile(
+            normalization_value = float(np.percentile(
                 mod_sinogram, self.image_config.normalization_percentile
-            )
-            mod_sinogram = mod_sinogram / normalization_value * max_output_value
+            ))
+            # In-place float32 scale.  The old `arr / f64_scalar * int` promoted the
+            # whole sinogram to float64 AND allocated a copy (a multi-GiB spike at
+            # print resolution that crashed the preview right after big optimizes).
+            mod_sinogram *= np.float32(max_output_value / max(normalization_value, 1e-12))
 
         if self.image_config.intensity_scale != 1.0:
             mod_sinogram = _scaleIntensity(

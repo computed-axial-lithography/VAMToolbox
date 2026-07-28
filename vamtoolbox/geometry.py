@@ -26,6 +26,47 @@ except ImportError:
 import os as _os
 REBIN_N_JOBS = int(_os.environ.get("VAM_REBIN_JOBS", "-1"))
 
+# Estimated commit charge per fresh loky worker: interpreter + numpy/scipy/astra
+# imports (each worker is a spawn — nothing is shared on Windows).
+_REBIN_WORKER_BASE_BYTES = 700 * 1024 ** 2
+
+
+def _memory_capped_jobs(n_jobs, arr_nbytes):
+    """Cap the rebin worker count to what fits in the machine's REMAINING commit
+    limit (physical RAM + page file).  Every loky worker is a fresh spawn that
+    re-imports vamtoolbox/astra (~700 MB of commit each, before any data moves),
+    so `-1 = all cores` on a 20-core laptop with a small page file exhausts the
+    commit limit and the pool dies with "paging file is too small" (DLL load) or
+    WinError 1450 while streaming results back.  Budgets 70% of the available
+    commit, minus room for the source + result arrays and in-flight chunk copies.
+    Returns at least 1 (1 = take the serial path)."""
+    try:
+        if _os.name == "nt":
+            import ctypes
+
+            class _MemStatEx(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_uint64), ("ullAvailPhys", ctypes.c_uint64),
+                            ("ullTotalPageFile", ctypes.c_uint64), ("ullAvailPageFile", ctypes.c_uint64),
+                            ("ullTotalVirtual", ctypes.c_uint64), ("ullAvailVirtual", ctypes.c_uint64),
+                            ("ullAvailExtendedVirtual", ctypes.c_uint64)]
+
+            ms = _MemStatEx()
+            ms.dwLength = ctypes.sizeof(_MemStatEx)
+            if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms)):
+                return n_jobs
+            avail = int(ms.ullAvailPageFile)      # remaining commit, the limit that actually kills the pool
+        else:
+            avail = int(_os.sysconf("SC_AVPHYS_PAGES") * _os.sysconf("SC_PAGE_SIZE"))
+    except Exception:
+        return n_jobs
+    budget = int(avail * 0.7) - 3 * int(arr_nbytes)
+    capped = min(int(n_jobs), max(1, budget // _REBIN_WORKER_BASE_BYTES)) if budget > 0 else 1
+    if capped < n_jobs:
+        warning(f"Rebin workers capped {n_jobs} -> {capped} by available memory "
+                f"({avail / 1024 ** 3:.1f} GiB commit remaining)")
+    return capped
+
 
 def _rebin_chunk(b_chunk, xp, angles, x_samp, theta_samp, dxv_dxp, T_inv):
     """Worker for parallel rebinFanBeam: resample a contiguous block of z-slices.
@@ -1239,26 +1280,44 @@ def rebinFanBeam(sinogram, vial_width, N_screen, n_write, throw_ratio):
     # contiguous z-blocks across CPU workers when joblib is available.  Only worth
     # it for large sinograms: below ~384 slices the one-time loky worker-spawn
     # (paid here on GPU runs, where the pool isn't already warm) outweighs the gain.
-    if _Parallel is not None and N_z >= 384 and REBIN_N_JOBS != 1:
-        n_chunks = int(min(N_z, max(1, _eff_n_jobs(REBIN_N_JOBS)) * 2))
-        bounds = [b for b in np.array_split(np.arange(N_z), n_chunks) if len(b) > 0]
-        blocks = _Parallel(n_jobs=REBIN_N_JOBS)(
-            _jdelayed(_rebin_chunk)(
-                sinogram.array[:, :, zs[0]:zs[-1] + 1],
-                xp, angles, x_samp, theta_samp, dxv_dxp_tiled, T_inv,
-            )
-            for zs in bounds
-        )
-        i0 = 0
-        for blk in blocks:
-            sinogram_rs[:, :, i0:i0 + blk.shape[2]] = blk
-            i0 += blk.shape[2]
-    else:
+    def _rebin_serial():
         for z_i in range(N_z):
             sinogram_rs[..., z_i] = _rebin_chunk(
                 sinogram.array[:, :, z_i:z_i + 1],
                 xp, angles, x_samp, theta_samp, dxv_dxp_tiled, T_inv,
             )[..., 0]
+
+    n_jobs = 1
+    if _Parallel is not None and N_z >= 384 and REBIN_N_JOBS != 1:
+        n_jobs = _memory_capped_jobs(max(1, _eff_n_jobs(REBIN_N_JOBS)),
+                                     sinogram.array.nbytes)
+    if n_jobs > 1:
+        try:
+            n_chunks = int(min(N_z, n_jobs * 2))
+            bounds = [b for b in np.array_split(np.arange(N_z), n_chunks) if len(b) > 0]
+            blocks = _Parallel(n_jobs=n_jobs)(
+                _jdelayed(_rebin_chunk)(
+                    sinogram.array[:, :, zs[0]:zs[-1] + 1],
+                    xp, angles, x_samp, theta_samp, dxv_dxp_tiled, T_inv,
+                )
+                for zs in bounds
+            )
+            i0 = 0
+            for blk in blocks:
+                sinogram_rs[:, :, i0:i0 + blk.shape[2]] = blk
+                i0 += blk.shape[2]
+        except Exception as e:
+            # Pool failures here are almost always MEMORY, not math: fresh loky
+            # workers re-import vamtoolbox/astra and results stream back through
+            # pipes, so a machine with a small page file dies with
+            # BrokenProcessPool ("paging file is too small") or WinError 1450.
+            # The serial path needs no new processes, no pickling and no extra
+            # copies — retry in-process instead of losing the vial correction.
+            # A genuine numerical error will simply re-raise from it.
+            warning(f"Parallel rebin failed ({e}); retrying single-process (slower, low-memory)")
+            _rebin_serial()
+    else:
+        _rebin_serial()
 
     # Zero out near-tangent edge pixels where Fresnel T -> 0 (T_inv -> inf).
     # For telecentric projection dxv_dxp > 0 everywhere, so the dxv_dxp > 0 mask
