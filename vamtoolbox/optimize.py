@@ -117,13 +117,15 @@ class Options:
         self.blb = blb
         self.bub = bub
 
-        self.__default_FBP.update(kwargs)
-        self.__default_CAL.update(kwargs)
-        self.__default_PM.update(kwargs)
-        self.__default_OSMO.update(kwargs)
-        self.__default_BCLP.update(
-            kwargs
-        )  # TODO: The class definition of dict "__default_BCLP" should not be edited in place here.
+        # Merge kwargs onto a copy of each default set.  Updating the class
+        # attributes in place would rewrite the defaults for every Options
+        # created later in the same session, so a second instance would silently
+        # inherit the first one's kwargs instead of the documented defaults.
+        default_FBP = {**self.__default_FBP, **kwargs}
+        default_CAL = {**self.__default_CAL, **kwargs}
+        default_PM = {**self.__default_PM, **kwargs}
+        default_OSMO = {**self.__default_OSMO, **kwargs}
+        default_BCLP = {**self.__default_BCLP, **kwargs}
         self.__dict__.update(kwargs)  # Store all the extra variables
 
         self.verbose = self.__dict__.get("verbose", False)
@@ -132,38 +134,38 @@ class Options:
         self.exit_param = self.__dict__.get("exit_param", None)
 
         if method == "FBP":
-            self.offset = self.__default_FBP["offset"]
+            self.offset = default_FBP["offset"]
 
         if method == "CAL":
-            self.learning_rate = self.__default_CAL["learning_rate"]
-            self.momentum = self.__default_CAL["momentum"]
-            self.positivity = self.__default_CAL["positivity"]
-            self.sigmoid = self.__default_CAL["sigmoid"]
+            self.learning_rate = default_CAL["learning_rate"]
+            self.momentum = default_CAL["momentum"]
+            self.positivity = default_CAL["positivity"]
+            self.sigmoid = default_CAL["sigmoid"]
 
         if method == "PM":
-            self.rho_1 = self.__default_PM["rho_1"]
-            self.rho_2 = self.__default_PM["rho_2"]
-            self.p = self.__default_PM["p"]
+            self.rho_1 = default_PM["rho_1"]
+            self.rho_2 = default_PM["rho_2"]
+            self.p = default_PM["p"]
 
         if method == "OSMO":
-            self.inhibition = self.__default_OSMO["inhibition"]
+            self.inhibition = default_OSMO["inhibition"]
 
         if method == "BCLP":
-            if self.__default_BCLP["response_model"] == "default":
+            if default_BCLP["response_model"] == "default":
                 # Initialize a response model by default, only upon __init__ of Options class.
                 # This avoids putting the ResponseModel object inside the class definition of Options (and hence avoid import problems and unnesscary init of default response model)
                 self.response_model = vamtoolbox.response.ResponseModel()
             else:
                 # If a response model is given, use the provided one instead.
-                self.response_model = self.__default_BCLP["response_model"]  # type: ignore
+                self.response_model = default_BCLP["response_model"]  # type: ignore
 
-            self.eps = self.__default_BCLP["eps"]
-            self.weight = self.__default_BCLP["weight"]
-            self.p = self.__default_BCLP["p"]  # type: ignore
-            self.q = self.__default_BCLP["q"]  # type: ignore
-            self.learning_rate = self.__default_BCLP["learning_rate"]  # type: ignore
-            self.optim_alg = self.__default_BCLP["optim_alg"]
-            self.g0 = self.__default_BCLP["g0"]
+            self.eps = default_BCLP["eps"]
+            self.weight = default_BCLP["weight"]
+            self.p = default_BCLP["p"]  # type: ignore
+            self.q = default_BCLP["q"]  # type: ignore
+            self.learning_rate = default_BCLP["learning_rate"]  # type: ignore
+            self.optim_alg = default_BCLP["optim_alg"]
+            self.g0 = default_BCLP["g0"]
             self.test_alternate_handling = self.__dict__.get(
                 "test_alternate_handling", False
             )  # flag for testing alternate handling. Default: False. This will override original weight setting. Will be removed for actual release
