@@ -56,6 +56,8 @@ class PyTorchRayTracingPropagator():
                                     ray_density = self.proj_geo.ray_density,
                                     ray_width_fun = None
                                     )
+            # eikonal ODEs conserve |v|^2 - n^2, which must be 0: launch with |v0| = n(x0), not 1
+            self.ray_state.v_0 *= self.proj_geo.index_model.n(self.ray_state.x_0)[:, None]
         
         #Assume a model if index_model, attenuation_model, absorption_model is None. Need to import vamtoolbox.medium
         #self.target_geo.constructCoordVec() should be used as the master coordinate system
