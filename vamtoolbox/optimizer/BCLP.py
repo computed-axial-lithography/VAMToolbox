@@ -389,10 +389,11 @@ class BCLPNorm:
 
 
     def imposeSinogramConstraints(self, g):
+		g = np.clip(g, a_min=self.glb, a_max=self.gub)
         if self.bit_depth is not None:
             g = vamtoolbox.util.data.discretize(g, self.bit_depth, [0.0, np.amax(g)])
 
-        g = np.clip(g, a_min=self.glb, a_max=self.gub) 
+         
 
         return g
 
