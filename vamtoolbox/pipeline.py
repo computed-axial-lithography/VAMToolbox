@@ -102,6 +102,12 @@ class PrintConfig:
     proj_v_px: int = 1920
     mm_per_pix: float = 76.0 / 1080
     throw_ratio: float = float("inf")      # inf = telecentric/collimated
+    # — projector optics in the optimizer's forward model —
+    optics_model: str = "ideal"            # "ideal": perfect rays; "measured_dof": measured
+                                           #   depth-of-focus PSF (projector.ProjectorDOF)
+    focal_offset_mm: float = 0.0           # focal plane vs rotation axis, + = away from projector
+    psf_table: str = ""                    # "" = bundled Nov 2026 HeliCAL measurement
+    caustic_sign: float = 1.0              # +1: PSF table's +defocus is away from the projector
     vial_print_height_mm: float = 93.6
 
     # ---- derived quantities ----
@@ -140,6 +146,8 @@ class PrintConfig:
         """Raise ValueError with a GUI-friendly message for impossible configs."""
         if self.method not in ("OSMO", "BCLP"):
             raise ValueError(f"method must be 'OSMO' or 'BCLP', got {self.method!r}")
+        if str(self.optics_model).lower() not in ("ideal", "measured_dof"):
+            raise ValueError("optics_model must be 'ideal' or 'measured_dof'")
         if self.diffusion and self.method != "BCLP":
             raise ValueError("diffusion correction requires method='BCLP'")
         if self.n_iterations < 1:
@@ -251,6 +259,11 @@ class VAMPipeline:
             container_radius=cfg.vial_radius_mm / 10.0,
             projector_pixel_size=cfg.pixel_size_cm)
         pg.sparse = not self._cuda()
+        if str(cfg.optics_model).lower() == "measured_dof":
+            pg.ray_type = "dof"
+            pg.dof = dict(voxel_mm=cfg.part_height_mm / cfg.res_opt, focal_offset_mm=cfg.focal_offset_mm,
+                          n_resin=cfg.resin_ri, caustic_sign=cfg.caustic_sign,
+                          psf_table=cfg.psf_table or None, device="cuda" if self._cuda() else "cpu")
         return pg
 
     def _build_options(self):

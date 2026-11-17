@@ -94,7 +94,7 @@ def defaultKwargs(**default_kwargs):
     return actualDecorator
 
 
-RayType: TypeAlias = Literal["parallel", "cone", "algebraic", "ray_trace"]
+RayType: TypeAlias = Literal["parallel", "cone", "algebraic", "ray_trace", "ray_density", "dof"]
 
 
 class ProjectionGeometry:

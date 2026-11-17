@@ -57,6 +57,12 @@ def projectorconstructor(
         # TODO: utilize optical_params in projector construction
         pass
 
+    # Measured depth-of-focus projector: parallel beam + the projector's measured,
+    # depth-dependent PSF (torch; CUDA when available). Settings in proj_geo.dof.
+    if proj_geo.ray_type == "dof":
+        from vamtoolbox.projector.ProjectorDOF import ProjectorDOF
+        return ProjectorDOF(target_geo, proj_geo)
+
     # Mesh-based GPU ray-density projector (Taichi, backend-agnostic).
     # Must be checked before the CUDA/CPU split because Taichi selects its
     # own backend internally.

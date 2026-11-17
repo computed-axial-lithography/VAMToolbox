@@ -260,6 +260,10 @@ def optimizeSlabbed(
         _rm = getattr(options, "response_model", None)
         _ker = getattr(_rm, "diffusion_kernel", None)
         z_halo = (_ker.shape[2] // 2) if _ker is not None else 0
+        if proj_geo.ray_type == "dof":
+            # the measured PSF also blurs vertically: overlap slabs by its z half-width
+            from vamtoolbox.projector.ProjectorDOF import dof_z_halo
+            z_halo = max(z_halo, dof_z_halo(proj_geo, target_geo.array.shape[0]))
 
     # A grey-scale (diffusion-deconvolved) target is stored as uint8 [0,255] with a
     # fixed dose_scale; normalize each slab to [0,1] float for the optimizer.  The
@@ -279,6 +283,7 @@ def optimizeSlabbed(
             projector_pixel_size=proj_geo.projector_pixel_size,
             inclination_angle=getattr(proj_geo, "inclination_angle", None))
         spg.sparse = getattr(proj_geo, "sparse", False)
+        spg.dof = getattr(proj_geo, "dof", None)
         return stg, spg
 
     out = np.zeros((nX, nA, nZ), dtype=np.float32)

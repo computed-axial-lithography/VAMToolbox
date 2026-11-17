@@ -32,6 +32,17 @@ def _clone_proj_geo(proj_geo, angles):
         projector_pixel_size=proj_geo.projector_pixel_size,
         inclination_angle=getattr(proj_geo, "inclination_angle", None))
     pg.sparse = getattr(proj_geo, "sparse", False)
+    pg.dof = getattr(proj_geo, "dof", None)
+    return pg
+
+
+def with_measured_optics(proj_geo, voxel_mm, focal_offset_mm=0.0, n_resin=1.51, **dof):
+    """Copy of proj_geo that projects through the measured depth-of-focus PSF
+    (ray_type "dof"), e.g. to score a sinogram optimized with the ideal model under the
+    optics it will actually meet:  evaluate_sinogram(sino, tg, with_measured_optics(pg, 0.05))."""
+    pg = _clone_proj_geo(proj_geo, proj_geo.angles)
+    pg.ray_type = "dof"
+    pg.dof = dict(voxel_mm=voxel_mm, focal_offset_mm=focal_offset_mm, n_resin=n_resin, **dof)
     return pg
 
 
