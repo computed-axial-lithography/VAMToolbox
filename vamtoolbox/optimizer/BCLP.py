@@ -187,6 +187,16 @@ class BCLPNorm:
         self.glb = options.blb
         self.gub = options.bub
         self.bit_depth = options.bit_depth
+        # Reciprocity exponent (effective per-frame dose ~ I**beta, beta ~ 0.5-0.65 for
+        # free-radical acrylates).  Handled exactly as a change of variable: the solver
+        # works in effective-dose units h (linear), and the returned sinogram is the
+        # projector intensity g = h**(1/beta) (a per-pixel gamma).  Pixel bounds given in
+        # intensity units are mapped into h units accordingly.
+        self.dose_rate_beta = float(getattr(options, "dose_rate_beta", 1.0))
+        if self.dose_rate_beta != 1.0:
+            b = self.dose_rate_beta
+            self.glb = None if self.glb is None else (max(float(self.glb), 0.0) ** b)
+            self.gub = None if self.gub is None else (max(float(self.gub), 0.0) ** b)
         self.dvol = 1  # differential volume in integration
         self.exit_param = (
             options.exit_param
@@ -293,6 +303,9 @@ class BCLPNorm:
 
         if self.dose_iter != self.logs.curr_iter:
             g_iter = self.checkSinogramShape(g_iter, desired_shape="cylindrical")
+            # Reciprocity (dose_rate_beta != 1) needs NO change here: with h = g**beta the
+            # dose BP(h) is linear in h, so we optimize h exactly as the linear model and
+            # convert to projector intensities g = h**(1/beta) on output (minimizeBCLP).
             self.dose = self.P.backward(g_iter)
             self.dose = self.dose.reshape(
                 self.target_geo.array.shape
@@ -636,6 +649,10 @@ def minimizeBCLP(target_geo, proj_geo, options, output="packaged"):
     bclp = BCLPNorm(target_geo, proj_geo, options)
     g_opt = bclp.gradientDescent()
     g_opt = bclp.checkSinogramShape(g_opt, desired_shape="cylindrical")
+    if bclp.dose_rate_beta != 1.0:
+        # effective-dose sinogram h -> projector intensity g = h**(1/beta) (reciprocity gamma)
+        g_opt = np.power(np.clip(g_opt, 0.0, None).astype(np.float32, copy=False),
+                         np.float32(1.0 / bclp.dose_rate_beta), dtype=np.float32)
 
     if bclp.verbose == "plot":
         bclp.dp.ioff()

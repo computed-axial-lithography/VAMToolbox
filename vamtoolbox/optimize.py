@@ -147,6 +147,13 @@ class Options:
 
         if method == "OSMO":
             self.inhibition = self.__default_OSMO["inhibition"]
+            # PIHE (Webber et al., Addit. Manuf. 2024): proportional-integral model
+            # update + +-3 sigma histogram equalization.  k_i = 0 -> classic OSMO.
+            # (read from kwargs, not the class-level default dict, which is mutated
+            # in place by update() above and would leak values between instances)
+            self.k_p = float(kwargs.get("k_p", 1.0))
+            self.k_i = float(kwargs.get("k_i", 0.0))
+            self.hist_eq = bool(kwargs.get("hist_eq", False))
 
         if method == "BCLP":
             if self.__default_BCLP["response_model"] == "default":
@@ -164,6 +171,9 @@ class Options:
             self.learning_rate = self.__default_BCLP["learning_rate"]  # type: ignore
             self.optim_alg = self.__default_BCLP["optim_alg"]
             self.g0 = self.__default_BCLP["g0"]
+            # Reciprocity exponent: effective per-frame dose ~ I**beta (beta ~ 0.5-0.65
+            # for free-radical acrylates; DeRosa 2021, Wydra 2014).  1.0 = linear model.
+            self.dose_rate_beta = float(kwargs.get("dose_rate_beta", 1.0))
             self.test_alternate_handling = self.__dict__.get(
                 "test_alternate_handling", False
             )  # flag for testing alternate handling. Default: False. This will override original weight setting. Will be removed for actual release

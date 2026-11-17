@@ -77,6 +77,12 @@ class PrintConfig:
     diffusion_coeff: float = 1e-4          # mm^2/s
     diffusion_iters: int = 3               # Richardson-Lucy deconvolution iterations (Orth 2023: 2-10)
     diffusion_optical: bool = False        # also correct the projector optical PSF (needs it characterized)
+    diffusion_mode: str = "predeconv"      # "predeconv": Orth-2023 target deconvolution (default)
+                                           # "inloop": blur kernel inside the BCLP forward model
+                                           #           (co-optimization, Ye et al. 2026)
+    dose_rate_beta: float = 1.0            # reciprocity exponent, effective dose ~ I**beta (BCLP); 1 = linear
+    osmo_k_i: float = 0.0                  # OSMO integral gain (PIHE, Webber 2024; 0.5 typical); 0 = classic OSMO
+    osmo_hist_eq: bool = False             # PIHE +-3 sigma histogram equalization of the final sinogram
     print_time_s: float = 10.0
     rotation_deg_s: float = 24.0
 
@@ -266,11 +272,23 @@ class VAMPipeline:
                 self._emit("optimize", i / max(n, 1), msg or f"iter {i}/{n}")
 
         if cfg.method == "BCLP":
-            # Diffusion correction is applied as a one-time target pre-deconvolution
-            # in optimize() (Orth et al., Nat. Commun. 2023), NOT as an in-loop
-            # forward model — so the response stays identity and the optimizer runs
-            # with normal slabs (no per-iteration convolution, no z-halos).
-            model = vamtoolbox.response.ResponseModel(type="analytical", form="identity")
+            if cfg.diffusion and str(cfg.diffusion_mode).lower() == "inloop":
+                # In-loop co-optimization: the blur kernel lives inside the BCLP
+                # forward model (dose -> kernel * dose before the band check) and its
+                # adjoint in the gradient, so the optimizer shapes the projections
+                # against the dose that actually cures (Ye et al. 2026).  Slabbed runs
+                # get a z-halo automatically (optimizeSlabbed reads the kernel depth).
+                pitch_mm = cfg.part_height_mm / cfg.res_opt
+                dker = vamtoolbox.response.blur_ker(
+                    pitch_mm, cfg.diffusion_coeff, cfg.print_time_s, cfg.rotation_deg_s,
+                    optical=cfg.diffusion_optical)
+                model = vamtoolbox.response.ResponseModel(
+                    type="analytical", form="identity", diffusion_kernel=dker)
+            else:
+                # Diffusion correction (if any) is applied as a one-time target
+                # pre-deconvolution in optimize() (Orth et al., Nat. Commun. 2023), so
+                # the response stays identity and the optimizer runs with normal slabs.
+                model = vamtoolbox.response.ResponseModel(type="analytical", form="identity")
             # When verbose + a save path is given, run BCLP's "plot" mode so its
             # EvolvingPlot figure (target/dose/response/error + loss + histogram) is
             # rendered to PNG frames the GUI can show live.
@@ -279,12 +297,14 @@ class VAMPipeline:
                 method="BCLP", response_model=model, eps=cfg.eps, weight=cfg.weight,
                 n_iter=cfg.n_iterations, d_h=cfg.d_high, d_l=cfg.d_low,
                 learning_rate=cfg.learning_rate, verbose=_bclp_verbose, save_img_path=cfg.save_img_path,
-                lowmem=cfg.low_memory, iter_callback=_iter_cb)
+                lowmem=cfg.low_memory, iter_callback=_iter_cb,
+                dose_rate_beta=cfg.dose_rate_beta)
         _osmo_verbose = ("plot" if (cfg.verbose and cfg.save_img_path) else ("time" if cfg.verbose else "off"))
         return vamtoolbox.optimize.Options(
             method="OSMO", n_iter=cfg.n_iterations, d_h=cfg.d_high, d_l=cfg.d_low,
             learning_rate=cfg.learning_rate, filter="hanning",
-            verbose=_osmo_verbose, save_img_path=cfg.save_img_path, iter_callback=_iter_cb)
+            verbose=_osmo_verbose, save_img_path=cfg.save_img_path, iter_callback=_iter_cb,
+            k_i=cfg.osmo_k_i, hist_eq=cfg.osmo_hist_eq)
 
     def _resolve_slab(self, shape):
         cfg = self.config
@@ -396,7 +416,7 @@ class VAMPipeline:
         self.loss_history = []                    # (iter, loss) for the convergence graph
         if self.target is None:
             self.voxelize()
-        if cfg.diffusion:
+        if cfg.diffusion and str(cfg.diffusion_mode).lower() != "inloop":
             self._apply_diffusion_correction()
         vamtoolbox.geometry.REBIN_N_JOBS = cfg.rebin_jobs
         proj_geo = self._build_proj_geo()
