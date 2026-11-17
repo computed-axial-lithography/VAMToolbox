@@ -147,6 +147,13 @@ class Options:
 
         if method == "OSMO":
             self.inhibition = self.__default_OSMO["inhibition"]
+            # PIHE (Webber et al., Addit. Manuf. 2024): proportional-integral model
+            # update + +-3 sigma histogram equalization.  k_i = 0 -> classic OSMO.
+            # (read from kwargs, not the class-level default dict, which is mutated
+            # in place by update() above and would leak values between instances)
+            self.k_p = float(kwargs.get("k_p", 1.0))
+            self.k_i = float(kwargs.get("k_i", 0.0))
+            self.hist_eq = bool(kwargs.get("hist_eq", False))
 
         if method == "BCLP":
             if self.__default_BCLP["response_model"] == "default":
@@ -164,6 +171,9 @@ class Options:
             self.learning_rate = self.__default_BCLP["learning_rate"]  # type: ignore
             self.optim_alg = self.__default_BCLP["optim_alg"]
             self.g0 = self.__default_BCLP["g0"]
+            # Reciprocity exponent: effective per-frame dose ~ I**beta (beta ~ 0.5-0.65
+            # for free-radical acrylates; DeRosa 2021, Wydra 2014).  1.0 = linear model.
+            self.dose_rate_beta = float(kwargs.get("dose_rate_beta", 1.0))
             self.test_alternate_handling = self.__dict__.get(
                 "test_alternate_handling", False
             )  # flag for testing alternate handling. Default: False. This will override original weight setting. Will be removed for actual release
@@ -250,9 +260,20 @@ def optimizeSlabbed(
         _rm = getattr(options, "response_model", None)
         _ker = getattr(_rm, "diffusion_kernel", None)
         z_halo = (_ker.shape[2] // 2) if _ker is not None else 0
+        if proj_geo.ray_type == "dof":
+            # the measured PSF also blurs vertically: overlap slabs by its z half-width
+            from vamtoolbox.projector.ProjectorDOF import dof_z_halo
+            z_halo = max(z_halo, dof_z_halo(proj_geo, target_geo.array.shape[0]))
+
+    # A grey-scale (diffusion-deconvolved) target is stored as uint8 [0,255] with a
+    # fixed dose_scale; normalize each slab to [0,1] float for the optimizer.  The
+    # scale is global (not per-slab), so every slab is normalized identically.
+    _dose_scale = float(getattr(target_geo, "dose_scale", 1.0))
 
     def _subgeo(z_a, z_b):
         sub = np.ascontiguousarray(arr[:, :, z_a:z_b])
+        if _dose_scale != 1.0:
+            sub = sub.astype(np.float32) / np.float32(_dose_scale)
         stg = vamtoolbox.geometry.TargetGeometry(target=sub, resolution=z_b - z_a)
         stg.insert = None
         spg = vamtoolbox.geometry.ProjectionGeometry(
@@ -262,6 +283,7 @@ def optimizeSlabbed(
             projector_pixel_size=proj_geo.projector_pixel_size,
             inclination_angle=getattr(proj_geo, "inclination_angle", None))
         spg.sparse = getattr(proj_geo, "sparse", False)
+        spg.dof = getattr(proj_geo, "dof", None)
         return stg, spg
 
     out = np.zeros((nX, nA, nZ), dtype=np.float32)
@@ -278,8 +300,14 @@ def optimizeSlabbed(
             print(f"  [slab {si + 1}/{n_slabs}] z {z0}:{z1} (+halo {z0 - h0}/{h1 - z1})")
         stg, spg = _subgeo(h0, h1)
         if _base_cb is not None:
-            options.iter_callback = (lambda i, n, loss, _si=si:
-                                     _base_cb(_si * n + i, n_slabs * n, loss))
+            def _slab_cb(i, n, loss, _si=si):
+                cum_i, cum_n = _si * n + i, n_slabs * n   # monotonic bar across slabs
+                try:
+                    _base_cb(cum_i, cum_n, loss,
+                             f"slab {_si + 1}/{n_slabs} · iter {i}/{n} · dose error {float(loss):.4g}")
+                except TypeError:
+                    _base_cb(cum_i, cum_n, loss)   # callback without the message arg
+            options.iter_callback = _slab_cb
         s_sino, _, _ = optimize(stg, spg, options)
         lo = z0 - h0
         out[:, :, z0:z1] = s_sino.array[:, :, lo:lo + (z1 - z0)]

@@ -36,6 +36,10 @@ import numpy as np
 
 import vamtoolbox
 
+# Fraction of the "optimize" progress bar allotted to the diffusion deconvolution
+# (when diffusion is on); the BCLP iterations fill the remaining (1 - _DECONV_BAR).
+_DECONV_BAR = 0.4
+
 
 class PipelineCancelled(Exception):
     """Raised internally when a caller cancels a running pipeline."""
@@ -69,8 +73,16 @@ class PrintConfig:
     # — corrections —
     absorption: bool = True                # Beer-Lambert attenuation
     absorption_coeff_cm: float = None      # None -> computed from photoinitiator below
-    diffusion: bool = False                # light/heat diffusion blur (BCLP only)
+    diffusion: bool = False                # diffusion deconvolution pre-correction (BCLP only)
     diffusion_coeff: float = 1e-4          # mm^2/s
+    diffusion_iters: int = 3               # Richardson-Lucy deconvolution iterations (Orth 2023: 2-10)
+    diffusion_optical: bool = False        # also correct the projector optical PSF (needs it characterized)
+    diffusion_mode: str = "predeconv"      # "predeconv": Orth-2023 target deconvolution (default)
+                                           # "inloop": blur kernel inside the BCLP forward model
+                                           #           (co-optimization, Ye et al. 2026)
+    dose_rate_beta: float = 1.0            # reciprocity exponent, effective dose ~ I**beta (BCLP); 1 = linear
+    osmo_k_i: float = 0.0                  # OSMO integral gain (PIHE, Webber 2024; 0.5 typical); 0 = classic OSMO
+    osmo_hist_eq: bool = False             # PIHE +-3 sigma histogram equalization of the final sinogram
     print_time_s: float = 10.0
     rotation_deg_s: float = 24.0
 
@@ -90,6 +102,12 @@ class PrintConfig:
     proj_v_px: int = 1920
     mm_per_pix: float = 76.0 / 1080
     throw_ratio: float = float("inf")      # inf = telecentric/collimated
+    # — projector optics in the optimizer's forward model —
+    optics_model: str = "ideal"            # "ideal": perfect rays; "measured_dof": measured
+                                           #   depth-of-focus PSF (projector.ProjectorDOF)
+    focal_offset_mm: float = 0.0           # focal plane vs rotation axis, + = away from projector
+    psf_table: str = ""                    # "" = bundled Nov 2026 HeliCAL measurement
+    caustic_sign: float = 1.0              # +1: PSF table's +defocus is away from the projector
     vial_print_height_mm: float = 93.6
 
     # ---- derived quantities ----
@@ -128,6 +146,8 @@ class PrintConfig:
         """Raise ValueError with a GUI-friendly message for impossible configs."""
         if self.method not in ("OSMO", "BCLP"):
             raise ValueError(f"method must be 'OSMO' or 'BCLP', got {self.method!r}")
+        if str(self.optics_model).lower() not in ("ideal", "measured_dof"):
+            raise ValueError("optics_model must be 'ideal' or 'measured_dof'")
         if self.diffusion and self.method != "BCLP":
             raise ValueError("diffusion correction requires method='BCLP'")
         if self.n_iterations < 1:
@@ -239,27 +259,49 @@ class VAMPipeline:
             container_radius=cfg.vial_radius_mm / 10.0,
             projector_pixel_size=cfg.pixel_size_cm)
         pg.sparse = not self._cuda()
+        if str(cfg.optics_model).lower() == "measured_dof":
+            pg.ray_type = "dof"
+            pg.dof = dict(voxel_mm=cfg.part_height_mm / cfg.res_opt, focal_offset_mm=cfg.focal_offset_mm,
+                          n_resin=cfg.resin_ri, caustic_sign=cfg.caustic_sign,
+                          psf_table=cfg.psf_table or None, device="cuda" if self._cuda() else "cpu")
         return pg
 
     def _build_options(self):
         cfg = self.config
         # per-iteration progress -> GUI; raising PipelineCancelled aborts the run
-        def _iter_cb(i, n, loss):
+        def _iter_cb(i, n, loss, msg=None):
+            # `msg` lets the slabbed optimizer label progress "slab k/N · iter i/n"
+            # instead of a single doubled "iter i/(slabs*n)" that looks like extra iterations.
+            # When diffusion is on, the deconvolution already filled the leading
+            # `_DECONV_BAR` of the bar, so the optimizer fills the remainder.
             try:
                 self.final_loss = float(loss)        # remembered for the Output page
                 self.loss_history.append([int(i), float(loss)])   # convergence graph
-                self._emit("optimize", i / max(n, 1), f"iter {i}/{n} · dose error {float(loss):.4g}")
+                frac = i / max(n, 1)
+                if cfg.diffusion:
+                    frac = _DECONV_BAR + (1.0 - _DECONV_BAR) * frac
+                self._emit("optimize", frac, msg or f"iter {i}/{n} · dose error {float(loss):.4g}")
             except Exception:
-                self._emit("optimize", i / max(n, 1), f"iter {i}/{n}")
+                self._emit("optimize", i / max(n, 1), msg or f"iter {i}/{n}")
 
         if cfg.method == "BCLP":
-            model = vamtoolbox.response.ResponseModel(type="analytical", form="identity")
-            if cfg.diffusion:
+            if cfg.diffusion and str(cfg.diffusion_mode).lower() == "inloop":
+                # In-loop co-optimization: the blur kernel lives inside the BCLP
+                # forward model (dose -> kernel * dose before the band check) and its
+                # adjoint in the gradient, so the optimizer shapes the projections
+                # against the dose that actually cures (Ye et al. 2026).  Slabbed runs
+                # get a z-halo automatically (optimizeSlabbed reads the kernel depth).
                 pitch_mm = cfg.part_height_mm / cfg.res_opt
                 dker = vamtoolbox.response.blur_ker(
-                    pitch_mm, cfg.diffusion_coeff, cfg.print_time_s, cfg.rotation_deg_s)
+                    pitch_mm, cfg.diffusion_coeff, cfg.print_time_s, cfg.rotation_deg_s,
+                    optical=cfg.diffusion_optical)
                 model = vamtoolbox.response.ResponseModel(
                     type="analytical", form="identity", diffusion_kernel=dker)
+            else:
+                # Diffusion correction (if any) is applied as a one-time target
+                # pre-deconvolution in optimize() (Orth et al., Nat. Commun. 2023), so
+                # the response stays identity and the optimizer runs with normal slabs.
+                model = vamtoolbox.response.ResponseModel(type="analytical", form="identity")
             # When verbose + a save path is given, run BCLP's "plot" mode so its
             # EvolvingPlot figure (target/dose/response/error + loss + histogram) is
             # rendered to PNG frames the GUI can show live.
@@ -268,12 +310,14 @@ class VAMPipeline:
                 method="BCLP", response_model=model, eps=cfg.eps, weight=cfg.weight,
                 n_iter=cfg.n_iterations, d_h=cfg.d_high, d_l=cfg.d_low,
                 learning_rate=cfg.learning_rate, verbose=_bclp_verbose, save_img_path=cfg.save_img_path,
-                lowmem=cfg.low_memory, iter_callback=_iter_cb)
+                lowmem=cfg.low_memory, iter_callback=_iter_cb,
+                dose_rate_beta=cfg.dose_rate_beta)
         _osmo_verbose = ("plot" if (cfg.verbose and cfg.save_img_path) else ("time" if cfg.verbose else "off"))
         return vamtoolbox.optimize.Options(
             method="OSMO", n_iter=cfg.n_iterations, d_h=cfg.d_high, d_l=cfg.d_low,
             learning_rate=cfg.learning_rate, filter="hanning",
-            verbose=_osmo_verbose, save_img_path=cfg.save_img_path, iter_callback=_iter_cb)
+            verbose=_osmo_verbose, save_img_path=cfg.save_img_path, iter_callback=_iter_cb,
+            k_i=cfg.osmo_k_i, hist_eq=cfg.osmo_hist_eq)
 
     def _resolve_slab(self, shape):
         cfg = self.config
@@ -287,7 +331,7 @@ class VAMPipeline:
         # Arrays whose footprint scales with the slab depth.  The CPU sparse path
         # also holds forward/backward DENSE result blocks (nA·nX·z and nX·nY·z),
         # so count ~2 extra slab-scaling arrays for it.
-        n_arrays = (7 if cfg.method == "BCLP" else 4) + (2 if cfg.diffusion else 0)
+        n_arrays = (7 if cfg.method == "BCLP" else 4)
         if not cfg.use_cuda:
             n_arrays += 2
         per_slice_gb = n_arrays * nX * nY * 4 / 1e9
@@ -300,7 +344,7 @@ class VAMPipeline:
         # Fixed overheads that do NOT scale with the slab and so must be RESERVED
         # out of the budget: the resident target grid, and (CPU sparse) the
         # z-independent 2D system matrix (~360·nX·nY·8 bytes — multi-GB at large XY).
-        fixed_gb = nX * nY * nZ / 1e9                     # target uint8 grid
+        fixed_gb = nX * nY * nZ / 1e9                    # target uint8 grid (binary or grey-scale)
         if not cfg.use_cuda:
             fixed_gb += 360.0 * nX * nY * 8 / 1e9         # sparse system matrix
         budget = max(2.0, ram * 0.55 - fixed_gb)
@@ -309,6 +353,75 @@ class VAMPipeline:
             return 0
         return int(min(nZ, max(16, (budget / full_need) * nZ)))
 
+    def _apply_diffusion_correction(self):
+        """One-time target pre-deconvolution (Orth et al., Nat. Commun. 2023):
+        sharpen the target so fine features reach cure at the same time as bulk
+        once resin diffusion + optical blur spread the projected dose.  Replaces
+        the optimizer's target with the grey-scale corrected dose; BCLP then
+        matches it directly — no per-iteration convolution, so normal slabs.
+
+        The original (binary) target object and its gel/void index masks are left
+        intact (a shallow copy is swapped in) so metrics and mesh preview still
+        see the true geometry."""
+        import copy as _copy
+        cfg = self.config
+        nX, nY, nZ = self.target.array.shape
+        nvox = int(nX) * int(nY) * int(nZ)
+        try:
+            avail = vamtoolbox.util.hardware.detect_system()["ram_avail_gb"]
+        except Exception:
+            avail = 12.0
+        if avail != avail:                               # nan-safe
+            avail = 12.0
+        # The RL deconvolution is float, but it STREAMS in z-slabs: only one slab
+        # (+ halo) is held in float at a time, so peak RAM is the working budget plus
+        # the uint8 in/out grids — NOT ~5x the full float volume.  Budget the float
+        # working set to a fraction of free RAM (bounded), and only fail if even a
+        # single minimal slab + the two uint8 grids can't fit.
+        slice_bytes = nX * nY * 4
+        H = vamtoolbox.response._deconv_halo(19, cfg.diffusion_iters)   # blur_ker PSF is 19^3
+        min_slab_gb = (2 * H + 1) * slice_bytes * 6 / 1e9
+        grids_gb = 2 * nvox / 1e9                        # uint8 binary-in + uint8 corrected-out
+        if grids_gb + min_slab_gb > 0.8 * avail:
+            raise ValueError(
+                f"Diffusion correction can't fit a {nvox/1e9:.2f}-billion-voxel target "
+                f"in {avail:.0f} GB free (needs ~{grids_gb + min_slab_gb:.0f} GB even "
+                f"z-streamed). Lower the optimize resolution, or disable diffusion.")
+        working_bytes = int(max(min_slab_gb * 1e9, min(8e9, avail * 0.35 * 1e9)))
+
+        pitch_mm = cfg.part_height_mm / cfg.res_opt
+        _R = vamtoolbox.response
+        backend = "GPU (separable)" if _R._gpu_ok() else ("CPU torch-FFT" if _R._HAVE_TORCH else "CPU scipy-FFT")
+        print(f"[VAM] diffusion deconvolution: {cfg.diffusion_iters} RL iters, "
+              f"optical={cfg.diffusion_optical}, backend = {backend}")
+        self._emit("optimize", 0.0, "diffusion: building PSF kernel")
+        dker = _R.blur_ker(
+            pitch_mm, cfg.diffusion_coeff, cfg.print_time_s, cfg.rotation_deg_s,
+            optical=cfg.diffusion_optical)
+
+        def _cb(i, n):
+            # deconvolution fills the leading band of the optimize bar; BCLP fills the rest
+            self._emit("optimize", _DECONV_BAR * (i / max(n, 1)),
+                       f"diffusion: deconvolving target ({i}/{n}) · {backend}")
+
+        # z-streamed two-pass deconvolution -> uint8 [0,255] directly (recover dose in
+        # [0,1] as uint8/255).  Projector is 8-bit so 256 levels is lossless, and the
+        # resident grid stays the size of the binary grid (4x smaller than float32).
+        corrected_u8 = vamtoolbox.response.correct_blurring_streamed(
+            dker, self.target.array, n_iter=cfg.diffusion_iters,
+            working_bytes=working_bytes, progress_cb=_cb)
+        # release the GPU memory pool so the BCLP projector (astra, same GPU) gets it all
+        if _R._gpu_ok() and _R._cp is not None:
+            try:
+                _R._cp.get_default_memory_pool().free_all_blocks()
+                _R._cp.get_default_pinned_memory_pool().free_all_blocks()
+            except Exception:
+                pass
+        tg = _copy.copy(self.target)          # keep caller's binary grid + masks intact
+        tg.array = corrected_u8
+        tg.dose_scale = 255.0                 # fixed global scale -> no per-slab seam
+        self.target = tg
+
     # -- stage 2: optimize --
     def optimize(self):
         cfg = self.config
@@ -316,6 +429,8 @@ class VAMPipeline:
         self.loss_history = []                    # (iter, loss) for the convergence graph
         if self.target is None:
             self.voxelize()
+        if cfg.diffusion and str(cfg.diffusion_mode).lower() != "inloop":
+            self._apply_diffusion_correction()
         vamtoolbox.geometry.REBIN_N_JOBS = cfg.rebin_jobs
         proj_geo = self._build_proj_geo()
         options = self._build_options()
@@ -326,11 +441,22 @@ class VAMPipeline:
         t = time.perf_counter()
         try:
             if slab_z and slab_z < self.target.array.shape[2]:
+                # slabbed path: optimizeSlabbed normalizes each slab by dose_scale,
+                # so the resident grid stays uint8 (one small float slab at a time).
                 sino, recon, _ = vamtoolbox.optimize.optimizeSlabbed(
                     self.target, proj_geo, options, z_slab=slab_z)
             else:
+                # whole-volume path: BCLP needs the target in [0,1] float, so for a
+                # grey-scale (uint8 [0,255]) diffusion target, hand it a normalized
+                # float copy.  Only happens when the volume already fits unslabbed.
+                tgt = self.target
+                _scale = getattr(tgt, "dose_scale", 1.0)
+                if _scale != 1.0:
+                    import copy as _copy
+                    tgt = _copy.copy(tgt)
+                    tgt.array = self.target.array.astype(np.float32) / np.float32(_scale)
                 sino, recon, _ = vamtoolbox.optimize.optimize(
-                    target_geo=self.target, proj_geo=proj_geo, options=options)
+                    target_geo=tgt, proj_geo=proj_geo, options=options)
         except Exception as exc:                          # GUI-friendly re-raise
             msg = str(exc)
             if "container" in msg.lower() or "radius" in msg.lower():

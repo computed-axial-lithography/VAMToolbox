@@ -54,7 +54,13 @@ def minimizeOSMO(target_geo, proj_geo, options):
 
         void_diff = x[target_geo.void_inds] - options.d_l
         void_diff[void_diff < 0] = 0
-        xm[target_geo.void_inds] = xm[target_geo.void_inds] - void_diff
+        if k_i > 0.0:
+            # PIHE: integral term removes the steady-state residual that plain
+            # proportional OSMO leaves (some voxels plateau short of d_l / d_h).
+            np.add(int_void, void_diff, out=int_void)   # in-place: no rebinding of the closure variable
+            xm[target_geo.void_inds] = xm[target_geo.void_inds] - (k_p * void_diff + k_i * int_void)
+        else:
+            xm[target_geo.void_inds] = xm[target_geo.void_inds] - k_p * void_diff
 
         b = A.forward(xm)
         b = b / np.amax(b)
@@ -92,7 +98,11 @@ def minimizeOSMO(target_geo, proj_geo, options):
 
         gel_diff = options.d_h - x[target_geo.gel_inds]
         gel_diff[gel_diff < 0] = 0
-        xm[target_geo.gel_inds] = xm[target_geo.gel_inds] + gel_diff
+        if k_i > 0.0:
+            np.add(int_gel, gel_diff, out=int_gel)
+            xm[target_geo.gel_inds] = xm[target_geo.gel_inds] + (k_p * gel_diff + k_i * int_gel)
+        else:
+            xm[target_geo.gel_inds] = xm[target_geo.gel_inds] + k_p * gel_diff
 
         b = A.forward(xm)
         b = b / np.amax(b)
@@ -114,6 +124,10 @@ def minimizeOSMO(target_geo, proj_geo, options):
     iter_times = np.zeros(options.n_iter)
 
     min_proj_val = options.inhibition
+    # PIHE gains (Webber et al. 2024: k_p = 1, k_i = 0.5).  k_i = 0 -> classic OSMO.
+    k_p = float(getattr(options, "k_p", 1.0))
+    k_i = float(getattr(options, "k_i", 0.0))
+    hist_eq = bool(getattr(options, "hist_eq", False))
 
     dp = None
     if options.verbose == "plot":
@@ -138,6 +152,9 @@ def minimizeOSMO(target_geo, proj_geo, options):
     b = np.clip(b, 0, None)
     x = A.backward(b)
     x = x / np.amax(x)
+    # PIHE integral accumulators (one entry per void / gel voxel); unused when k_i = 0
+    int_void = np.zeros_like(x[target_geo.void_inds]) if k_i > 0.0 else None
+    int_gel = np.zeros_like(x[target_geo.gel_inds]) if k_i > 0.0 else None
 
     _error[0] = vamtoolbox.metrics.calcVER(target_geo, x)
     iter_times[0] = time.perf_counter() - t0
@@ -169,6 +186,19 @@ def minimizeOSMO(target_geo, proj_geo, options):
                 b_opt = b
                 break
 
+    if hist_eq:
+        # PIHE histogram equalization (Webber 2024 Eqs. 5-6): drop the dim tail
+        # below T-3s, rescale so T+3s maps to full scale, clip.  Uses the projector's
+        # 8-bit range far better than max-normalization (a few hot pixels otherwise
+        # compress everything else), so the print runs at higher mean intensity.
+        vals = b[b > 0]
+        if vals.size:
+            T, s = float(vals.mean()), float(vals.std())
+            b = np.where(b < T - 3.0 * s, 0.0, b)
+            b = np.clip(b / max(T + 3.0 * s, 1e-12), 0.0, 1.0)
+            x = A.backward(b)                       # recon consistent with the clipped sinogram
+            x = x / np.amax(x)
+            x[x < 0] = 0
     if options.bit_depth is not None:
         b_opt = vamtoolbox.util.data.discretize(b, options.bit_depth, [0.0, np.max(b)])
     else:
