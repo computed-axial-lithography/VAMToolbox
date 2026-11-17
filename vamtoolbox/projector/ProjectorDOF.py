@@ -336,11 +336,11 @@ DEFAULT_PSF_TABLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath
 
 
 # ----------------------------------------------------------------------------------
-# Measured HeliCAL optics (Nov 2026 caustic + Aug 2026 projector-scale series)
+# Measured HeliCAL optics (Nov 2026 caustic + TwoWave projector geometry)
 # ----------------------------------------------------------------------------------
 MEASURED = dict(
-    pixel_um_at_focus=48.2,          # Aug 2026 32x32-square edge fit (HeliCAL60 bench), x/y mean
-    virtual_source_air_mm=145.0,     # from pixel-size growth 0.33 um/mm (x 149, y 141 mm)
+    pixel_um_at_focus=50.0,          # TwoWave: 128 x 80 mm picture on its 2560 x 1600 DMD (HeliCAL project report, 2025)
+    virtual_source_air_mm=345.0,     # projector lens to focal plane, measured on the PSF setup (throw ratio 2.70; report 2.63)
     waist_d4s_um=72.9,               # Nov 2026 caustic, ISO 11146 hyperbola fit
     M2=7.8,
     NA=0.0275,                       # second-moment (1/e^2) half-angle; 90%-energy cone gives 0.024-0.026
